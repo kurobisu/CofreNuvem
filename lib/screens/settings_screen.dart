@@ -71,8 +71,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await file.writeAsString(csvData);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exportado para: \$path')),
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exportação Concluída'),
+            content: Text('Seu arquivo foi salvo com sucesso em:\n\n\$path'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fechar'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  // Abre a pasta no Windows Explorer
+                  Process.run('explorer.exe', ['/select,', path]);
+                  Navigator.pop(context);
+                },
+                child: const Text('Abrir Pasta'),
+              )
+            ],
+          )
         );
       }
     } catch (e) {
