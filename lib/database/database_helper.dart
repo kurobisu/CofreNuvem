@@ -48,27 +48,8 @@ class DatabaseHelper {
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 4) {
-      await db.execute('DROP TABLE IF EXISTS Transacoes');
-      await db.execute('DROP TABLE IF EXISTS Contas_Compartilhadas');
-      await db.execute('DROP TABLE IF EXISTS Contas_Bancarias');
-      await db.execute('DROP TABLE IF EXISTS Metodos_Pagamento');
-      await db.execute('DROP TABLE IF EXISTS Contas_Metodos');
-      await db.execute('DROP TABLE IF EXISTS Categorias');
-      await db.execute('DROP TABLE IF EXISTS Investimentos');
-      await db.execute('DROP TABLE IF EXISTS Usuarios');
-      
-      // Cleanup das antigas bugadas caso ainda existam
-      await db.execute('DROP TABLE IF EXISTS "\$tableUsuarios"');
-      await db.execute('DROP TABLE IF EXISTS "\$tableContasBancarias"');
-      await db.execute('DROP TABLE IF EXISTS "\$tableMetodosPagamento"');
-      await db.execute('DROP TABLE IF EXISTS "\$tableCategorias"');
-      await db.execute('DROP TABLE IF EXISTS "\$tableTransacoes"');
-      await db.execute('DROP TABLE IF EXISTS "\$tableInvestimentos"');
-      
-      await _onCreate(db, newVersion);
-    }
-    
+    // A partir da versão 4, as migrações serão feitas de forma segura (Safe Migrations)
+    // Usando ALTER TABLE para garantir que os dados não sejam perdidos.
     if (oldVersion < 5) {
       await db.execute('ALTER TABLE $tableUsuarios ADD COLUMN Ordem INTEGER DEFAULT 0');
       await db.execute('ALTER TABLE $tableContasBancarias ADD COLUMN Ordem INTEGER DEFAULT 0');
