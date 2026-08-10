@@ -40,17 +40,59 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     _loadCategorias();
   }
 
+  Future<void> _updateCategory(int id, String nome, String hexColor, String tipo, int? parentId) async {
+    final db = await DatabaseHelper.instance.database;
+    await db.update(DatabaseHelper.tableCategorias, {
+      'Nome': nome,
+      'Cor_Hexadecimal': hexColor,
+      'Tipo': tipo,
+      'Parent_ID': parentId,
+    }, where: 'ID = ?', whereArgs: [id]);
+    _loadCategorias();
+  }
+
+  Future<void> _deleteCategory(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir Categoria'),
+        content: const Text('As subcategorias ficarão sem categoria pai, e as despesas/produtos vinculados ficarão sem categoria. Confirma exclusão?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true), 
+            child: const Text('Excluir')
+          ),
+        ],
+      )
+    );
+
+    if (confirm == true) {
+      final db = await DatabaseHelper.instance.database;
+      // 1. Unlink children
+      await db.update(DatabaseHelper.tableCategorias, {'Parent_ID': null}, where: 'Parent_ID = ?', whereArgs: [id]);
+      // 2. Unlink products
+      await db.update(DatabaseHelper.tableProdutos, {'Categoria_ID': null}, where: 'Categoria_ID = ?', whereArgs: [id]);
+      // 3. Unlink transactions
+      await db.update(DatabaseHelper.tableTransacoes, {'Categoria_ID': null}, where: 'Categoria_ID = ?', whereArgs: [id]);
+      
+      await db.delete(DatabaseHelper.tableCategorias, where: 'ID = ?', whereArgs: [id]);
+      _loadCategorias();
+    }
+  }
+
   Future<void> _toggleOculta(int id, int atual) async {
     final db = await DatabaseHelper.instance.database;
     await db.update(DatabaseHelper.tableCategorias, {'Oculta': atual == 0 ? 1 : 0}, where: 'ID = ?', whereArgs: [id]);
     _loadCategorias();
   }
 
-  void _showAddDialog() {
-    final nomeController = TextEditingController();
-    String selectedColor = '#2196F3';
-    String selectedTipo = 'Despesa';
-    int? selectedParentId;
+  void _showCategoryDialog([Map<String, dynamic>? category, int? preselectedParent]) {
+    final nomeController = TextEditingController(text: category?['Nome'] ?? '');
+    String selectedColor = category?['Cor_Hexadecimal'] ?? '#2196F3';
+    String selectedTipo = category?['Tipo'] ?? 'Despesa';
+    int? selectedParentId = category != null ? category['Parent_ID'] : preselectedParent;
 
     final colors = [
       '#F44336', '#E91E63', '#9C27B0', '#673AB7',
@@ -62,7 +104,8 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     final tipos = ['Ambas', 'Despesa', 'Receita'];
 
     // Only parents (Parent_ID is null) can be selected as parent
-    final parentOptions = _categorias.where((c) => c['Parent_ID'] == null).toList();
+    // Also prevent a category from being its own parent
+    final parentOptions = _categorias.where((c) => c['Parent_ID'] == null && (category == null || c['ID'] != category['ID'])).toList();
 
     showDialog(
       context: context,
@@ -70,7 +113,21 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              title: const Text('Nova Categoria'),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(category == null ? 'Nova Categoria' : 'Editar Categoria'),
+                  if (category != null)
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      tooltip: 'Excluir',
+                      onPressed: () {
+                        Navigator.pop(context); // Close dialog
+                        _deleteCategory(category['ID']); // Trigger delete
+                      },
+                    )
+                ],
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -136,7 +193,11 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                 ElevatedButton(
                   onPressed: () {
                     if (nomeController.text.trim().isNotEmpty) {
-                      _addCategory(nomeController.text.trim(), selectedColor, selectedTipo, selectedParentId);
+                      if (category == null) {
+                        _addCategory(nomeController.text.trim(), selectedColor, selectedTipo, selectedParentId);
+                      } else {
+                        _updateCategory(category['ID'], nomeController.text.trim(), selectedColor, selectedTipo, selectedParentId);
+                      }
                       Navigator.pop(context);
                     }
                   },
@@ -175,9 +236,23 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                       leading: CircleAvatar(backgroundColor: parentColor),
                       title: Text(parent['Nome'], style: TextStyle(fontWeight: FontWeight.bold, decoration: isHidden ? TextDecoration.lineThrough : null)),
                       subtitle: Text(parent['Tipo']),
-                      trailing: IconButton(
-                        icon: Icon(isHidden ? Icons.visibility_off : Icons.visibility, color: isHidden ? Colors.grey : Colors.blue),
-                        onPressed: () => _toggleOculta(parent['ID'], parent['Oculta']),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.add, color: Colors.green),
+                            tooltip: 'Nova Sub-categoria',
+                            onPressed: () => _showCategoryDialog(null, parent['ID']),
+                          ),
+                          IconButton(
+                            icon: Icon(isHidden ? Icons.visibility_off : Icons.visibility, color: isHidden ? Colors.grey : Colors.blue),
+                            onPressed: () => _toggleOculta(parent['ID'], parent['Oculta']),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.grey),
+                            onPressed: () => _showCategoryDialog(parent),
+                          ),
+                        ],
                       ),
                     ),
                     if (children.isNotEmpty)
@@ -189,9 +264,18 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                             return ListTile(
                               leading: const Icon(Icons.subdirectory_arrow_right, color: Colors.grey),
                               title: Text(child['Nome'], style: TextStyle(decoration: childHidden ? TextDecoration.lineThrough : null)),
-                              trailing: IconButton(
-                                icon: Icon(childHidden ? Icons.visibility_off : Icons.visibility, color: childHidden ? Colors.grey : Colors.blue, size: 20),
-                                onPressed: () => _toggleOculta(child['ID'], child['Oculta']),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(childHidden ? Icons.visibility_off : Icons.visibility, color: childHidden ? Colors.grey : Colors.blue, size: 20),
+                                    onPressed: () => _toggleOculta(child['ID'], child['Oculta']),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                    onPressed: () => _showCategoryDialog(child),
+                                  ),
+                                ],
                               ),
                             );
                           }).toList(),
@@ -203,7 +287,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddDialog,
+        onPressed: () => _showCategoryDialog(),
         child: const Icon(Icons.add),
       ),
     );

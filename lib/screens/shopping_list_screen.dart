@@ -165,7 +165,21 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(itemToEdit == null ? 'Novo Item' : 'Editar Item', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(itemToEdit == null ? 'Novo Item' : 'Editar Item', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      if (itemToEdit != null)
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          tooltip: 'Excluir Item',
+                          onPressed: () {
+                            _deleteItem(itemToEdit['ID']);
+                            Navigator.pop(ctx);
+                          },
+                        )
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   Autocomplete<String>(
                     initialValue: TextEditingValue(text: nomeController.text),
