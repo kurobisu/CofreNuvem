@@ -189,7 +189,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                           return ListTile(
                             leading: Icon(paga ? Icons.check_circle : Icons.pending, color: paga ? Colors.green : Colors.orange),
                             title: Text(t['Descricao']),
-                            subtitle: Text(DateFormat('dd/MM/yyyy').format(DateTime.parse(t['Data'] as String))),
+                            subtitle: Text(DateFormat('dd/MM/yyyy').format(DateTime.parse(t['Data'].toString()))),
                             trailing: Text(CurrencyFormatter.format((t['Valor'] as num).toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
                             onTap: () => _verCupomFiscal(t['ID'] as int),
                           );

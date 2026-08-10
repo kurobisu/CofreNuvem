@@ -276,7 +276,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                         backDrawRodData: BackgroundBarChartRodData(
                           show: true,
                           toY: maxVal + 1,
-                          color: AppTheme.isDark(context) ? Colors.white10 : Colors.black12,
+                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12,
                         ),
                       )
                     ],
