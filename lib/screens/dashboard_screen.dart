@@ -242,7 +242,7 @@ class DashboardScreen extends ConsumerWidget {
                     child: Icon(banco.iconData ?? Icons.account_balance, color: Colors.white, size: 24),
                   ),
                   title: Text(t['Descricao'], style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(t['CategoriaNome'].toString() + ' • ' + banco.nome),
+                  subtitle: Text(t['CategoriaNome'].toString() + ' • ' + banco.nome + ' (' + (t['MetodoNome'] ?? '') + ')'),
                   trailing: Text(
                     (isReceita ? '+ ' : '- ') + CurrencyFormatter.format(t['Valor']),
                     style: TextStyle(

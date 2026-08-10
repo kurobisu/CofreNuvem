@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dashboard_screen.dart';
 import 'transaction_form_screen.dart';
+import 'shopping_list_screen.dart';
 import 'investments_screen.dart';
 import 'settings_screen.dart';
 
@@ -16,6 +17,7 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _pages = [
     const DashboardScreen(),
+    const ShoppingListScreen(),
     const InvestmentsScreen(),
     const SettingsScreen(),
   ];
@@ -45,6 +47,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.shopping_cart_outlined),
+            selectedIcon: Icon(Icons.shopping_cart),
+            label: 'Compras',
           ),
           NavigationDestination(
             icon: Icon(Icons.trending_up_outlined),

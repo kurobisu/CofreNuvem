@@ -9,7 +9,15 @@ import '../utils/currency_formatter.dart';
 
 class TransactionFormScreen extends ConsumerStatefulWidget {
   final int? transactionId;
-  const TransactionFormScreen({super.key, this.transactionId});
+  final String? initialDescricao;
+  final double? initialValor;
+
+  const TransactionFormScreen({
+    super.key, 
+    this.transactionId,
+    this.initialDescricao,
+    this.initialValor,
+  });
 
   @override
   ConsumerState<TransactionFormScreen> createState() => _TransactionFormScreenState();
@@ -83,6 +91,13 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
       } else {
         if (_usuarios.isNotEmpty) _selectedUsuario = _usuarios.first['ID'];
         if (_contas.isNotEmpty) _selectedConta = _contas.first['ID'];
+        
+        if (widget.initialDescricao != null) {
+          _descricaoController.text = widget.initialDescricao!;
+        }
+        if (widget.initialValor != null) {
+          _valorController.text = CurrencyFormatter.format(widget.initialValor!);
+        }
       }
 
       _updateCategoriasAtivas();
@@ -178,6 +193,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
             'Metodo_ID': _selectedMetodo,
             'Parcela_Atual': i,
             'Parcela_Total': _parcelas,
+            'Paga': i == 1 ? 1 : 0, // A primeira é marcada como paga, as futuras ficam pendentes
           });
         }
       } else {
@@ -355,6 +371,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
               const SizedBox(height: 16),
               
               DropdownButtonFormField<int>(
+                key: ValueKey(_selectedConta),
                 value: _selectedMetodo,
                 decoration: InputDecoration(
                   labelText: 'Método de Pagamento vinculado',

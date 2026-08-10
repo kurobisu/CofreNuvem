@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 class DatabaseHelper {
   static const _databaseName = "cofrenuvem.db";
-  static const _databaseVersion = 5; // Bump para versão 5 (Ordenação)
+  static const _databaseVersion = 6; // Bump para versão 6 (Compras e Filtros)
 
   // Tables
   static const tableUsuarios = 'Usuarios';
@@ -16,6 +16,7 @@ class DatabaseHelper {
   static const tableCategorias = 'Categorias';
   static const tableTransacoes = 'Transacoes';
   static const tableInvestimentos = 'Investimentos';
+  static const tableListaCompras = 'Lista_Compras';
 
   // Singleton instance
   DatabaseHelper._privateConstructor();
@@ -55,6 +56,19 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE $tableContasBancarias ADD COLUMN Ordem INTEGER DEFAULT 0');
       await db.execute('ALTER TABLE $tableMetodosPagamento ADD COLUMN Ordem INTEGER DEFAULT 0');
       await db.execute('ALTER TABLE $tableCategorias ADD COLUMN Ordem INTEGER DEFAULT 0');
+    }
+    
+    if (oldVersion < 6) {
+      await db.execute('ALTER TABLE $tableTransacoes ADD COLUMN Paga INTEGER DEFAULT 1');
+      await db.execute('''
+        CREATE TABLE $tableListaCompras (
+          ID INTEGER PRIMARY KEY AUTOINCREMENT,
+          Nome TEXT NOT NULL,
+          Preco REAL,
+          Quantidade REAL,
+          Comprado INTEGER DEFAULT 0
+        )
+      ''');
     }
   }
 
@@ -128,6 +142,7 @@ class DatabaseHelper {
         Metodo_ID INTEGER NOT NULL,
         Parcela_Atual INTEGER,
         Parcela_Total INTEGER,
+        Paga INTEGER DEFAULT 1,
         FOREIGN KEY (Usuario_ID) REFERENCES $tableUsuarios (ID) ON DELETE CASCADE,
         FOREIGN KEY (Categoria_ID) REFERENCES $tableCategorias (ID) ON DELETE CASCADE,
         FOREIGN KEY (Conta_ID) REFERENCES $tableContasBancarias (ID) ON DELETE CASCADE,
@@ -146,6 +161,17 @@ class DatabaseHelper {
         Liquidez TEXT NOT NULL,
         Usuario_ID INTEGER NOT NULL,
         FOREIGN KEY (Usuario_ID) REFERENCES $tableUsuarios (ID) ON DELETE CASCADE
+      )
+    ''');
+
+    // 6. Lista de Compras
+    await db.execute('''
+      CREATE TABLE $tableListaCompras (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        Nome TEXT NOT NULL,
+        Preco REAL,
+        Quantidade REAL,
+        Comprado INTEGER DEFAULT 0
       )
     ''');
 
