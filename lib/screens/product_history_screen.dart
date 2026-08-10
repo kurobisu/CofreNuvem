@@ -27,7 +27,12 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
   Future<void> _loadHistory() async {
     final db = await DatabaseHelper.instance.database;
     
-    _categorias = await db.query(DatabaseHelper.tableCategorias);
+    _categorias = await db.query(
+      DatabaseHelper.tableCategorias,
+      where: 'Tipo != ? AND Oculta = 0',
+      whereArgs: ['Receita'],
+      orderBy: 'Nome ASC'
+    );
 
     // Get all products and their history
     final result = await db.rawQuery('''

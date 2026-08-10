@@ -6,6 +6,8 @@ import '../utils/currency_formatter.dart';
 import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
 import 'invoices_screen.dart';
+import 'reports_screen.dart';
+import 'settings_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -19,8 +21,13 @@ class DashboardScreen extends ConsumerWidget {
         title: const Text('Visão Geral'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
+            icon: const Icon(Icons.analytics),
+            tooltip: 'Relatórios Avançados',
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsScreen())),
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
           const SizedBox(width: 8),
         ],
@@ -155,7 +162,7 @@ class DashboardScreen extends ConsumerWidget {
         const Text('Cartões & Faturas', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         SizedBox(
-          height: 80,
+          height: 100, // Increased height to prevent overflow and fit new info
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: creditCards.length,
@@ -177,10 +184,16 @@ class DashboardScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.credit_card, color: AppTheme.accent, size: 24),
+                        Row(
+                          children: [
+                            const Icon(Icons.credit_card, color: AppTheme.accent, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(card['BancoNome'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                          ],
+                        ),
                         const Spacer(),
                         Text(card['Nome'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text('Fecha dia ${card['Dia_Fechamento']}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        Text('${card['UsuarioNome']} • Fecha dia ${card['Dia_Fechamento']}', style: const TextStyle(fontSize: 10, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),

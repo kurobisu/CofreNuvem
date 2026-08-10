@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 class DatabaseHelper {
   static const _databaseName = "cofrenuvem.db";
-  static const _databaseVersion = 9; // Bump para versão 9 (Biblioteca de Produtos)
+  static const _databaseVersion = 10; // Bump para versão 10 (Sub-categorias e Ocultação)
 
   // Tables
   static const tableUsuarios = 'Usuarios';
@@ -102,6 +102,64 @@ class DatabaseHelper {
         SELECT DISTINCT Nome FROM $tableListaCompras WHERE Transacao_ID IS NOT NULL
       ''');
     }
+
+    if (oldVersion < 10) {
+      // Add columns for sub-categories
+      await db.execute('ALTER TABLE $tableCategorias ADD COLUMN Parent_ID INTEGER');
+      await db.execute('ALTER TABLE $tableCategorias ADD COLUMN Oculta INTEGER DEFAULT 0');
+
+      // V10 Seed Standard Categories
+      final categoriasPai = [
+        {'Nome': 'Moradia', 'Cor_Hexadecimal': '#795548', 'Tipo': 'Despesa'},
+        {'Nome': 'Saúde', 'Cor_Hexadecimal': '#E91E63', 'Tipo': 'Despesa'},
+        {'Nome': 'Transporte', 'Cor_Hexadecimal': '#3F51B5', 'Tipo': 'Despesa'},
+        {'Nome': 'Outros', 'Cor_Hexadecimal': '#9E9E9E', 'Tipo': 'Ambas'},
+      ];
+
+      for (var cat in categoriasPai) {
+        final res = await db.query(tableCategorias, where: 'Nome = ?', whereArgs: [cat['Nome']]);
+        int parentId;
+        if (res.isEmpty) {
+          parentId = await db.insert(tableCategorias, {'Nome': cat['Nome'], 'Cor_Hexadecimal': cat['Cor_Hexadecimal'], 'Tipo': cat['Tipo']});
+        } else {
+          parentId = res.first['ID'] as int;
+        }
+
+        if (cat['Nome'] == 'Moradia') {
+          await _insertSub(db, parentId, 'Aluguel', '#8D6E63');
+          await _insertSub(db, parentId, 'Contas (Água/Luz)', '#A1887F');
+          await _insertSub(db, parentId, 'Internet', '#BCAAA4');
+        } else if (cat['Nome'] == 'Saúde') {
+          await _insertSub(db, parentId, 'Farmácia', '#F06292');
+          await _insertSub(db, parentId, 'Médicos', '#F48FB1');
+          await _insertSub(db, parentId, 'Higiene Pessoal', '#F8BBD0');
+        } else if (cat['Nome'] == 'Transporte') {
+          await _insertSub(db, parentId, 'Combustível', '#5C6BC0');
+          await _insertSub(db, parentId, 'Aplicativos', '#7986CB');
+        }
+      }
+
+      // Convert existing 'Alimentação' to parent and add subs
+      final alimRes = await db.query(tableCategorias, where: 'Nome = ?', whereArgs: ['Alimentação']);
+      if (alimRes.isNotEmpty) {
+        int alimId = alimRes.first['ID'] as int;
+        await _insertSub(db, alimId, 'Mercado', '#FF7043');
+        await _insertSub(db, alimId, 'Restaurante', '#FF8A65');
+        await _insertSub(db, alimId, 'Lanches', '#FFAB91');
+      }
+    }
+  }
+
+  Future<void> _insertSub(Database db, int parentId, String nome, String cor) async {
+    final res = await db.query(tableCategorias, where: 'Nome = ? AND Parent_ID = ?', whereArgs: [nome, parentId]);
+    if (res.isEmpty) {
+      await db.insert(tableCategorias, {
+        'Nome': nome,
+        'Cor_Hexadecimal': cor,
+        'Tipo': 'Despesa',
+        'Parent_ID': parentId
+      });
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -159,6 +217,8 @@ class DatabaseHelper {
         Nome TEXT NOT NULL,
         Cor_Hexadecimal TEXT NOT NULL,
         Tipo TEXT NOT NULL DEFAULT 'Ambas',
+        Parent_ID INTEGER,
+        Oculta INTEGER DEFAULT 0,
         Ordem INTEGER DEFAULT 0
       )
     ''');
@@ -235,18 +295,37 @@ class DatabaseHelper {
     // Seed Métodos de Pagamento
     await db.insert(tableMetodosPagamento, {'ID': 1, 'Nome': 'À Vista', 'Conta_ID': 1});
 
-    // Seed Categorias
-    final categorias = [
+    // Seed Categorias Pai
+    final categoriasPai = [
       {'Nome': 'Alimentação', 'Cor_Hexadecimal': '#FF5722', 'Tipo': 'Despesa'},
-      {'Nome': 'Salário', 'Cor_Hexadecimal': '#4CAF50', 'Tipo': 'Receita'},
+      {'Nome': 'Moradia', 'Cor_Hexadecimal': '#795548', 'Tipo': 'Despesa'},
+      {'Nome': 'Saúde', 'Cor_Hexadecimal': '#E91E63', 'Tipo': 'Despesa'},
+      {'Nome': 'Transporte', 'Cor_Hexadecimal': '#3F51B5', 'Tipo': 'Despesa'},
       {'Nome': 'Lazer', 'Cor_Hexadecimal': '#00BCD4', 'Tipo': 'Despesa'},
+      {'Nome': 'Salário', 'Cor_Hexadecimal': '#4CAF50', 'Tipo': 'Receita'},
       {'Nome': 'Transferência', 'Cor_Hexadecimal': '#607D8B', 'Tipo': 'Ambas'},
+      {'Nome': 'Outros', 'Cor_Hexadecimal': '#9E9E9E', 'Tipo': 'Ambas'},
     ];
 
-    int catId = 1;
-    for (var cat in categorias) {
-      await db.insert(tableCategorias, {'ID': catId, 'Nome': cat['Nome'], 'Cor_Hexadecimal': cat['Cor_Hexadecimal'], 'Tipo': cat['Tipo']});
-      catId++;
+    for (var cat in categoriasPai) {
+      int parentId = await db.insert(tableCategorias, {'Nome': cat['Nome'], 'Cor_Hexadecimal': cat['Cor_Hexadecimal'], 'Tipo': cat['Tipo']});
+      
+      if (cat['Nome'] == 'Alimentação') {
+        await _insertSub(db, parentId, 'Mercado', '#FF7043');
+        await _insertSub(db, parentId, 'Restaurante', '#FF8A65');
+        await _insertSub(db, parentId, 'Lanches', '#FFAB91');
+      } else if (cat['Nome'] == 'Moradia') {
+        await _insertSub(db, parentId, 'Aluguel', '#8D6E63');
+        await _insertSub(db, parentId, 'Contas (Água/Luz)', '#A1887F');
+        await _insertSub(db, parentId, 'Internet', '#BCAAA4');
+      } else if (cat['Nome'] == 'Saúde') {
+        await _insertSub(db, parentId, 'Farmácia', '#F06292');
+        await _insertSub(db, parentId, 'Médicos', '#F48FB1');
+        await _insertSub(db, parentId, 'Higiene Pessoal', '#F8BBD0');
+      } else if (cat['Nome'] == 'Transporte') {
+        await _insertSub(db, parentId, 'Combustível', '#5C6BC0');
+        await _insertSub(db, parentId, 'Aplicativos', '#7986CB');
+      }
     }
   }
 
