@@ -19,9 +19,12 @@ class TransactionFormScreen extends ConsumerStatefulWidget {
     this.transactionId,
     this.initialDescricao,
     this.initialValor,
+    this.initialCategoria,
     this.shoppingListItemIds,
     this.forceDespesa = false,
   });
+
+  final int? initialCategoria;
 
   @override
   ConsumerState<TransactionFormScreen> createState() => _TransactionFormScreenState();
@@ -55,6 +58,9 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialCategoria != null) {
+      _selectedCategoria = widget.initialCategoria;
+    }
     _loadFormData();
   }
 
@@ -173,6 +179,11 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
 
     int? insertedId;
 
+    final selectedMetodoData = _metodosAll.firstWhere((m) => m['ID'] == _selectedMetodo, orElse: () => {});
+    final isCredit = selectedMetodoData['Tipo'] == 'Crédito';
+    final int finalPaga = isCredit ? 0 : (_isPaga ? 1 : 0);
+    final String groupId = DateTime.now().millisecondsSinceEpoch.toString();
+
     if (widget.transactionId != null) {
       // EDIT MODE (Parcelamento não permitido em edição por simplificação)
       await db.update(DatabaseHelper.tableTransacoes, {
@@ -184,7 +195,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
         'Categoria_ID': _selectedCategoria,
         'Conta_ID': _selectedConta,
         'Metodo_ID': _selectedMetodo,
-        'Paga': _isPaga ? 1 : 0,
+        'Paga': finalPaga,
       }, where: 'ID = ?', whereArgs: [widget.transactionId]);
       insertedId = widget.transactionId;
     } else {
@@ -204,7 +215,8 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
             'Metodo_ID': _selectedMetodo,
             'Parcela_Atual': i,
             'Parcela_Total': _parcelas,
-            'Paga': i == 1 ? (_isPaga ? 1 : 0) : 0,
+            'Paga': finalPaga,
+            'Grupo_Parcela_ID': groupId,
           });
           if (i == 1) insertedId = id; // Vincula os itens do carrinho à primeira parcela
         }
@@ -218,7 +230,8 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
           'Categoria_ID': _selectedCategoria,
           'Conta_ID': _selectedConta,
           'Metodo_ID': _selectedMetodo,
-          'Paga': _isPaga ? 1 : 0,
+          'Paga': finalPaga,
+          'Grupo_Parcela_ID': groupId,
         });
       }
     }

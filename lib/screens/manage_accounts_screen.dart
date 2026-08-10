@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
+import 'invoices_screen.dart';
 
 class ManageAccountsScreen extends StatefulWidget {
   const ManageAccountsScreen({super.key});
@@ -66,11 +67,14 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     _loadData();
   }
 
-  Future<void> _addMetodo(String nome, int contaId) async {
+  Future<void> _addMetodo(String nome, int contaId, String tipo, int? fechamento, int? vencimento) async {
     final db = await DatabaseHelper.instance.database;
     await db.insert(DatabaseHelper.tableMetodosPagamento, {
       'Nome': nome,
       'Conta_ID': contaId,
+      'Tipo': tipo,
+      'Dia_Fechamento': fechamento,
+      'Dia_Vencimento': vencimento,
     });
     _loadData();
   }
@@ -241,28 +245,77 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
 
   void _showAddMetodoDialog(int contaId, String contaNome) {
     final nomeController = TextEditingController();
+    final fechamentoController = TextEditingController();
+    final vencimentoController = TextEditingController();
+    String tipoSelecionado = 'Outros';
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Novo Método para ' + contaNome),
-        content: TextField(
-          controller: nomeController,
-          decoration: const InputDecoration(labelText: 'Método (Ex: PIX, Crédito)'),
-          textCapitalization: TextCapitalization.words,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () {
-              if (nomeController.text.trim().isNotEmpty) {
-                _addMetodo(nomeController.text.trim(), contaId);
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Salvar'),
-          )
-        ],
-      )
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Text('Novo Método para ' + contaNome),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nomeController,
+                      decoration: const InputDecoration(labelText: 'Nome (Ex: Nubank, Vale Refeição)'),
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: tipoSelecionado,
+                      items: ['Outros', 'Débito', 'Crédito'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                      onChanged: (val) => setStateDialog(() => tipoSelecionado = val!),
+                      decoration: const InputDecoration(labelText: 'Tipo de Método'),
+                    ),
+                    if (tipoSelecionado == 'Crédito') ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: fechamentoController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Dia Fechamento'),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextField(
+                              controller: vencimentoController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Dia Vencimento'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                ElevatedButton(
+                  onPressed: () {
+                    if (nomeController.text.trim().isNotEmpty) {
+                      int? fechamento = tipoSelecionado == 'Crédito' ? int.tryParse(fechamentoController.text) : null;
+                      int? vencimento = tipoSelecionado == 'Crédito' ? int.tryParse(vencimentoController.text) : null;
+                      
+                      _addMetodo(nomeController.text.trim(), contaId, tipoSelecionado, fechamento, vencimento);
+                      Navigator.pop(context);
+                    }
+                  },
+                  child: const Text('Salvar'),
+                )
+              ],
+            );
+          }
+        );
+      }
     );
   }
 
@@ -347,13 +400,30 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                       ),
                       const Divider(height: 1),
                       // Métodos de Pagamento
-                      ...metodosDaConta.map((m) => ListTile(
-                        title: Text(m['Nome']),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-                          onPressed: () => _deleteMetodo(m['ID']),
-                        ),
-                      )).toList(),
+                      ...metodosDaConta.map((m) {
+                        bool isCredito = m['Tipo'] == 'Crédito';
+                        return ListTile(
+                          title: Text(m['Nome']),
+                          subtitle: isCredito 
+                            ? Text('Vencimento dia ${m['Dia_Vencimento']} (Fecha dia ${m['Dia_Fechamento']})', style: const TextStyle(fontSize: 12)) 
+                            : Text(m['Tipo'] ?? 'Outros', style: const TextStyle(fontSize: 12)),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isCredito)
+                                IconButton(
+                                  icon: const Icon(Icons.receipt_long, color: Colors.blue),
+                                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => InvoicesScreen(metodo: m))),
+                                  tooltip: 'Ver Faturas',
+                                ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
+                                onPressed: () => _deleteMetodo(m['ID']),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                       ListTile(
                         leading: const Icon(Icons.add_circle, color: Colors.green),
                         title: const Text('Adicionar Método'),

@@ -4,6 +4,7 @@ import '../database/database_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
 import 'transaction_form_screen.dart';
+import 'product_history_screen.dart';
 
 class ShoppingListScreen extends StatefulWidget {
   const ShoppingListScreen({super.key});
@@ -248,7 +249,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     );
   }
 
-  void _finalizarCompra() {
+  Future<void> _finalizarCompra() async {
     // Sum everything that is checked
     final comprados = _items.where((i) => i['Comprado'] == 1).toList();
     if (comprados.isEmpty) {
@@ -263,12 +264,28 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       ids.add(item['ID'] as int);
     }
 
+    final db = await DatabaseHelper.instance.database;
+    final catList = await db.query(DatabaseHelper.tableCategorias, where: "Nome = 'Mercado'");
+    int categoriaId;
+    if (catList.isEmpty) {
+      categoriaId = await db.insert(DatabaseHelper.tableCategorias, {
+        'Nome': 'Mercado',
+        'Cor_Hexadecimal': '#4CAF50',
+        'Tipo': 'Ambas',
+      });
+    } else {
+      categoriaId = catList.first['ID'] as int;
+    }
+
+    if (!mounted) return;
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => TransactionFormScreen(
           initialDescricao: 'Compras Mercado',
           initialValor: total,
+          initialCategoria: categoriaId,
           shoppingListItemIds: ids,
           forceDespesa: true,
         ),
@@ -293,6 +310,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       appBar: AppBar(
         title: const Text('Lista de Compras'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Biblioteca de Produtos',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductHistoryScreen()));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.shopping_cart_checkout),
             tooltip: 'Finalizar Compra',
@@ -354,8 +378,22 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                                 ),
                                 title: Text(item['Nome'], style: TextStyle(decoration: isComprado ? TextDecoration.lineThrough : null)),
                                 subtitle: Text('${item['Quantidade']}x ${CurrencyFormatter.format((item['Preco'] as num).toDouble())}'),
-                                trailing: Text(CurrencyFormatter.format(totalItem.toDouble()), style: const TextStyle(fontWeight: FontWeight.w600)),
-                                onTap: () => _showItemModal(itemToEdit: item),
+                                trailing: InkWell(
+                                  onTap: () => _showItemModal(itemToEdit: item),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(CurrencyFormatter.format(totalItem.toDouble()), style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.edit, size: 16, color: Colors.grey),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                onTap: () => _toggleItem(item['ID'], item['Comprado']),
                               ),
                             );
                           },

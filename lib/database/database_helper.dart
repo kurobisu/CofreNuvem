@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 class DatabaseHelper {
   static const _databaseName = "cofrenuvem.db";
-  static const _databaseVersion = 7; // Bump para versão 7 (Vínculo Compras-Histórico)
+  static const _databaseVersion = 8; // Bump para versão 8 (Faturas e Agrupamento)
 
   // Tables
   static const tableUsuarios = 'Usuarios';
@@ -75,6 +75,14 @@ class DatabaseHelper {
       // Vínculo da lista de compras com a transação
       await db.execute('ALTER TABLE $tableListaCompras ADD COLUMN Transacao_ID INTEGER REFERENCES $tableTransacoes (ID) ON DELETE CASCADE');
     }
+
+    if (oldVersion < 8) {
+      // Faturas e Grupo de Parcelas
+      await db.execute('ALTER TABLE $tableMetodosPagamento ADD COLUMN Tipo TEXT DEFAULT "Outros"');
+      await db.execute('ALTER TABLE $tableMetodosPagamento ADD COLUMN Dia_Fechamento INTEGER');
+      await db.execute('ALTER TABLE $tableMetodosPagamento ADD COLUMN Dia_Vencimento INTEGER');
+      await db.execute('ALTER TABLE $tableTransacoes ADD COLUMN Grupo_Parcela_ID TEXT');
+    }
   }
 
   Future _onCreate(Database db, int version) async {
@@ -118,6 +126,9 @@ class DatabaseHelper {
         Nome TEXT NOT NULL,
         Conta_ID INTEGER,
         Ordem INTEGER DEFAULT 0,
+        Tipo TEXT DEFAULT 'Outros',
+        Dia_Fechamento INTEGER,
+        Dia_Vencimento INTEGER,
         FOREIGN KEY (Conta_ID) REFERENCES $tableContasBancarias (ID) ON DELETE CASCADE
       )
     ''');
@@ -148,6 +159,7 @@ class DatabaseHelper {
         Parcela_Atual INTEGER,
         Parcela_Total INTEGER,
         Paga INTEGER DEFAULT 1,
+        Grupo_Parcela_ID TEXT,
         FOREIGN KEY (Usuario_ID) REFERENCES $tableUsuarios (ID) ON DELETE CASCADE,
         FOREIGN KEY (Categoria_ID) REFERENCES $tableCategorias (ID) ON DELETE CASCADE,
         FOREIGN KEY (Conta_ID) REFERENCES $tableContasBancarias (ID) ON DELETE CASCADE,
