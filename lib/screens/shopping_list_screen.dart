@@ -16,10 +16,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
 
+  Map<String, double> _productHistory = {};
+
   @override
   void initState() {
     super.initState();
     _loadItems();
+    _loadHistory();
   }
 
   Future<void> _loadItems() async {
@@ -31,6 +34,28 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     });
   }
 
+  Future<void> _loadHistory() async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.query(
+      DatabaseHelper.tableListaCompras, 
+      where: 'Transacao_ID IS NOT NULL', 
+      orderBy: 'ID DESC'
+    );
+    Map<String, double> history = {};
+    for (var row in result) {
+      final name = row['Nome'] as String;
+      bool exists = history.keys.any((k) => k.toLowerCase() == name.trim().toLowerCase());
+      if (!exists) {
+        history[name.trim()] = (row['Preco'] as num).toDouble();
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _productHistory = history;
+      });
+    }
+  }
+
   Future<void> _addItem(String nome, double preco, double qtde) async {
     final db = await DatabaseHelper.instance.database;
     await db.insert(DatabaseHelper.tableListaCompras, {
@@ -39,6 +64,16 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       'Quantidade': qtde,
       'Comprado': 0,
     });
+    _loadItems();
+  }
+
+  Future<void> _updateItem(int id, String nome, double preco, double qtde) async {
+    final db = await DatabaseHelper.instance.database;
+    await db.update(DatabaseHelper.tableListaCompras, {
+      'Nome': nome,
+      'Preco': preco,
+      'Quantidade': qtde,
+    }, where: 'ID = ?', whereArgs: [id]);
     _loadItems();
   }
 
@@ -54,70 +89,160 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     _loadItems();
   }
 
-  void _showAddItemModal() {
-    final nomeController = TextEditingController();
-    final precoController = TextEditingController();
-    final qtdeController = TextEditingController(text: '1');
+  void _showItemModal({Map<String, dynamic>? itemToEdit}) {
+    final nomeController = TextEditingController(text: itemToEdit?['Nome'] ?? '');
+    final precoController = TextEditingController(
+      text: itemToEdit != null && itemToEdit['Preco'] > 0 ? CurrencyFormatter.format(itemToEdit['Preco']) : ''
+    );
+    final qtdeController = TextEditingController(
+      text: itemToEdit != null ? itemToEdit['Quantidade'].toString().replaceAll('.0', '') : '1'
+    );
+    
+    double? lastPrice;
+    if (itemToEdit != null) {
+      lastPrice = _productHistory[itemToEdit['Nome'].toString().trim()];
+    }
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, top: 24, left: 24, right: 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Novo Item', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nomeController,
-                decoration: const InputDecoration(labelText: 'Produto', border: OutlineInputBorder()),
-                textCapitalization: TextCapitalization.sentences,
-                autofocus: true,
-              ),
-              const SizedBox(height: 16),
-              Row(
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            
+            // Check inflation
+            Widget inflationWidget = const SizedBox.shrink();
+            final currentName = nomeController.text.trim();
+            if (currentName.isNotEmpty && _productHistory.containsKey(currentName)) {
+              final historicalPrice = _productHistory[currentName]!;
+              final numericPreco = precoController.text.replaceAll(RegExp('[^0-9]'), '');
+              final currentPrice = numericPreco.isEmpty ? 0.0 : double.parse(numericPreco) / 100;
+              
+              if (currentPrice > 0 && historicalPrice > 0) {
+                final diff = currentPrice - historicalPrice;
+                final pct = (diff / historicalPrice) * 100;
+                if (diff > 0) {
+                  inflationWidget = Text(
+                    '+ ${CurrencyFormatter.format(diff)} (+${pct.toStringAsFixed(1)}%) vs histórico (${CurrencyFormatter.format(historicalPrice)})',
+                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
+                  );
+                } else if (diff < 0) {
+                  inflationWidget = Text(
+                    '- ${CurrencyFormatter.format(diff.abs())} (${pct.toStringAsFixed(1)}%) vs histórico (${CurrencyFormatter.format(historicalPrice)})',
+                    style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 12),
+                  );
+                } else {
+                  inflationWidget = Text(
+                    'Mesmo preço do histórico (${CurrencyFormatter.format(historicalPrice)})',
+                    style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12),
+                  );
+                }
+              } else if (historicalPrice > 0) {
+                inflationWidget = Text(
+                  'Último preço: ${CurrencyFormatter.format(historicalPrice)}',
+                  style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12),
+                );
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, top: 24, left: 24, right: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: precoController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-                      decoration: const InputDecoration(labelText: 'Preço (Opcional)', border: OutlineInputBorder()),
-                    ),
+                  Text(itemToEdit == null ? 'Novo Item' : 'Editar Item', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Autocomplete<String>(
+                    initialValue: TextEditingValue(text: nomeController.text),
+                    optionsBuilder: (TextEditingValue textEditingValue) {
+                      if (textEditingValue.text.isEmpty) {
+                        return const Iterable<String>.empty();
+                      }
+                      return _productHistory.keys.where((String option) {
+                        return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                      });
+                    },
+                    onSelected: (String selection) {
+                      setModalState(() {
+                        nomeController.text = selection;
+                        final histPrice = _productHistory[selection];
+                        if (histPrice != null && precoController.text.isEmpty) {
+                          precoController.text = CurrencyFormatter.format(histPrice);
+                        }
+                      });
+                    },
+                    fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                      // Sync Autocomplete controller with our state
+                      controller.addListener(() {
+                        if (nomeController.text != controller.text) {
+                          nomeController.text = controller.text;
+                          setModalState(() {});
+                        }
+                      });
+                      // If editing, set initial value to the inner controller as well
+                      if (controller.text.isEmpty && nomeController.text.isNotEmpty) {
+                        controller.text = nomeController.text;
+                      }
+                      return TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        decoration: const InputDecoration(labelText: 'Produto', border: OutlineInputBorder()),
+                        textCapitalization: TextCapitalization.sentences,
+                        autofocus: itemToEdit == null,
+                      );
+                    },
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextField(
-                      controller: qtdeController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'Quantidade', border: OutlineInputBorder()),
-                    ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: precoController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                          decoration: const InputDecoration(labelText: 'Preço (Opcional)', border: OutlineInputBorder()),
+                          onChanged: (val) => setModalState(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextField(
+                          controller: qtdeController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: const InputDecoration(labelText: 'Quantidade', border: OutlineInputBorder()),
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
+                  inflationWidget,
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                    onPressed: () {
+                      final nome = nomeController.text.trim();
+                      if (nome.isNotEmpty) {
+                        final numericPreco = precoController.text.replaceAll(RegExp('[^0-9]'), '');
+                        final preco = numericPreco.isEmpty ? 0.0 : double.parse(numericPreco) / 100;
+                        final qtde = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 1.0;
+                        
+                        if (itemToEdit == null) {
+                          _addItem(nome, preco, qtde);
+                        } else {
+                          _updateItem(itemToEdit['ID'], nome, preco, qtde);
+                        }
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    child: Text(itemToEdit == null ? 'Adicionar à Lista' : 'Salvar Alterações'),
+                  ),
+                  const SizedBox(height: 24),
                 ],
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
-                onPressed: () {
-                  final nome = nomeController.text.trim();
-                  if (nome.isNotEmpty) {
-                    final numericPreco = precoController.text.replaceAll(RegExp('[^0-9]'), '');
-                    final preco = numericPreco.isEmpty ? 0.0 : double.parse(numericPreco) / 100;
-                    final qtde = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 1.0;
-                    
-                    _addItem(nome, preco, qtde);
-                    Navigator.pop(ctx);
-                  }
-                },
-                child: const Text('Adicionar à Lista'),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
+            );
+          }
         );
       }
     );
@@ -230,7 +355,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                                 title: Text(item['Nome'], style: TextStyle(decoration: isComprado ? TextDecoration.lineThrough : null)),
                                 subtitle: Text('${item['Quantidade']}x ${CurrencyFormatter.format((item['Preco'] as num).toDouble())}'),
                                 trailing: Text(CurrencyFormatter.format(totalItem.toDouble()), style: const TextStyle(fontWeight: FontWeight.w600)),
-                                onTap: () => _toggleItem(item['ID'], item['Comprado']),
+                                onTap: () => _showItemModal(itemToEdit: item),
                               ),
                             );
                           },
@@ -239,7 +364,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
               ],
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _showAddItemModal,
+        onPressed: _showItemModal,
         child: const Icon(Icons.add_shopping_cart),
       ),
     );
