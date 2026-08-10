@@ -53,7 +53,8 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
              c.Nome as CategoriaNome, c.Cor_Hexadecimal, 
              cb.Codigo_Banco, cb.Nome as ContaNome,
              u.Nome as UsuarioNome,
-             mp.Nome as MetodoNome
+             mp.Nome as MetodoNome,
+             (SELECT COUNT(ID) FROM ${DatabaseHelper.tableListaCompras} WHERE Transacao_ID = t.ID) as HasItems
       FROM ${DatabaseHelper.tableTransacoes} t
       JOIN ${DatabaseHelper.tableCategorias} c ON t.Categoria_ID = c.ID
       JOIN ${DatabaseHelper.tableContasBancarias} cb ON t.Conta_ID = cb.ID
@@ -96,6 +97,15 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
               Text(t['Descricao'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const Text('Opções da Transação', style: TextStyle(color: Colors.grey)),
               const Divider(),
+              if ((t['HasItems'] ?? 0) > 0)
+                ListTile(
+                  leading: const Icon(Icons.receipt_long, color: Colors.green),
+                  title: const Text('Ver Cupom Fiscal (Itens da Compra)'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showReceiptModal(t['ID'], t['Descricao']);
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.blue),
                 title: const Text('Editar Transação'),
@@ -221,6 +231,60 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
           }
         );
       }
+    );
+  }
+
+  Future<void> _showReceiptModal(int transacaoId, String transacaoTitle) async {
+    final db = await DatabaseHelper.instance.database;
+    final items = await db.query(
+      DatabaseHelper.tableListaCompras, 
+      where: 'Transacao_ID = ?', 
+      whereArgs: [transacaoId]
+    );
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          maxChildSize: 0.9,
+          builder: (_, controller) {
+            return Column(
+              children: [
+                const SizedBox(height: 16),
+                const Icon(Icons.receipt_long, size: 48, color: Colors.green),
+                const SizedBox(height: 8),
+                Text('Cupom Fiscal', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                Text(transacaoTitle, style: const TextStyle(color: Colors.grey)),
+                const Divider(),
+                Expanded(
+                  child: ListView.separated(
+                    controller: controller,
+                    itemCount: items.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      final preco = item['Preco'] as num;
+                      final qtde = item['Quantidade'] as num;
+                      final total = preco * qtde;
+                      return ListTile(
+                        title: Text(item['Nome'], style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text('${qtde.toString().replaceAll('.0', '')}x de ${CurrencyFormatter.format(preco.toDouble())}'),
+                        trailing: Text(CurrencyFormatter.format(total.toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

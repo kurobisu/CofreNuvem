@@ -24,7 +24,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
   Future<void> _loadItems() async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.query(DatabaseHelper.tableListaCompras, orderBy: 'Comprado ASC, ID DESC');
+    final result = await db.query(DatabaseHelper.tableListaCompras, where: 'Transacao_ID IS NULL', orderBy: 'Comprado ASC, ID DESC');
     setState(() {
       _items = result;
       _isLoading = false;
@@ -51,12 +51,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   Future<void> _deleteItem(int id) async {
     final db = await DatabaseHelper.instance.database;
     await db.delete(DatabaseHelper.tableListaCompras, where: 'ID = ?', whereArgs: [id]);
-    _loadItems();
-  }
-
-  Future<void> _clearComprados() async {
-    final db = await DatabaseHelper.instance.database;
-    await db.delete(DatabaseHelper.tableListaCompras, where: 'Comprado = 1');
     _loadItems();
   }
 
@@ -138,8 +132,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     }
 
     double total = 0;
+    List<int> ids = [];
     for (var item in comprados) {
       total += (item['Preco'] as num) * (item['Quantidade'] as num);
+      ids.add(item['ID'] as int);
     }
 
     Navigator.push(
@@ -148,27 +144,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
         builder: (context) => TransactionFormScreen(
           initialDescricao: 'Compras Mercado',
           initialValor: total,
+          shoppingListItemIds: ids,
+          forceDespesa: true,
         ),
       ),
     ).then((_) {
-      // Optional: Ask to clear checked items
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Compra Finalizada'),
-          content: const Text('Deseja limpar os itens comprados da lista?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Manter na Lista')),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _clearComprados();
-              }, 
-              child: const Text('Limpar Comprados', style: TextStyle(color: Colors.red))
-            ),
-          ],
-        )
-      );
+      _loadItems();
     });
   }
 

@@ -11,12 +11,16 @@ class TransactionFormScreen extends ConsumerStatefulWidget {
   final int? transactionId;
   final String? initialDescricao;
   final double? initialValor;
+  final List<int>? shoppingListItemIds;
+  final bool forceDespesa;
 
   const TransactionFormScreen({
     super.key, 
     this.transactionId,
     this.initialDescricao,
     this.initialValor,
+    this.shoppingListItemIds,
+    this.forceDespesa = false,
   });
 
   @override
@@ -91,6 +95,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
         _selectedCategoria = transactionToEdit['Categoria_ID'];
         _isPaga = transactionToEdit['Paga'] == 1;
       } else {
+        if (widget.forceDespesa) _tipo = 'Despesa';
         if (_usuarios.isNotEmpty) _selectedUsuario = _usuarios.first['ID'];
         if (_contas.isNotEmpty) _selectedConta = _contas.first['ID'];
         
@@ -166,6 +171,8 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
 
     final dataStr = _selectedDate.toIso8601String();
 
+    int? insertedId;
+
     if (widget.transactionId != null) {
       // EDIT MODE (Parcelamento não permitido em edição por simplificação)
       await db.update(DatabaseHelper.tableTransacoes, {
@@ -179,13 +186,14 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
         'Metodo_ID': _selectedMetodo,
         'Paga': _isPaga ? 1 : 0,
       }, where: 'ID = ?', whereArgs: [widget.transactionId]);
+      insertedId = widget.transactionId;
     } else {
       // NEW MODE
       if (_tipo == 'Despesa' && _isParcelado) {
         final valorParcela = valor / _parcelas;
         for (int i = 1; i <= _parcelas; i++) {
           final dataParcela = DateTime(_selectedDate.year, _selectedDate.month + (i - 1), _selectedDate.day).toIso8601String();
-          await db.insert(DatabaseHelper.tableTransacoes, {
+          final id = await db.insert(DatabaseHelper.tableTransacoes, {
             'Data': dataParcela,
             'Descricao': '${_descricaoController.text} ($i/$_parcelas)',
             'Valor': valorParcela,
@@ -196,11 +204,12 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
             'Metodo_ID': _selectedMetodo,
             'Parcela_Atual': i,
             'Parcela_Total': _parcelas,
-            'Paga': i == 1 ? (_isPaga ? 1 : 0) : 0, // A primeira acompanha o switch, as demais sempre pendentes
+            'Paga': i == 1 ? (_isPaga ? 1 : 0) : 0,
           });
+          if (i == 1) insertedId = id; // Vincula os itens do carrinho à primeira parcela
         }
       } else {
-        await db.insert(DatabaseHelper.tableTransacoes, {
+        insertedId = await db.insert(DatabaseHelper.tableTransacoes, {
           'Data': dataStr,
           'Descricao': _descricaoController.text,
           'Valor': valor,
@@ -212,6 +221,17 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
           'Paga': _isPaga ? 1 : 0,
         });
       }
+    }
+
+    // Vincular os itens do carrinho a esta transação
+    if (insertedId != null && widget.shoppingListItemIds != null && widget.shoppingListItemIds!.isNotEmpty) {
+      final placeholders = List.filled(widget.shoppingListItemIds!.length, '?').join(',');
+      await db.update(
+        DatabaseHelper.tableListaCompras, 
+        {'Transacao_ID': insertedId},
+        where: 'ID IN ($placeholders)',
+        whereArgs: widget.shoppingListItemIds,
+      );
     }
 
     ref.refresh(dashboardDataProvider);
@@ -236,21 +256,23 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Tipo Selector
-              SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(value: 'Despesa', label: Text('Despesa'), icon: Icon(Icons.remove_circle_outline)),
-                  ButtonSegment(value: 'Receita', label: Text('Receita'), icon: Icon(Icons.add_circle_outline)),
-                ],
-                selected: {_tipo},
-                onSelectionChanged: (Set<String> newSelection) {
-                  setState(() {
-                    _tipo = newSelection.first;
-                    _updateCategoriasAtivas();
-                  });
-                },
-              ),
-              const SizedBox(height: 24),
+              // Tipo Selector (Oculto se for forçado a ser Despesa, ex: Lista de Compras)
+              if (!widget.forceDespesa) ...[
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'Despesa', label: Text('Despesa'), icon: Icon(Icons.remove_circle_outline)),
+                    ButtonSegment(value: 'Receita', label: Text('Receita'), icon: Icon(Icons.add_circle_outline)),
+                  ],
+                  selected: {_tipo},
+                  onSelectionChanged: (Set<String> newSelection) {
+                    setState(() {
+                      _tipo = newSelection.first;
+                      _updateCategoriasAtivas();
+                    });
+                  },
+                ),
+                const SizedBox(height: 24),
+              ],
               
               TextFormField(
                 controller: _valorController,

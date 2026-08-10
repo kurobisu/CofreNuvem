@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 class DatabaseHelper {
   static const _databaseName = "cofrenuvem.db";
-  static const _databaseVersion = 6; // Bump para versão 6 (Compras e Filtros)
+  static const _databaseVersion = 7; // Bump para versão 7 (Vínculo Compras-Histórico)
 
   // Tables
   static const tableUsuarios = 'Usuarios';
@@ -69,6 +69,11 @@ class DatabaseHelper {
           Comprado INTEGER DEFAULT 0
         )
       ''');
+    }
+    
+    if (oldVersion < 7) {
+      // Vínculo da lista de compras com a transação
+      await db.execute('ALTER TABLE $tableListaCompras ADD COLUMN Transacao_ID INTEGER REFERENCES $tableTransacoes (ID) ON DELETE CASCADE');
     }
   }
 
@@ -171,7 +176,9 @@ class DatabaseHelper {
         Nome TEXT NOT NULL,
         Preco REAL,
         Quantidade REAL,
-        Comprado INTEGER DEFAULT 0
+        Comprado INTEGER DEFAULT 0,
+        Transacao_ID INTEGER,
+        FOREIGN KEY (Transacao_ID) REFERENCES $tableTransacoes (ID) ON DELETE CASCADE
       )
     ''');
 
