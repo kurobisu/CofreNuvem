@@ -5,6 +5,7 @@ import '../providers/dashboard_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
+import 'invoices_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -43,6 +44,10 @@ class DashboardScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   _buildUserBalancesRow(userBalances),
                   const SizedBox(height: 24),
+                  if (creditCards.isNotEmpty) ...[
+                    _buildCreditCardsRow(context, creditCards),
+                    const SizedBox(height: 24),
+                  ],
                   if (categoryExpenses.isNotEmpty) _buildExpensesChart(context, categoryExpenses),
                   const SizedBox(height: 24),
                   _buildRecentTransactions(context, recentTransactions),
@@ -139,6 +144,51 @@ class DashboardScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildCreditCardsRow(BuildContext context, List<Map<String, dynamic>> creditCards) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Cartões & Faturas', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: creditCards.length,
+            itemBuilder: (context, index) {
+              final card = creditCards[index];
+              return Container(
+                width: 140,
+                margin: const EdgeInsets.only(right: 12),
+                child: InkWell(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => InvoicesScreen(metodo: card))),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppTheme.accent.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.credit_card, color: AppTheme.accent, size: 24),
+                        const Spacer(),
+                        Text(card['Nome'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text('Fecha dia ${card['Dia_Fechamento']}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

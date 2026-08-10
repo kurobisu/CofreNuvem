@@ -37,19 +37,22 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
   Future<void> _loadHistory() async {
     final db = await DatabaseHelper.instance.database;
-    final result = await db.query(
-      DatabaseHelper.tableListaCompras, 
-      where: 'Transacao_ID IS NOT NULL', 
-      orderBy: 'ID DESC'
-    );
+    final result = await db.rawQuery('''
+      SELECT p.Nome, lc.Preco 
+      FROM ${DatabaseHelper.tableProdutos} p
+      LEFT JOIN ${DatabaseHelper.tableListaCompras} lc ON p.Nome = lc.Nome AND lc.Transacao_ID IS NOT NULL
+      ORDER BY lc.ID DESC
+    ''');
+    
     Map<String, double> history = {};
     for (var row in result) {
       final name = row['Nome'] as String;
       bool exists = history.keys.any((k) => k.toLowerCase() == name.trim().toLowerCase());
       if (!exists) {
-        history[name.trim()] = (row['Preco'] as num).toDouble();
+        history[name.trim()] = row['Preco'] != null ? (row['Preco'] as num).toDouble() : 0.0;
       }
     }
+    
     if (mounted) {
       setState(() {
         _productHistory = history;
@@ -59,8 +62,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
   Future<void> _addItem(String nome, double preco, double qtde) async {
     final db = await DatabaseHelper.instance.database;
+    
+    // Auto-create product in library if not exists
+    await db.insert(DatabaseHelper.tableProdutos, {'Nome': nome.trim()}, conflictAlgorithm: ConflictAlgorithm.ignore);
+
     await db.insert(DatabaseHelper.tableListaCompras, {
-      'Nome': nome,
+      'Nome': nome.trim(),
       'Preco': preco,
       'Quantidade': qtde,
       'Comprado': 0,
@@ -70,8 +77,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
   Future<void> _updateItem(int id, String nome, double preco, double qtde) async {
     final db = await DatabaseHelper.instance.database;
+    
+    // Auto-create product in library if not exists
+    await db.insert(DatabaseHelper.tableProdutos, {'Nome': nome.trim()}, conflictAlgorithm: ConflictAlgorithm.ignore);
+
     await db.update(DatabaseHelper.tableListaCompras, {
-      'Nome': nome,
+      'Nome': nome.trim(),
       'Preco': preco,
       'Quantidade': qtde,
     }, where: 'ID = ?', whereArgs: [id]);

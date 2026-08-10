@@ -51,10 +51,18 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     LIMIT 5
   ''', [now.toIso8601String()]);
 
+  // 5. Fetch Credit Cards
+  final List<Map<String, dynamic>> creditCards = await db.query(
+    DatabaseHelper.tableMetodosPagamento,
+    where: 'Tipo = ?',
+    whereArgs: ['Crédito'],
+  );
+
   return {
     'totalBalance': totalBalance,
     'userBalances': userBalances,
     'categoryExpenses': categoryExpenses,
     'recentTransactions': recentTransactions,
+    'creditCards': creditCards,
   };
 });

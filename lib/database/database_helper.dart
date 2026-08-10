@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 class DatabaseHelper {
   static const _databaseName = "cofrenuvem.db";
-  static const _databaseVersion = 8; // Bump para versão 8 (Faturas e Agrupamento)
+  static const _databaseVersion = 9; // Bump para versão 9 (Biblioteca de Produtos)
 
   // Tables
   static const tableUsuarios = 'Usuarios';
@@ -17,6 +17,7 @@ class DatabaseHelper {
   static const tableTransacoes = 'Transacoes';
   static const tableInvestimentos = 'Investimentos';
   static const tableListaCompras = 'Lista_Compras';
+  static const tableProdutos = 'Produtos';
 
   // Singleton instance
   DatabaseHelper._privateConstructor();
@@ -82,6 +83,24 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE $tableMetodosPagamento ADD COLUMN Dia_Fechamento INTEGER');
       await db.execute('ALTER TABLE $tableMetodosPagamento ADD COLUMN Dia_Vencimento INTEGER');
       await db.execute('ALTER TABLE $tableTransacoes ADD COLUMN Grupo_Parcela_ID TEXT');
+    }
+
+    if (oldVersion < 9) {
+      // Tabela de Produtos (Biblioteca)
+      await db.execute('''
+        CREATE TABLE $tableProdutos (
+          ID INTEGER PRIMARY KEY AUTOINCREMENT,
+          Nome TEXT UNIQUE NOT NULL,
+          Categoria_ID INTEGER,
+          FOREIGN KEY (Categoria_ID) REFERENCES $tableCategorias (ID) ON DELETE SET NULL
+        )
+      ''');
+      
+      // Seed da tabela Produtos a partir da Lista de Compras
+      await db.execute('''
+        INSERT OR IGNORE INTO $tableProdutos (Nome)
+        SELECT DISTINCT Nome FROM $tableListaCompras WHERE Transacao_ID IS NOT NULL
+      ''');
     }
   }
 
@@ -189,11 +208,20 @@ class DatabaseHelper {
         Preco REAL,
         Quantidade REAL,
         Comprado INTEGER DEFAULT 0,
-        Transacao_ID INTEGER,
-        FOREIGN KEY (Transacao_ID) REFERENCES $tableTransacoes (ID) ON DELETE CASCADE
+        Transacao_ID INTEGER REFERENCES $tableTransacoes (ID) ON DELETE CASCADE
       )
     ''');
 
+    // 7. Produtos
+    await db.execute('''
+      CREATE TABLE $tableProdutos (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        Nome TEXT UNIQUE NOT NULL,
+        Categoria_ID INTEGER,
+        FOREIGN KEY (Categoria_ID) REFERENCES $tableCategorias (ID) ON DELETE SET NULL
+      )
+    ''');
+    
     await _seedData(db);
   }
 

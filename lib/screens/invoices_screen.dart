@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database_helper.dart';
 import '../utils/currency_formatter.dart';
 import 'package:intl/intl.dart';
 
-class InvoicesScreen extends StatefulWidget {
+import '../providers/dashboard_provider.dart';
+
+class InvoicesScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> metodo;
 
   const InvoicesScreen({super.key, required this.metodo});
 
   @override
-  State<InvoicesScreen> createState() => _InvoicesScreenState();
+  ConsumerState<InvoicesScreen> createState() => _InvoicesScreenState();
 }
 
-class _InvoicesScreenState extends State<InvoicesScreen> {
+class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _transacoes = [];
   Map<String, List<Map<String, dynamic>>> _faturas = {};
@@ -74,11 +77,73 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
 
     await batch.commit(noResult: true);
     
+    ref.refresh(dashboardDataProvider);
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fatura Paga com Sucesso!')));
     }
     
     _loadFaturas();
+  }
+
+  Future<void> _verCupomFiscal(int transacaoId) async {
+    final db = await DatabaseHelper.instance.database;
+    final itens = await db.query(DatabaseHelper.tableListaCompras, where: 'Transacao_ID = ?', whereArgs: [transacaoId]);
+
+    if (itens.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum item associado a esta compra.')));
+      return;
+    }
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        double cupomTotal = 0;
+        for (var i in itens) {
+          cupomTotal += (i['Preco'] as num) * (i['Quantidade'] as num);
+        }
+
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.all(16),
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: Column(
+            children: [
+              const Text('Cupom Fiscal', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Divider(),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: itens.length,
+                  itemBuilder: (context, index) {
+                    final item = itens[index];
+                    final totalItem = (item['Preco'] as num) * (item['Quantidade'] as num);
+                    return ListTile(
+                      title: Text(item['Nome']),
+                      subtitle: Text('${item['Quantidade']}x ${CurrencyFormatter.format((item['Preco'] as num).toDouble())}'),
+                      trailing: Text(CurrencyFormatter.format(totalItem.toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    );
+                  },
+                ),
+              ),
+              const Divider(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total da Compra:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(CurrencyFormatter.format(cupomTotal), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                ],
+              ),
+            ],
+          ),
+        );
+      }
+    );
   }
 
   @override
@@ -126,6 +191,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                             title: Text(t['Descricao']),
                             subtitle: Text(DateFormat('dd/MM/yyyy').format(DateTime.parse(t['Data'] as String))),
                             trailing: Text(CurrencyFormatter.format((t['Valor'] as num).toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
+                            onTap: () => _verCupomFiscal(t['ID'] as int),
                           );
                         }).toList(),
                       ],
