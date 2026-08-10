@@ -8,14 +8,13 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
   final startOfNextMonth = DateTime(now.year, now.month + 1, 1).toIso8601String();
 
-  // 1. Fetch total balance (Receitas - Despesas) APENAS DO MÊS ATUAL
+  // 1. Fetch total balance (Receitas - Despesas) HISTÓRICO COMPLETO
   final List<Map<String, dynamic>> resTotal = await db.rawQuery(
-    "SELECT SUM(CASE WHEN Tipo = 'Receita' THEN Valor ELSE -Valor END) as saldo FROM ${DatabaseHelper.tableTransacoes} WHERE Data >= ? AND Data < ? AND Paga = 1",
-    [startOfMonth, startOfNextMonth]
+    "SELECT SUM(CASE WHEN Tipo = 'Receita' THEN Valor ELSE -Valor END) as saldo FROM ${DatabaseHelper.tableTransacoes} WHERE Paga = 1"
   );
   double totalBalance = (resTotal.first['saldo'] as num?)?.toDouble() ?? 0.0;
 
-  // 2. Fetch individual balances APENAS DO MÊS ATUAL
+  // 2. Fetch individual balances HISTÓRICO COMPLETO
   final List<Map<String, dynamic>> users = await db.query(DatabaseHelper.tableUsuarios, orderBy: 'Ordem ASC');
   List<Map<String, dynamic>> userBalances = [];
   
@@ -23,8 +22,8 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     int uId = u['ID'];
     String uName = u['Nome'];
     final List<Map<String, dynamic>> resUser = await db.rawQuery(
-      "SELECT SUM(CASE WHEN Tipo = 'Receita' THEN Valor ELSE -Valor END) as saldo FROM ${DatabaseHelper.tableTransacoes} WHERE Usuario_ID = ? AND Data >= ? AND Data < ? AND Paga = 1", 
-      [uId, startOfMonth, startOfNextMonth]
+      "SELECT SUM(CASE WHEN Tipo = 'Receita' THEN Valor ELSE -Valor END) as saldo FROM ${DatabaseHelper.tableTransacoes} WHERE Usuario_ID = ? AND Paga = 1", 
+      [uId]
     );
     double uBalance = (resUser.first['saldo'] as num?)?.toDouble() ?? 0.0;
     userBalances.add({'nome': uName, 'saldo': uBalance});
