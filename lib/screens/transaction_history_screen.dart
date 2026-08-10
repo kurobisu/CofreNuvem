@@ -273,7 +273,7 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
                       final qtde = item['Quantidade'] as num;
                       final total = preco * qtde;
                       return ListTile(
-                        title: Text(item['Nome'], style: const TextStyle(fontWeight: FontWeight.w600)),
+                        title: Text(item['Nome'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text('${qtde.toString().replaceAll('.0', '')}x de ${CurrencyFormatter.format(preco.toDouble())}'),
                         trailing: Text(CurrencyFormatter.format(total.toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
                       );
