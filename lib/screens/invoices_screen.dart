@@ -124,7 +124,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                     final item = itens[index];
                     final totalItem = (item['Preco'] as num) * (item['Quantidade'] as num);
                     return ListTile(
-                      title: Text(item['Nome']),
+                      title: Text(item['Nome'].toString()),
                       subtitle: Text('${item['Quantidade']}x ${CurrencyFormatter.format((item['Preco'] as num).toDouble())}'),
                       trailing: Text(CurrencyFormatter.format(totalItem.toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
                     );

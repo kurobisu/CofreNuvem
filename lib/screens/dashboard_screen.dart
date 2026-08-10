@@ -31,6 +31,7 @@ class DashboardScreen extends ConsumerWidget {
           final userBalances = data['userBalances'] as List<Map<String, dynamic>>;
           final categoryExpenses = data['categoryExpenses'] as List<Map<String, dynamic>>;
           final recentTransactions = data['recentTransactions'] as List<Map<String, dynamic>>;
+          final creditCards = (data['creditCards'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
 
           return RefreshIndicator(
             onRefresh: () => ref.refresh(dashboardDataProvider.future),
