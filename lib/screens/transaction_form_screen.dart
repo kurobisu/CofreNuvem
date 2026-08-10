@@ -32,6 +32,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
   String _tipo = 'Despesa';
   bool _isParcelado = false;
   int _parcelas = 2;
+  bool _isPaga = true;
 
   List<Map<String, dynamic>> _usuarios = [];
   List<Map<String, dynamic>> _categoriasAll = [];
@@ -88,6 +89,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
         _selectedConta = transactionToEdit['Conta_ID'];
         _selectedMetodo = transactionToEdit['Metodo_ID'];
         _selectedCategoria = transactionToEdit['Categoria_ID'];
+        _isPaga = transactionToEdit['Paga'] == 1;
       } else {
         if (_usuarios.isNotEmpty) _selectedUsuario = _usuarios.first['ID'];
         if (_contas.isNotEmpty) _selectedConta = _contas.first['ID'];
@@ -175,6 +177,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
         'Categoria_ID': _selectedCategoria,
         'Conta_ID': _selectedConta,
         'Metodo_ID': _selectedMetodo,
+        'Paga': _isPaga ? 1 : 0,
       }, where: 'ID = ?', whereArgs: [widget.transactionId]);
     } else {
       // NEW MODE
@@ -193,7 +196,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
             'Metodo_ID': _selectedMetodo,
             'Parcela_Atual': i,
             'Parcela_Total': _parcelas,
-            'Paga': i == 1 ? 1 : 0, // A primeira é marcada como paga, as futuras ficam pendentes
+            'Paga': i == 1 ? (_isPaga ? 1 : 0) : 0, // A primeira acompanha o switch, as demais sempre pendentes
           });
         }
       } else {
@@ -206,6 +209,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
           'Categoria_ID': _selectedCategoria,
           'Conta_ID': _selectedConta,
           'Metodo_ID': _selectedMetodo,
+          'Paga': _isPaga ? 1 : 0,
         });
       }
     }
@@ -384,6 +388,16 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                 onChanged: _metodosAtuais.isEmpty ? null : (val) => setState(() => _selectedMetodo = val),
               ),
 
+              const SizedBox(height: 16),
+
+              SwitchListTile(
+                title: const Text('Transação Paga?'),
+                subtitle: const Text('Desmarque se estiver pendente'),
+                value: _isPaga,
+                onChanged: (val) => setState(() => _isPaga = val),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+              
               const SizedBox(height: 16),
 
               if (_tipo == 'Despesa' && widget.transactionId == null) ...[

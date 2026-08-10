@@ -296,15 +296,6 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
                                   Text(DateFormat('dd/MM/yy').format(date), style: const TextStyle(fontSize: 11)),
                                 ],
                               ),
-                              const SizedBox(width: 8),
-                              // Botão rápido de marcar como pago
-                              IconButton(
-                                icon: Icon(
-                                  isPaga ? Icons.check_circle : Icons.circle_outlined,
-                                  color: isPaga ? Colors.green : Colors.grey,
-                                ),
-                                onPressed: () => _togglePagaStatus(t['ID'], t['Paga']),
-                              )
                             ],
                           ),
                         ),
