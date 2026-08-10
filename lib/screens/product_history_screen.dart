@@ -116,6 +116,54 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
     });
   }
 
+  Future<void> _showPriceHistory(int productId, String productName) async {
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('''
+      SELECT lc.Preco, t.Data 
+      FROM \${DatabaseHelper.tableListaCompras} lc
+      JOIN \${DatabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
+      JOIN \${DatabaseHelper.tableProdutos} p ON lc.Nome = p.Nome
+      WHERE p.ID = ? AND lc.Transacao_ID IS NOT NULL
+      ORDER BY t.Data DESC
+    ''', [productId]);
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Histórico: \$productName'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: result.isEmpty
+                ? const Center(child: Text('Nenhuma compra registrada.'))
+                : ListView.builder(
+                    itemCount: result.length,
+                    itemBuilder: (context, index) {
+                      final row = result[index];
+                      final dateStr = row['Data'] as String;
+                      final price = (row['Preco'] as num).toDouble();
+                      final date = DateTime.parse(dateStr);
+                      final formattedDate = "\${date.day.toString().padLeft(2, '0')}/\${date.month.toString().padLeft(2, '0')}/\${date.year}";
+
+                      return ListTile(
+                        leading: const Icon(Icons.shopping_cart_checkout, color: Colors.green),
+                        title: Text(CurrencyFormatter.format(price), style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(formattedDate),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fechar'))
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _deleteProduct(int id) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -390,6 +438,11 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.show_chart, color: Colors.purple),
+                                      tooltip: 'Ver Histórico',
+                                      onPressed: () => _showPriceHistory(stat['ID'] as int, stat['Nome'] as String),
+                                    ),
                                     IconButton(
                                       icon: const Icon(Icons.edit, color: Colors.blue),
                                       onPressed: () => _showProductDialog(stat),

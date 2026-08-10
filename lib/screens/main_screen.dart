@@ -26,9 +26,8 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_currentIndex],
-      floatingActionButton: _currentIndex == 1 
-          ? null 
-          : FloatingActionButton(
+      floatingActionButton: _currentIndex == 0 
+          ? FloatingActionButton(
               onPressed: () {
                 Navigator.push(
                   context,

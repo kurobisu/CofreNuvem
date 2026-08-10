@@ -256,9 +256,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                         final qtde = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 1.0;
                         
                         if (itemToEdit == null) {
-                          _addItem(nome, preco, qtde);
+                          _addItem(nome, preco, qtde).then((_) => _loadHistory());
                         } else {
-                          _updateItem(itemToEdit['ID'], nome, preco, qtde);
+                          _updateItem(itemToEdit['ID'], nome, preco, qtde).then((_) => _loadHistory());
                         }
                         Navigator.pop(ctx);
                       }
@@ -340,7 +340,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
             icon: const Icon(Icons.history),
             tooltip: 'Biblioteca de Produtos',
             onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductHistoryScreen()));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductHistoryScreen())).then((_) {
+                _loadItems();
+                _loadHistory();
+              });
             },
           ),
           IconButton(
@@ -403,7 +406,30 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                                   onChanged: (_) => _toggleItem(item['ID'], item['Comprado']),
                                 ),
                                 title: Text(item['Nome'], style: TextStyle(decoration: isComprado ? TextDecoration.lineThrough : null)),
-                                subtitle: Text('${item['Quantidade']}x ${CurrencyFormatter.format((item['Preco'] as num).toDouble())}'),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('${item['Quantidade']}x ${CurrencyFormatter.format((item['Preco'] as num).toDouble())}'),
+                                    if (_productHistory.containsKey(item['Nome'].toString().trim()) && (item['Preco'] as num) > 0)
+                                      Builder(builder: (ctx) {
+                                        final hist = _productHistory[item['Nome'].toString().trim()]!;
+                                        final curr = (item['Preco'] as num).toDouble();
+                                        if (hist > 0 && curr != hist) {
+                                          final diff = curr - hist;
+                                          final pct = (diff / hist) * 100;
+                                          final color = diff > 0 ? Colors.red : Colors.green;
+                                          final sign = diff > 0 ? '+' : '';
+                                          return Text(
+                                            '$sign${CurrencyFormatter.format(diff)} ($sign${pct.toStringAsFixed(1)}%) vs histórico',
+                                            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold),
+                                          );
+                                        } else if (hist > 0 && curr == hist) {
+                                          return const Text('Mesmo preço do histórico', style: TextStyle(color: Colors.grey, fontSize: 11));
+                                        }
+                                        return const SizedBox.shrink();
+                                      })
+                                  ],
+                                ),
                                 trailing: InkWell(
                                   onTap: () => _showItemModal(itemToEdit: item),
                                   borderRadius: BorderRadius.circular(8),
