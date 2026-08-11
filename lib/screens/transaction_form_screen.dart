@@ -68,7 +68,6 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
     final db = await DatabaseHelper.instance.database;
     final users = await db.query(DatabaseHelper.tableUsuarios, orderBy: 'Ordem ASC');
     final cats = await db.query(DatabaseHelper.tableCategorias, orderBy: 'Ordem ASC');
-    final accounts = await db.query(DatabaseHelper.tableContasBancarias, orderBy: 'Ordem ASC');
     final metodos = await db.query(DatabaseHelper.tableMetodosPagamento, orderBy: 'Ordem ASC');
 
     Map<String, dynamic>? transactionToEdit;
@@ -82,7 +81,6 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
     setState(() {
       _usuarios = users;
       _categoriasAll = cats;
-      _contas = accounts;
       _metodosAll = metodos;
       
       if (transactionToEdit != null) {
@@ -91,7 +89,6 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
         
         // Formatar valor para o controller (assumindo que no banco está como double)
         double val = transactionToEdit['Valor'];
-        // O CurrencyInputFormatter espera centavos inteiros se digitado, mas podemos setar a string manual
         _valorController.text = CurrencyFormatter.format(val);
 
         _selectedDate = DateTime.parse(transactionToEdit['Data']);
@@ -103,7 +100,6 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
       } else {
         if (widget.forceDespesa) _tipo = 'Despesa';
         if (_usuarios.isNotEmpty) _selectedUsuario = _usuarios.first['ID'];
-        if (_contas.isNotEmpty) _selectedConta = _contas.first['ID'];
         
         if (widget.initialDescricao != null) {
           _descricaoController.text = widget.initialDescricao!;
@@ -114,12 +110,41 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
       }
 
       _updateCategoriasAtivas();
-      
-      if (_contas.isNotEmpty) {
-        _updateMetodosParaContaSelecionada(maintainSelection: transactionToEdit != null);
-      }
-      
+    });
+    
+    await _updateContasParaUsuario(maintainSelection: transactionToEdit != null);
+    
+    setState(() {
       _isLoading = false;
+    });
+  }
+
+  Future<void> _updateContasParaUsuario({bool maintainSelection = false}) async {
+    if (_selectedUsuario == null) return;
+    final db = await DatabaseHelper.instance.database;
+    final result = await db.rawQuery('''
+      SELECT c.* FROM ${DatabaseHelper.tableContasBancarias} c
+      WHERE c.Usuario_ID = ?
+      UNION
+      SELECT c.* FROM ${DatabaseHelper.tableContasBancarias} c
+      JOIN ${DatabaseHelper.tableContasCompartilhadas} cc ON c.ID = cc.Conta_ID
+      WHERE cc.Usuario_ID = ?
+      ORDER BY Ordem ASC
+    ''', [_selectedUsuario, _selectedUsuario]);
+    
+    setState(() {
+      _contas = result;
+      if (!maintainSelection || _selectedConta == null) {
+        if (_contas.isNotEmpty) {
+          _selectedConta = _contas.first['ID'];
+        } else {
+          _selectedConta = null;
+        }
+      } else {
+        final stillValid = _contas.any((c) => c['ID'] == _selectedConta);
+        if (!stillValid) _selectedConta = _contas.isNotEmpty ? _contas.first['ID'] : null;
+      }
+      _updateMetodosParaContaSelecionada(maintainSelection: maintainSelection);
     });
   }
 
@@ -329,7 +354,10 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                         value: u['ID'],
                         child: Text(u['Nome']),
                       )).toList(),
-                      onChanged: (val) => setState(() => _selectedUsuario = val),
+                      onChanged: (val) {
+                        setState(() => _selectedUsuario = val);
+                        _updateContasParaUsuario();
+                      },
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -361,6 +389,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<int>(
+                      isExpanded: true,
                       value: _selectedCategoria,
                       decoration: InputDecoration(
                         labelText: 'Categoria',
@@ -377,7 +406,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                                 decoration: BoxDecoration(color: Color(int.parse(colorHex)), shape: BoxShape.circle),
                               ),
                               const SizedBox(width: 8),
-                              Text(c['Nome']),
+                              Expanded(child: Text(c['Nome'], maxLines: 1, overflow: TextOverflow.ellipsis)),
                             ],
                           ),
                         );
@@ -388,6 +417,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: DropdownButtonFormField<int>(
+                      isExpanded: true,
                       value: _selectedConta,
                       decoration: InputDecoration(
                         labelText: 'Conta Bancária',
@@ -395,7 +425,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                       ),
                       items: _contas.map((c) => DropdownMenuItem<int>(
                         value: c['ID'],
-                        child: Text(c['Nome']),
+                        child: Text(c['Nome'], maxLines: 1, overflow: TextOverflow.ellipsis),
                       )).toList(),
                       onChanged: (val) {
                         setState(() {
@@ -411,6 +441,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
               
               DropdownButtonFormField<int>(
                 key: ValueKey(_selectedConta),
+                isExpanded: true,
                 value: _selectedMetodo,
                 decoration: InputDecoration(
                   labelText: 'Método de Pagamento vinculado',
@@ -418,7 +449,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                 ),
                 items: _metodosAtuais.map((m) => DropdownMenuItem<int>(
                   value: m['ID'],
-                  child: Text(m['Nome']),
+                  child: Text(m['Nome'], maxLines: 1, overflow: TextOverflow.ellipsis),
                 )).toList(),
                 onChanged: _metodosAtuais.isEmpty ? null : (val) => setState(() => _selectedMetodo = val),
               ),

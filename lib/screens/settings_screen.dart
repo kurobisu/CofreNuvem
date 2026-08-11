@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// sem pacote externo para CSV
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/sync_service.dart';
 import '../database/database_helper.dart';
+import '../providers/settings_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -71,27 +72,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await file.writeAsString(csvData);
 
       if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Exportação Concluída'),
-            content: Text('Seu arquivo foi salvo com sucesso em:\n\n\$path'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Fechar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  // Abre a pasta no Windows Explorer
-                  Process.run('explorer.exe', ['/select,', path]);
-                  Navigator.pop(context);
-                },
-                child: const Text('Abrir Pasta'),
-              )
-            ],
-          )
-        );
+        if (Platform.isWindows) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Exportação Concluída'),
+              content: Text('Seu arquivo foi salvo com sucesso em:\n\n\$path'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Fechar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Process.run('explorer.exe', ['/select,', path]);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('Abrir Pasta'),
+                )
+              ],
+            )
+          );
+        } else {
+          // Mobile (Android/iOS)
+          Share.shareXFiles([XFile(path)], text: 'Exportação CSV CofreNuvem');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -145,6 +150,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 24),
+          const Text('Interface', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 8),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Consumer(
+              builder: (context, ref, child) {
+                final limitAsync = ref.watch(settingsProvider);
+                return ListTile(
+                  leading: const Icon(Icons.dashboard_customize, color: Colors.teal),
+                  title: const Text('Limite de Usuários no Dashboard'),
+                  subtitle: const Text('Mostrar no painel principal'),
+                  trailing: limitAsync.when(
+                    data: (limit) => DropdownButton<String>(
+                      value: limit,
+                      underline: const SizedBox(),
+                      items: ['1', '2', '3', '4', 'Ilimitado'].map((l) => DropdownMenuItem(value: l, child: Text(l))).toList(),
+                      onChanged: (val) {
+                        if (val != null) ref.read(settingsProvider.notifier).setLimit(val);
+                      }
+                    ),
+                    loading: () => const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                    error: (_, __) => const Icon(Icons.error),
+                  ),
+                );
+              }
+            )
           ),
           const SizedBox(height: 24),
           const Text('Nuvem & Backup', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),

@@ -116,7 +116,13 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
               title: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(category == null ? 'Nova Categoria' : 'Editar Categoria'),
+                  Expanded(
+                    child: Text(
+                      category == null ? 'Nova Categoria' : 'Editar Categoria',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                   if (category != null)
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
@@ -139,19 +145,21 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: selectedTipo,
-                      items: tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                      items: tipos.map((t) => DropdownMenuItem(value: t, child: Text(t, maxLines: 1, overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (val) => setStateDialog(() => selectedTipo = val!),
                       decoration: const InputDecoration(labelText: 'Tipo de Categoria'),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<int?>(
+                      isExpanded: true,
                       value: selectedParentId,
                       items: [
-                        const DropdownMenuItem<int?>(value: null, child: Text('Nenhuma (Categoria Principal)')),
+                        const DropdownMenuItem<int?>(value: null, child: Text('Nenhuma (Categoria Principal)', maxLines: 1, overflow: TextOverflow.ellipsis)),
                         ...parentOptions.map((p) => DropdownMenuItem<int?>(
                           value: p['ID'] as int,
-                          child: Text(p['Nome']),
+                          child: Text(p['Nome'], maxLines: 1, overflow: TextOverflow.ellipsis),
                         )).toList()
                       ],
                       onChanged: (val) {

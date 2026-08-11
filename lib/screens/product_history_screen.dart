@@ -120,9 +120,9 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
     final db = await DatabaseHelper.instance.database;
     final result = await db.rawQuery('''
       SELECT lc.Preco, t.Data 
-      FROM \${DatabaseHelper.tableListaCompras} lc
-      JOIN \${DatabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
-      JOIN \${DatabaseHelper.tableProdutos} p ON lc.Nome = p.Nome
+      FROM ${DatabaseHelper.tableListaCompras} lc
+      JOIN ${DatabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
+      JOIN ${DatabaseHelper.tableProdutos} p ON lc.Nome = p.Nome
       WHERE p.ID = ? AND lc.Transacao_ID IS NOT NULL
       ORDER BY t.Data DESC
     ''', [productId]);
@@ -133,7 +133,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Histórico: \$productName'),
+          title: Text('Histórico: $productName'),
           content: SizedBox(
             width: double.maxFinite,
             height: 300,
@@ -146,7 +146,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                       final dateStr = row['Data'] as String;
                       final price = (row['Preco'] as num).toDouble();
                       final date = DateTime.parse(dateStr);
-                      final formattedDate = "\${date.day.toString().padLeft(2, '0')}/\${date.month.toString().padLeft(2, '0')}/\${date.year}";
+                      final formattedDate = "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
 
                       return ListTile(
                         leading: const Icon(Icons.shopping_cart_checkout, color: Colors.green),
@@ -266,81 +266,75 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
 
     if (top5.isEmpty) return const SizedBox.shrink();
 
-    double maxVal = top5.isNotEmpty ? (top5.first['BuyCount'] as int).toDouble() : 1;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Top 5 Produtos Mais Comprados', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 150,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: maxVal + 1,
-                barTouchData: BarTouchData(enabled: false),
-                titlesData: FlTitlesData(
-                  show: true,
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        if (value >= 0 && value < top5.length) {
-                          String title = top5[value.toInt()]['Nome'];
-                          if (title.length > 8) title = '${title.substring(0, 8)}...';
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(title, style: const TextStyle(fontSize: 10)),
-                          );
-                        }
-                        return const Text('');
-                      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text('Favoritos da Casa 🏆', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        ),
+        SizedBox(
+          height: 130,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: top5.length,
+            itemBuilder: (context, index) {
+              final p = top5[index];
+              Color catColor = Colors.blueAccent;
+              if (p['Cor_Hexadecimal'] != null) {
+                catColor = Color(int.parse(p['Cor_Hexadecimal'].replaceAll('#', '0xFF')));
+              }
+              
+              return Container(
+                width: 140,
+                margin: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [catColor.withOpacity(0.8), catColor],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(color: catColor.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
+                  ]
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => _showPriceHistory(p['ID'] as int, p['Nome'] as String),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Icon(Icons.star, color: Colors.white70, size: 20),
+                              Text('#${index + 1}', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(p['Nome'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              Text('${p['BuyCount']} compras', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                            ],
+                          )
+                        ],
+                      ),
                     ),
                   ),
-                  leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
-                gridData: FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                barGroups: top5.asMap().entries.map((entry) {
-                  int idx = entry.key;
-                  var p = entry.value;
-                  Color barColor = Colors.blueAccent;
-                  if (p['Cor_Hexadecimal'] != null) {
-                    barColor = Color(int.parse(p['Cor_Hexadecimal'].replaceAll('#', '0xFF')));
-                  }
-                  return BarChartGroupData(
-                    x: idx,
-                    barRods: [
-                      BarChartRodData(
-                        toY: (p['BuyCount'] as int).toDouble(),
-                        color: barColor,
-                        width: 20,
-                        borderRadius: BorderRadius.circular(4),
-                        backDrawRodData: BackgroundBarChartRodData(
-                          show: true,
-                          toY: maxVal + 1,
-                          color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12,
-                        ),
-                      )
-                    ],
-                    showingTooltipIndicators: [0],
-                  );
-                }).toList(),
-              ),
-            ),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -369,96 +363,102 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                if (_searchQuery.isEmpty) _buildTopProductsChart(),
-                Expanded(
-                  child: _filteredStats.isEmpty
-                      ? const Center(child: Text('Nenhum produto cadastrado.'))
-                      : ListView.separated(
-                          itemCount: _filteredStats.length,
-                          separatorBuilder: (context, index) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final stat = _filteredStats[index];
-                            final currentPrice = stat['CurrentPrice'] as double;
-                            final previousPrice = stat['PreviousPrice'] as double;
-                            
-                            Widget variationWidget = const SizedBox.shrink();
-                            if (currentPrice > previousPrice && previousPrice > 0) {
-                              final diff = currentPrice - previousPrice;
-                              final pct = (diff / previousPrice) * 100;
-                              variationWidget = Text('+${pct.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold));
-                            } else if (currentPrice < previousPrice && previousPrice > 0) {
-                              final diff = previousPrice - currentPrice;
-                              final pct = (diff / previousPrice) * 100;
-                              variationWidget = Text('-${pct.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold));
-                            } else if (stat['HistoryCount'] > 1) {
-                              variationWidget = const Text('Estável', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold));
-                            }
+          : ListView.builder(
+              itemCount: _filteredStats.isEmpty ? 2 : _filteredStats.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return _searchQuery.isEmpty ? _buildTopProductsChart() : const SizedBox.shrink();
+                }
 
-                            Color catColor = Colors.grey;
-                            if (stat['Cor_Hexadecimal'] != null) {
-                              catColor = Color(int.parse((stat['Cor_Hexadecimal'] as String).replaceAll('#', '0xFF')));
-                            }
+                if (_filteredStats.isEmpty) {
+                  return const SizedBox(
+                    height: 300,
+                    child: Center(child: Text('Nenhum produto cadastrado.')),
+                  );
+                }
 
-                            return ExpansionTile(
-                              leading: CircleAvatar(backgroundColor: catColor, child: const Icon(Icons.shopping_bag, color: Colors.white, size: 20)),
-                              title: Text(stat['Nome'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                              subtitle: stat['CategoriaNome'] != null ? Text(stat['CategoriaNome'], style: TextStyle(color: catColor, fontSize: 12)) : null,
-                              trailing: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
+                final stat = _filteredStats[index - 1];
+                final currentPrice = stat['CurrentPrice'] as double;
+                final previousPrice = stat['PreviousPrice'] as double;
+                
+                Widget variationWidget = const SizedBox.shrink();
+                if (currentPrice > previousPrice && previousPrice > 0) {
+                  final diff = currentPrice - previousPrice;
+                  final pct = (diff / previousPrice) * 100;
+                  variationWidget = Text('+${pct.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold));
+                } else if (currentPrice < previousPrice && previousPrice > 0) {
+                  final diff = previousPrice - currentPrice;
+                  final pct = (diff / previousPrice) * 100;
+                  variationWidget = Text('-${pct.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold));
+                } else if (stat['HistoryCount'] > 1) {
+                  variationWidget = const Text('Estável', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold));
+                }
+
+                Color catColor = Colors.grey;
+                if (stat['Cor_Hexadecimal'] != null) {
+                  catColor = Color(int.parse((stat['Cor_Hexadecimal'] as String).replaceAll('#', '0xFF')));
+                }
+
+                return Column(
+                  children: [
+                    if (index > 1) const Divider(height: 1),
+                    ExpansionTile(
+                      leading: CircleAvatar(backgroundColor: catColor, child: const Icon(Icons.shopping_bag, color: Colors.white, size: 20)),
+                      title: Text(stat['Nome'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: stat['CategoriaNome'] != null ? Text(stat['CategoriaNome'], style: TextStyle(color: catColor, fontSize: 12)) : null,
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          if (stat['HistoryCount'] > 0) Text(CurrencyFormatter.format(currentPrice), style: const TextStyle(fontWeight: FontWeight.bold)),
+                          if (stat['HistoryCount'] == 0) const Text('S/ Histórico', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          variationWidget,
+                        ],
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Column(
                                 children: [
-                                  if (stat['HistoryCount'] > 0) Text(CurrencyFormatter.format(currentPrice), style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  if (stat['HistoryCount'] == 0) const Text('S/ Histórico', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                                  variationWidget,
+                                  const Text('Menor Preço', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text(stat['HistoryCount'] > 0 ? CurrencyFormatter.format(stat['MinPrice'] as double) : '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                                 ],
                               ),
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    children: [
-                                      Column(
-                                        children: [
-                                          const Text('Menor Preço', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                          Text(stat['HistoryCount'] > 0 ? CurrencyFormatter.format(stat['MinPrice'] as double) : '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                                        ],
-                                      ),
-                                      Column(
-                                        children: [
-                                          const Text('Maior Preço', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                                          Text(stat['HistoryCount'] > 0 ? CurrencyFormatter.format(stat['MaxPrice'] as double) : '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.show_chart, color: Colors.purple),
-                                      tooltip: 'Ver Histórico',
-                                      onPressed: () => _showPriceHistory(stat['ID'] as int, stat['Nome'] as String),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.edit, color: Colors.blue),
-                                      onPressed: () => _showProductDialog(stat),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete, color: Colors.red),
-                                      onPressed: () => _deleteProduct(stat['ID'] as int),
-                                    ),
-                                  ],
-                                )
-                              ],
-                            );
-                          },
+                              Column(
+                                children: [
+                                  const Text('Maior Preço', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text(stat['HistoryCount'] > 0 ? CurrencyFormatter.format(stat['MaxPrice'] as double) : '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                ),
-              ],
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.show_chart, color: Colors.purple),
+                              tooltip: 'Ver Histórico',
+                              onPressed: () => _showPriceHistory(stat['ID'] as int, stat['Nome'] as String),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              onPressed: () => _showProductDialog(stat),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _deleteProduct(stat['ID'] as int),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showProductDialog(),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../database/database_helper.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/transaction_helper.dart';
 import '../utils/bancos_brasil.dart';
 import 'transaction_form_screen.dart';
 import '../providers/dashboard_provider.dart';
@@ -78,10 +79,10 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
   }
 
   Future<void> _deleteTransaction(int id) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.delete(DatabaseHelper.tableTransacoes, where: 'ID = ?', whereArgs: [id]);
-    _loadTransactions();
-    ref.refresh(dashboardDataProvider); // Update dashboard
+    await TransactionHelper.deleteTransactionWithConfirmation(context, id, ref, () {
+      _loadTransactions();
+      ref.refresh(dashboardDataProvider);
+    });
   }
 
   void _showTransactionOptions(Map<String, dynamic> t) {
@@ -318,49 +319,76 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
                     final banco = BancosBrasil.obterBancoPorCodigo(bancoCode);
                     final bancoColor = Color(int.parse(banco.colorHex.replaceAll('#', '0xFF')));
 
-                    return Card(
+                    return Container(
                       margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: InkWell(
+                      decoration: isPaga ? null : BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
-                        onTap: () => _showTransactionOptions(t),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 44, height: 44,
-                                decoration: BoxDecoration(color: bancoColor, borderRadius: BorderRadius.circular(12)),
-                                child: Icon(banco.iconData ?? Icons.account_balance, color: Colors.white),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                        boxShadow: [
+                          BoxShadow(color: Colors.orange.withOpacity(0.6), blurRadius: 12, spreadRadius: 1),
+                        ],
+                      ),
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: isPaga ? BorderSide.none : const BorderSide(color: Colors.orange, width: 1.5),
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => _showTransactionOptions(t),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Row(
+                              children: [
+                                Stack(
                                   children: [
-                                    Text(t['Descricao'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, decoration: isPaga ? null : TextDecoration.lineThrough)),
-                                    const SizedBox(height: 4),
-                                    Text(t['CategoriaNome'].toString() + ' • ' + t['UsuarioNome'].toString(), style: TextStyle(color: Colors.grey[400], fontSize: 12)),
-                                    Text(banco.nome + ' (' + t['MetodoNome'].toString() + ')', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                                    Container(
+                                      width: 44, height: 44,
+                                      decoration: BoxDecoration(color: bancoColor, borderRadius: BorderRadius.circular(12)),
+                                      child: Icon(banco.iconData ?? Icons.account_balance, color: Colors.white),
+                                    ),
+                                    if (!isPaga)
+                                      Positioned(
+                                        right: -2, top: -2,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                                          child: const Icon(Icons.warning, color: Colors.orange, size: 14),
+                                        ),
+                                      )
                                   ],
                                 ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    (isReceita ? '+ ' : '- ') + CurrencyFormatter.format(t['Valor']),
-                                    style: TextStyle(
-                                      color: isReceita ? Colors.green : Colors.redAccent,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(t['Descricao'], style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, decoration: isPaga ? null : TextDecoration.lineThrough)),
+                                      const SizedBox(height: 4),
+                                      Text(t['CategoriaNome'].toString() + ' • ' + t['UsuarioNome'].toString(), style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+                                      Text(banco.nome + ' (' + t['MetodoNome'].toString() + ')', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                                    ],
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(DateFormat('dd/MM/yy').format(date), style: const TextStyle(fontSize: 11)),
-                                ],
-                              ),
-                            ],
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(
+                                      (isReceita ? '+ ' : '- ') + CurrencyFormatter.format(t['Valor']),
+                                      style: TextStyle(
+                                        color: isReceita ? Colors.green : Colors.redAccent,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(DateFormat('dd/MM/yy').format(date), style: const TextStyle(fontSize: 11)),
+                                    if (!isPaga)
+                                      const Text('Pendente', style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

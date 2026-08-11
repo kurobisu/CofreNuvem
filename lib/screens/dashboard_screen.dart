@@ -5,9 +5,12 @@ import '../providers/dashboard_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
+import '../database/database_helper.dart';
 import 'invoices_screen.dart';
 import 'reports_screen.dart';
 import 'settings_screen.dart';
+import 'transaction_form_screen.dart';
+import '../utils/transaction_helper.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -15,11 +18,17 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboardAsyncValue = ref.watch(dashboardDataProvider);
+    final isBalanceHidden = ref.watch(hideBalanceProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Visão Geral'),
         actions: [
+          IconButton(
+            icon: Icon(isBalanceHidden ? Icons.visibility_off : Icons.visibility),
+            tooltip: isBalanceHidden ? 'Mostrar Saldos' : 'Ocultar Saldos',
+            onPressed: () => ref.read(hideBalanceProvider.notifier).toggle(),
+          ),
           IconButton(
             icon: const Icon(Icons.analytics),
             tooltip: 'Relatórios Avançados',
@@ -48,9 +57,9 @@ class DashboardScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTotalBalanceCard(context, totalBalance),
+                  _buildTotalBalanceCard(context, totalBalance, isBalanceHidden),
                   const SizedBox(height: 24),
-                  _buildUserBalancesRow(userBalances),
+                  _buildUserBalancesList(userBalances, isBalanceHidden),
                   const SizedBox(height: 24),
                   if (creditCards.isNotEmpty) ...[
                     _buildCreditCardsRow(context, creditCards),
@@ -58,8 +67,8 @@ class DashboardScreen extends ConsumerWidget {
                   ],
                   if (categoryExpenses.isNotEmpty) _buildExpensesChart(context, categoryExpenses),
                   const SizedBox(height: 24),
-                  _buildRecentTransactions(context, recentTransactions),
-                  const SizedBox(height: 80), // padding for FAB/BottomNav
+                  _buildRecentTransactions(context, ref, recentTransactions),
+                  const SizedBox(height: 120), // padding for FAB/BottomNav
                 ],
               ),
             ),
@@ -71,7 +80,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildTotalBalanceCard(BuildContext context, double totalBalance) {
+  Widget _buildTotalBalanceCard(BuildContext context, double totalBalance, bool isHidden) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -99,7 +108,7 @@ class DashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            CurrencyFormatter.format(totalBalance),
+            isHidden ? 'R\$ ••••••' : CurrencyFormatter.format(totalBalance),
             style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
           ),
         ],
@@ -107,51 +116,56 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildUserBalancesRow(List<Map<String, dynamic>> userBalances) {
-    return SizedBox(
-      height: 120,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: userBalances.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 16),
-        itemBuilder: (context, index) {
-          final ub = userBalances[index];
-          return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Container(
-              width: 140,
+  Widget _buildUserBalancesList(List<Map<String, dynamic>> userBalances, bool isHidden) {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: userBalances.length,
+      itemBuilder: (context, index) {
+        final ub = userBalances[index];
+        return Card(
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: InkWell(
+            onTap: () => _showUserReportModal(context, ub['id'] as int, ub['nome'] as String),
+            borderRadius: BorderRadius.circular(20),
+            child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
                 children: [
                   CircleAvatar(
-                    radius: 16,
+                    radius: 24,
                     backgroundColor: AppTheme.accent.withOpacity(0.2),
                     child: Text(
                       ub['nome'].toString().substring(0, 1),
-                      style: const TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold, fontSize: 18),
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    ub['nome'],
-                    style: Theme.of(context).textTheme.bodyMedium,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          ub['nome'],
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isHidden ? 'R\$ ••••••' : CurrencyFormatter.format(ub['saldo']),
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    CurrencyFormatter.format(ub['saldo']),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
                 ],
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -263,7 +277,129 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRecentTransactions(BuildContext context, List<Map<String, dynamic>> transactions) {
+  Future<void> _deleteTransaction(BuildContext context, WidgetRef ref, int id) async {
+    await TransactionHelper.deleteTransactionWithConfirmation(context, id, ref, () {
+      ref.refresh(dashboardDataProvider);
+    });
+  }
+
+  Future<void> _showReceiptModal(BuildContext context, int transacaoId, String transacaoTitle) async {
+    final db = await DatabaseHelper.instance.database;
+    final items = await db.query(DatabaseHelper.tableListaCompras, where: 'Transacao_ID = ?', whereArgs: [transacaoId]);
+    if (!context.mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          maxChildSize: 0.9,
+          builder: (_, controller) {
+            return Column(
+              children: [
+                const SizedBox(height: 16),
+                const Icon(Icons.receipt_long, size: 48, color: Colors.green),
+                const SizedBox(height: 8),
+                Text('Cupom Fiscal', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+                Text(transacaoTitle, style: const TextStyle(color: Colors.grey)),
+                const Divider(),
+                Expanded(
+                  child: ListView.separated(
+                    controller: controller,
+                    itemCount: items.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      final preco = item['Preco'] as num;
+                      final qtde = item['Quantidade'] as num;
+                      final total = preco * qtde;
+                      return ListTile(
+                        title: Text(item['Nome'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text('${qtde.toString().replaceAll('.0', '')}x de ${CurrencyFormatter.format(preco.toDouble())}'),
+                        trailing: Text(CurrencyFormatter.format(total.toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showTransactionOptions(BuildContext context, WidgetRef ref, Map<String, dynamic> t) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 16),
+              Text(t['Descricao'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const Text('Opções da Transação', style: TextStyle(color: Colors.grey)),
+              const Divider(),
+              if ((t['HasItems'] ?? 0) > 0)
+                ListTile(
+                  leading: const Icon(Icons.receipt_long, color: Colors.green),
+                  title: const Text('Ver Cupom Fiscal (Itens da Compra)'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showReceiptModal(context, t['ID'], t['Descricao']);
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.edit, color: Colors.blue),
+                title: const Text('Editar Transação'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TransactionFormScreen(transactionId: t['ID']),
+                    ),
+                  ).then((_) => ref.refresh(dashboardDataProvider));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Excluir Transação'),
+                onTap: () {
+                  Navigator.pop(context);
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Excluir Transação?'),
+                      content: const Text('Esta ação não pode ser desfeita.'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _deleteTransaction(context, ref, t['ID']);
+                          },
+                          child: const Text('Excluir'),
+                        )
+                      ],
+                    )
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  Widget _buildRecentTransactions(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> transactions) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -290,35 +426,278 @@ class DashboardScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final t = transactions[index];
               final isReceita = t['Tipo'] == 'Receita';
+              final isPaga = t['Paga'] == 1;
               
               final bancoCode = t['Codigo_Banco']?.toString() ?? '999';
               final banco = BancosBrasil.obterBancoPorCodigo(bancoCode);
               final bancoColor = Color(int.parse(banco.colorHex.replaceAll('#', '0xFF')));
               
-              return Card(
+              return Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: Container(
-                    width: 44, height: 44,
-                    decoration: BoxDecoration(color: bancoColor, borderRadius: BorderRadius.circular(12)),
-                    child: Icon(banco.iconData ?? Icons.account_balance, color: Colors.white, size: 24),
+                decoration: isPaga ? null : BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: Colors.orange.withOpacity(0.6), blurRadius: 12, spreadRadius: 1),
+                  ],
+                ),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: isPaga ? BorderSide.none : const BorderSide(color: Colors.orange, width: 1.5),
                   ),
-                  title: Text(t['Descricao'], style: const TextStyle(fontWeight: FontWeight.w600)),
-                  subtitle: Text(t['CategoriaNome'].toString() + ' • ' + banco.nome + ' (' + (t['MetodoNome'] ?? '') + ')'),
-                  trailing: Text(
-                    (isReceita ? '+ ' : '- ') + CurrencyFormatter.format(t['Valor']),
-                    style: TextStyle(
-                      color: isReceita ? Colors.green : Colors.redAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => _showTransactionOptions(context, ref, t),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: Stack(
+                        children: [
+                          Container(
+                            width: 44, height: 44,
+                            decoration: BoxDecoration(color: bancoColor, borderRadius: BorderRadius.circular(12)),
+                            child: Icon(banco.iconData ?? Icons.account_balance, color: Colors.white, size: 24),
+                          ),
+                          if (!isPaga)
+                            Positioned(
+                              right: -2, top: -2,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                                child: const Icon(Icons.warning, color: Colors.orange, size: 14),
+                              ),
+                            )
+                        ],
+                      ),
+                      title: Text(t['Descricao'], style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text(t['CategoriaNome'].toString() + ' • ' + banco.nome + ' (' + (t['MetodoNome'] ?? '') + ')'),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${isReceita ? '+' : '-'} ${CurrencyFormatter.format(t['Valor'])}',
+                            style: TextStyle(
+                              color: isReceita ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          if (!isPaga)
+                            const Text('Pendente', style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               );
             },
           ),
+      ],
+    );
+  }
+
+  Future<void> _showUserReportModal(BuildContext context, int userId, String userName) async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _fetchUserReport(userId),
+          builder: (context, snapshot) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.7,
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text('Relatório de Pagamentos • $userName', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                  const Divider(),
+                  Expanded(
+                    child: snapshot.connectionState == ConnectionState.waiting
+                        ? const Center(child: CircularProgressIndicator())
+                        : snapshot.hasError
+                            ? Center(child: Text('Erro: ${snapshot.error}'))
+                            : _buildReportContent(context, snapshot.data ?? []),
+                  ),
+                ],
+              ),
+            );
+          }
+        );
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchUserReport(int userId) async {
+    final db = await DatabaseHelper.instance.database;
+    return await db.rawQuery('''
+      SELECT 
+        c.Nome as ContaNome, 
+        c.Codigo_Banco,
+        m.Nome as MetodoNome, 
+        t.Tipo,
+        SUM(t.Valor) as Total
+      FROM ${DatabaseHelper.tableTransacoes} t
+      JOIN ${DatabaseHelper.tableContasBancarias} c ON t.Conta_ID = c.ID
+      JOIN ${DatabaseHelper.tableMetodosPagamento} m ON t.Metodo_ID = m.ID
+      WHERE t.Usuario_ID = ? AND t.Paga = 1
+      GROUP BY c.Nome, m.Nome, t.Tipo
+      ORDER BY c.Nome, m.Nome, t.Tipo
+    ''', [userId]);
+  }
+
+  Widget _buildReportContent(BuildContext context, List<Map<String, dynamic>> data) {
+    if (data.isEmpty) return const Center(child: Text('Nenhuma movimentação encontrada.'));
+
+    Map<String, List<Map<String, dynamic>>> groupedByAccount = {};
+    double totalDespesas = 0.0;
+    Map<String, double> metodosTotals = {};
+
+    for (var row in data) {
+      String account = row['ContaNome'];
+      if (!groupedByAccount.containsKey(account)) {
+        groupedByAccount[account] = [];
+      }
+      groupedByAccount[account]!.add(row);
+
+      if (row['Tipo'] == 'Despesa') {
+        totalDespesas += row['Total'];
+        String met = row['MetodoNome'];
+        metodosTotals[met] = (metodosTotals[met] ?? 0.0) + row['Total'];
+      }
+    }
+
+    final List<Color> colors = [Colors.blue, Colors.red, Colors.green, Colors.orange, Colors.purple, Colors.teal, Colors.pink];
+    int colorIdx = 0;
+
+    return CustomScrollView(
+      slivers: [
+        if (totalDespesas > 0)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              child: Card(
+                elevation: 0,
+                color: Theme.of(context).cardColor,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Consumo por Método', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 150,
+                        child: PieChart(
+                          PieChartData(
+                            sectionsSpace: 2,
+                            centerSpaceRadius: 40,
+                            sections: metodosTotals.entries.map((e) {
+                              final double pct = (e.value / totalDespesas) * 100;
+                              final c = colors[colorIdx++ % colors.length];
+                              return PieChartSectionData(
+                                color: c,
+                                value: e.value,
+                                title: '${pct.toStringAsFixed(0)}%',
+                                radius: 45,
+                                titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: () {
+                          int i = 0;
+                          return metodosTotals.entries.map((e) {
+                            final c = colors[i++ % colors.length];
+                            return Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(width: 12, height: 12, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+                                const SizedBox(width: 4),
+                                Text(e.key, style: const TextStyle(fontSize: 12)),
+                              ],
+                            );
+                          }).toList();
+                        }(),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              String accountName = groupedByAccount.keys.elementAt(index);
+              List<Map<String, dynamic>> items = groupedByAccount[accountName]!;
+              
+              final bancoCode = items.first['Codigo_Banco']?.toString() ?? '999';
+              final banco = BancosBrasil.obterBancoPorCodigo(bancoCode);
+              final bancoColor = Color(int.parse(banco.colorHex.replaceAll('#', '0xFF')));
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: bancoColor.withOpacity(0.1),
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(banco.iconData ?? Icons.account_balance, color: bancoColor),
+                            const SizedBox(width: 8),
+                            Text(accountName, style: TextStyle(fontWeight: FontWeight.bold, color: bancoColor, fontSize: 16)),
+                          ],
+                        ),
+                      ),
+                      ...items.map((row) {
+                        bool isReceita = row['Tipo'] == 'Receita';
+                        return ListTile(
+                          title: Text(row['MetodoNome'], style: const TextStyle(fontSize: 16)),
+                          trailing: Text(
+                            (isReceita ? '+ ' : '- ') + CurrencyFormatter.format(row['Total']),
+                            style: TextStyle(
+                              color: isReceita ? Colors.green : Colors.red,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 18,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              );
+            },
+            childCount: groupedByAccount.length,
+          ),
+        ),
       ],
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/database_helper.dart';
+import 'settings_provider.dart';
 
 final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final db = await DatabaseHelper.instance.database;
@@ -15,7 +16,12 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   double totalBalance = (resTotal.first['saldo'] as num?)?.toDouble() ?? 0.0;
 
   // 2. Fetch individual balances HISTÓRICO COMPLETO
-  final List<Map<String, dynamic>> users = await db.query(DatabaseHelper.tableUsuarios, orderBy: 'Ordem ASC');
+  final userLimitSetting = await ref.watch(settingsProvider.future);
+  int? limit;
+  if (userLimitSetting != 'Ilimitado') {
+     limit = int.tryParse(userLimitSetting);
+  }
+  final List<Map<String, dynamic>> users = await db.query(DatabaseHelper.tableUsuarios, orderBy: 'Ordem ASC', limit: limit);
   List<Map<String, dynamic>> userBalances = [];
   
   for (var u in users) {
@@ -26,7 +32,7 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       [uId]
     );
     double uBalance = (resUser.first['saldo'] as num?)?.toDouble() ?? 0.0;
-    userBalances.add({'nome': uName, 'saldo': uBalance});
+    userBalances.add({'id': uId, 'nome': uName, 'saldo': uBalance});
   }
 
   // 3. Fetch expenses by category for current month
@@ -41,12 +47,13 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
   // 4. Recent transactions
   final List<Map<String, dynamic>> recentTransactions = await db.rawQuery('''
-    SELECT t.*, c.Nome as CategoriaNome, c.Cor_Hexadecimal, cb.Codigo_Banco, cb.Nome as ContaNome, mp.Nome as MetodoNome
+    SELECT t.*, c.Nome as CategoriaNome, c.Cor_Hexadecimal, cb.Codigo_Banco, cb.Nome as ContaNome, mp.Nome as MetodoNome,
+    (SELECT COUNT(ID) FROM ${DatabaseHelper.tableListaCompras} WHERE Transacao_ID = t.ID) as HasItems
     FROM ${DatabaseHelper.tableTransacoes} t
     JOIN ${DatabaseHelper.tableCategorias} c ON t.Categoria_ID = c.ID
     JOIN ${DatabaseHelper.tableContasBancarias} cb ON t.Conta_ID = cb.ID
     JOIN ${DatabaseHelper.tableMetodosPagamento} mp ON t.Metodo_ID = mp.ID
-    WHERE t.Data <= ? AND t.Paga = 1
+    WHERE t.Data <= ?
     ORDER BY t.Data DESC
     LIMIT 5
   ''', [now.toIso8601String()]);
@@ -67,4 +74,15 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     'recentTransactions': recentTransactions,
     'creditCards': creditCards,
   };
+});
+
+class HideBalanceNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void toggle() => state = !state;
+}
+
+final hideBalanceProvider = NotifierProvider<HideBalanceNotifier, bool>(() {
+  return HideBalanceNotifier();
 });

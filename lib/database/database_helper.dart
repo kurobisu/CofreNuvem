@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 
 class DatabaseHelper {
   static const _databaseName = "cofrenuvem.db";
-  static const _databaseVersion = 10; // Bump para versão 10 (Sub-categorias e Ocultação)
+  static const _databaseVersion = 12; // Bump para versão 12 (Detalhes Investimentos e Soft Delete)
 
   // Tables
   static const tableUsuarios = 'Usuarios';
@@ -16,6 +16,7 @@ class DatabaseHelper {
   static const tableCategorias = 'Categorias';
   static const tableTransacoes = 'Transacoes';
   static const tableInvestimentos = 'Investimentos';
+  static const tableHistoricoRendimentos = 'Historico_Rendimentos';
   static const tableListaCompras = 'Lista_Compras';
   static const tableProdutos = 'Produtos';
 
@@ -44,6 +45,15 @@ class DatabaseHelper {
     return await openDatabase(
       path,
       version: _databaseVersion,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
+      onOpen: (db) async {
+        // Limpar transações e contas órfãs (quando usuários/contas foram deletados antes do ON DELETE CASCADE funcionar)
+        await db.execute('DELETE FROM $tableTransacoes WHERE Usuario_ID NOT IN (SELECT ID FROM $tableUsuarios)');
+        await db.execute('DELETE FROM $tableTransacoes WHERE Conta_ID NOT IN (SELECT ID FROM $tableContasBancarias)');
+        await db.execute('DELETE FROM $tableContasBancarias WHERE Usuario_ID NOT IN (SELECT ID FROM $tableUsuarios)');
+      },
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -148,6 +158,24 @@ class DatabaseHelper {
         await _insertSub(db, alimId, 'Lanches', '#FFAB91');
       }
     }
+
+    if (oldVersion < 11) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS $tableHistoricoRendimentos (
+          ID INTEGER PRIMARY KEY AUTOINCREMENT,
+          Investimento_ID INTEGER NOT NULL,
+          Data TEXT NOT NULL,
+          Valor REAL NOT NULL,
+          FOREIGN KEY (Investimento_ID) REFERENCES $tableInvestimentos (ID) ON DELETE CASCADE
+        )
+      ''');
+    }
+
+    if (oldVersion < 12) {
+      await db.execute('ALTER TABLE $tableInvestimentos ADD COLUMN Status TEXT DEFAULT "Ativo"');
+      await db.execute('ALTER TABLE $tableInvestimentos ADD COLUMN Icone TEXT DEFAULT "savings"');
+      await db.execute('ALTER TABLE $tableTransacoes ADD COLUMN Investimento_ID INTEGER REFERENCES $tableInvestimentos (ID) ON DELETE SET NULL');
+    }
   }
 
   Future<void> _insertSub(Database db, int parentId, String nome, String cor) async {
@@ -239,10 +267,12 @@ class DatabaseHelper {
         Parcela_Total INTEGER,
         Paga INTEGER DEFAULT 1,
         Grupo_Parcela_ID TEXT,
+        Investimento_ID INTEGER,
         FOREIGN KEY (Usuario_ID) REFERENCES $tableUsuarios (ID) ON DELETE CASCADE,
         FOREIGN KEY (Categoria_ID) REFERENCES $tableCategorias (ID) ON DELETE CASCADE,
         FOREIGN KEY (Conta_ID) REFERENCES $tableContasBancarias (ID) ON DELETE CASCADE,
-        FOREIGN KEY (Metodo_ID) REFERENCES $tableMetodosPagamento (ID) ON DELETE CASCADE
+        FOREIGN KEY (Metodo_ID) REFERENCES $tableMetodosPagamento (ID) ON DELETE CASCADE,
+        FOREIGN KEY (Investimento_ID) REFERENCES $tableInvestimentos (ID) ON DELETE SET NULL
       )
     ''');
 
@@ -255,8 +285,21 @@ class DatabaseHelper {
         Valor_Investido REAL NOT NULL,
         Valor_Atualizado REAL NOT NULL,
         Liquidez TEXT NOT NULL,
+        Status TEXT DEFAULT 'Ativo',
+        Icone TEXT DEFAULT 'savings',
         Usuario_ID INTEGER NOT NULL,
         FOREIGN KEY (Usuario_ID) REFERENCES $tableUsuarios (ID) ON DELETE CASCADE
+      )
+    ''');
+
+    // 5.1 Historico de Rendimentos
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS $tableHistoricoRendimentos (
+        ID INTEGER PRIMARY KEY AUTOINCREMENT,
+        Investimento_ID INTEGER NOT NULL,
+        Data TEXT NOT NULL,
+        Valor REAL NOT NULL,
+        FOREIGN KEY (Investimento_ID) REFERENCES $tableInvestimentos (ID) ON DELETE CASCADE
       )
     ''');
 
