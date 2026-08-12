@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
+import '../utils/default_data.dart';
 
 class ManageCategoriesScreen extends StatefulWidget {
   const ManageCategoriesScreen({super.key});
@@ -19,17 +20,20 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
   }
 
   Future<void> _loadCategorias() async {
-    final db = await DatabaseHelper.instance.database;
-    final cats = await db.query(DatabaseHelper.tableCategorias, orderBy: 'Parent_ID ASC, Nome ASC');
-    setState(() {
-      _categorias = List<Map<String, dynamic>>.from(cats);
-      _isLoading = false;
-    });
+    await DefaultData.seedDefaultCategories();
+    final db = await SupabaseHelper.instance.database;
+    final cats = await db.query(SupabaseHelper.tableCategorias, orderBy: 'Parent_ID ASC, Nome ASC');
+    if (mounted) {
+      setState(() {
+        _categorias = List<Map<String, dynamic>>.from(cats);
+        _isLoading = false;
+      });
+    }
   }
 
-  Future<void> _addCategory(String nome, String hexColor, String tipo, int? parentId) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.insert(DatabaseHelper.tableCategorias, {
+  Future<void> _addCategory(String nome, String hexColor, String tipo, String? parentId) async {
+    final db = await SupabaseHelper.instance.database;
+    await db.insert(SupabaseHelper.tableCategorias, {
       'Nome': nome,
       'Cor_Hexadecimal': hexColor,
       'Tipo': tipo,
@@ -40,9 +44,9 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     _loadCategorias();
   }
 
-  Future<void> _updateCategory(int id, String nome, String hexColor, String tipo, int? parentId) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.update(DatabaseHelper.tableCategorias, {
+  Future<void> _updateCategory(String id, String nome, String hexColor, String tipo, String? parentId) async {
+    final db = await SupabaseHelper.instance.database;
+    await db.update(SupabaseHelper.tableCategorias, {
       'Nome': nome,
       'Cor_Hexadecimal': hexColor,
       'Tipo': tipo,
@@ -51,7 +55,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     _loadCategorias();
   }
 
-  Future<void> _deleteCategory(int id) async {
+  Future<void> _deleteCategory(String id) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -69,30 +73,30 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     );
 
     if (confirm == true) {
-      final db = await DatabaseHelper.instance.database;
+      final db = await SupabaseHelper.instance.database;
       // 1. Unlink children
-      await db.update(DatabaseHelper.tableCategorias, {'Parent_ID': null}, where: 'Parent_ID = ?', whereArgs: [id]);
+      await db.update(SupabaseHelper.tableCategorias, {'Parent_ID': null}, where: 'Parent_ID = ?', whereArgs: [id]);
       // 2. Unlink products
-      await db.update(DatabaseHelper.tableProdutos, {'Categoria_ID': null}, where: 'Categoria_ID = ?', whereArgs: [id]);
+      await db.update(SupabaseHelper.tableProdutos, {'Categoria_ID': null}, where: 'Categoria_ID = ?', whereArgs: [id]);
       // 3. Unlink transactions
-      await db.update(DatabaseHelper.tableTransacoes, {'Categoria_ID': null}, where: 'Categoria_ID = ?', whereArgs: [id]);
+      await db.update(SupabaseHelper.tableTransacoes, {'Categoria_ID': null}, where: 'Categoria_ID = ?', whereArgs: [id]);
       
-      await db.delete(DatabaseHelper.tableCategorias, where: 'ID = ?', whereArgs: [id]);
+      await db.delete(SupabaseHelper.tableCategorias, where: 'ID = ?', whereArgs: [id]);
       _loadCategorias();
     }
   }
 
-  Future<void> _toggleOculta(int id, int atual) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.update(DatabaseHelper.tableCategorias, {'Oculta': atual == 0 ? 1 : 0}, where: 'ID = ?', whereArgs: [id]);
+  Future<void> _toggleOculta(String id, int atual) async {
+    final db = await SupabaseHelper.instance.database;
+    await db.update(SupabaseHelper.tableCategorias, {'Oculta': atual == 0 ? 1 : 0}, where: 'ID = ?', whereArgs: [id]);
     _loadCategorias();
   }
 
-  void _showCategoryDialog([Map<String, dynamic>? category, int? preselectedParent]) {
+  void _showCategoryDialog([Map<String, dynamic>? category, String? preselectedParent]) {
     final nomeController = TextEditingController(text: category?['Nome'] ?? '');
     String selectedColor = category?['Cor_Hexadecimal'] ?? '#2196F3';
     String selectedTipo = category?['Tipo'] ?? 'Despesa';
-    int? selectedParentId = category != null ? category['Parent_ID'] : preselectedParent;
+    String? selectedParentId = category?['Parent_ID']?.toString() ?? preselectedParent;
 
     final colors = [
       '#F44336', '#E91E63', '#9C27B0', '#673AB7',
@@ -152,13 +156,13 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                       decoration: const InputDecoration(labelText: 'Tipo de Categoria'),
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<int?>(
+                    DropdownButtonFormField<String?>(
                       isExpanded: true,
                       value: selectedParentId,
                       items: [
-                        const DropdownMenuItem<int?>(value: null, child: Text('Nenhuma (Categoria Principal)', maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        ...parentOptions.map((p) => DropdownMenuItem<int?>(
-                          value: p['ID'] as int,
+                        const DropdownMenuItem<String?>(value: null, child: Text('Nenhuma (Categoria Principal)', maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        ...parentOptions.map((p) => DropdownMenuItem<String?>(
+                          value: p['ID'].toString(),
                           child: Text(p['Nome'], maxLines: 1, overflow: TextOverflow.ellipsis),
                         )).toList()
                       ],
@@ -219,84 +223,161 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Build tree
-    final parents = _categorias.where((c) => c['Parent_ID'] == null).toList();
-    
-    return Scaffold(
-      appBar: AppBar(title: const Text('Gerenciar Categorias')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: parents.length,
-              itemBuilder: (context, index) {
-                final parent = parents[index];
-                final children = _categorias.where((c) => c['Parent_ID'] == parent['ID']).toList();
-                
-                final parentColor = Color(int.parse(parent['Cor_Hexadecimal'].toString().replaceAll('#', '0xFF')));
-                final isHidden = parent['Oculta'] == 1;
+  Widget _buildCategoryList(List<Map<String, dynamic>> parents, List<Map<String, dynamic>> allCategories) {
+    if (parents.isEmpty) {
+      return const Center(child: Text('Nenhuma categoria encontrada.'));
+    }
 
-                return Column(
+    return ListView.builder(
+      padding: const EdgeInsets.all(16).copyWith(bottom: 80), // extra padding for FAB
+      itemCount: parents.length,
+      itemBuilder: (context, index) {
+        final parent = parents[index];
+        final children = allCategories.where((c) => c['Parent_ID'] == parent['ID']).toList();
+        
+        final parentColor = Color(int.parse(parent['Cor_Hexadecimal'].toString().replaceAll('#', '0xFF')));
+        final isHidden = parent['Oculta'] == 1;
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
                   children: [
-                    ListTile(
-                      leading: CircleAvatar(backgroundColor: parentColor),
-                      title: Text(parent['Nome'], style: TextStyle(fontWeight: FontWeight.bold, decoration: isHidden ? TextDecoration.lineThrough : null)),
-                      subtitle: Text(parent['Tipo']),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    CircleAvatar(backgroundColor: parentColor),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.add, color: Colors.green),
-                            tooltip: 'Nova Sub-categoria',
-                            onPressed: () => _showCategoryDialog(null, parent['ID']),
-                          ),
-                          IconButton(
-                            icon: Icon(isHidden ? Icons.visibility_off : Icons.visibility, color: isHidden ? Colors.grey : Colors.blue),
-                            onPressed: () => _toggleOculta(parent['ID'], parent['Oculta']),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.grey),
-                            onPressed: () => _showCategoryDialog(parent),
-                          ),
+                          Text(parent['Nome'], style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15, decoration: isHidden ? TextDecoration.lineThrough : null)),
+                          Text(parent['Tipo'], style: const TextStyle(fontSize: 12, color: Colors.white70)),
                         ],
                       ),
                     ),
-                    if (children.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 32.0),
-                        child: Column(
-                          children: children.map((child) {
-                            final childHidden = child['Oculta'] == 1;
-                            return ListTile(
-                              leading: const Icon(Icons.subdirectory_arrow_right, color: Colors.grey),
-                              title: Text(child['Nome'], style: TextStyle(decoration: childHidden ? TextDecoration.lineThrough : null)),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: Icon(childHidden ? Icons.visibility_off : Icons.visibility, color: childHidden ? Colors.grey : Colors.blue, size: 20),
-                                    onPressed: () => _toggleOculta(child['ID'], child['Oculta']),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                                    onPressed: () => _showCategoryDialog(child),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(Icons.add, color: Colors.green),
+                          tooltip: 'Nova Sub-categoria',
+                          onPressed: () => _showCategoryDialog(null, parent['ID'].toString()),
                         ),
-                      ),
-                    const Divider(),
+                        const SizedBox(width: 4),
+                        Transform.scale(
+                          scale: 0.8,
+                          child: Switch(
+                            value: !isHidden,
+                            onChanged: (val) => _toggleOculta(parent['ID'].toString(), parent['Oculta']),
+                            activeColor: Colors.blue,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: const Icon(Icons.edit, color: Colors.grey),
+                          onPressed: () => _showCategoryDialog(parent),
+                        ),
+                      ],
+                    ),
                   ],
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCategoryDialog(),
-        child: const Icon(Icons.add),
+                ),
+              ),
+              if (children.isNotEmpty)
+                const Divider(height: 1),
+              if (children.isNotEmpty)
+                ...children.map((child) {
+                  final childHidden = child['Oculta'] == 1;
+                  return Padding(
+                    padding: const EdgeInsets.only(left: 40.0, right: 12.0, top: 4, bottom: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.subdirectory_arrow_right, color: Colors.grey, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(child['Nome'], style: TextStyle(color: Colors.white, fontSize: 15, decoration: childHidden ? TextDecoration.lineThrough : null)),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Transform.scale(
+                              scale: 0.8,
+                              child: Switch(
+                                value: !childHidden,
+                                onChanged: (val) => _toggleOculta(child['ID'].toString(), child['Oculta']),
+                                activeColor: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                              onPressed: () => _showCategoryDialog(child),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Gerenciar Categorias')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final allParents = _categorias.where((c) => c['Parent_ID'] == null).toList();
+    
+    // Filtros para as Abas
+    final receitasParents = allParents.where((c) => c['Tipo'] == 'Receita').toList();
+    
+    final mercadoParent = allParents.where((c) => c['Nome'] == 'Mercado').toList();
+    final mercadoId = mercadoParent.isNotEmpty ? mercadoParent.first['ID'] : null;
+    
+    final despesasParents = allParents.where((c) => c['Tipo'] == 'Despesa' && c['Nome'] != 'Mercado').toList();
+
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Categorias'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.arrow_upward, color: Colors.green), text: 'Receitas'),
+              Tab(icon: Icon(Icons.arrow_downward, color: Colors.red), text: 'Despesas'),
+              Tab(icon: Icon(Icons.shopping_cart, color: Colors.orange), text: 'Mercado'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _buildCategoryList(receitasParents, _categorias),
+            _buildCategoryList(despesasParents, _categorias),
+            _buildCategoryList(mercadoParent, _categorias),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _showCategoryDialog(),
+          icon: const Icon(Icons.add),
+          label: const Text('Nova Categoria Padrão'),
+        ),
       ),
     );
   }

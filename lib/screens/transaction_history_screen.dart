@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/transaction_helper.dart';
 import '../utils/bancos_brasil.dart';
@@ -32,53 +32,51 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
 
   Future<void> _loadTransactions() async {
     setState(() => _isLoading = true);
-    final db = await DatabaseHelper.instance.database;
-    
-    String whereClause = '1=1';
-    List<dynamic> whereArgs = [];
+    final db = await SupabaseHelper.instance.database;
+    String sql = '''
+      SELECT t.*, c.Nome as CategoriaNome, c.Cor_Hexadecimal, cb.Codigo_Banco, cb.Nome as ContaNome, mp.Nome as MetodoNome, u.Nome as UsuarioNome,
+      (SELECT COUNT(ID) FROM lista_compras WHERE Transacao_ID = t.ID AND deleted_at IS NULL) as HasItems
+      FROM transacoes t
+      JOIN categorias c ON t.Categoria_ID = c.ID
+      JOIN contas_bancarias cb ON t.Conta_ID = cb.ID
+      JOIN metodos_pagamento mp ON t.Metodo_ID = mp.ID
+      JOIN usuarios u ON t.Usuario_ID = u.ID
+      WHERE t.deleted_at IS NULL
+    ''';
 
-    if (_filterStatus == 'Pagas') {
-      whereClause += ' AND t.Paga = 1';
-    } else if (_filterStatus == 'Pendentes') {
-      whereClause += ' AND t.Paga = 0';
-    }
+    if (_filterStatus == 'Pagas') sql += ' AND t.Paga = 1';
+    if (_filterStatus == 'Pendentes') sql += ' AND t.Paga = 0';
 
     if (_filterMonth != null) {
-      // _filterMonth is like '2026-08'
-      whereClause += ' AND t.Data LIKE ?';
-      whereArgs.add('$_filterMonth%');
+      sql += " AND COALESCE(t.Data_Fatura, t.Data) LIKE '\$_filterMonth%'";
     }
 
-    final List<Map<String, dynamic>> result = await db.rawQuery('''
-      SELECT t.*, 
-             c.Nome as CategoriaNome, c.Cor_Hexadecimal, 
-             cb.Codigo_Banco, cb.Nome as ContaNome,
-             u.Nome as UsuarioNome,
-             mp.Nome as MetodoNome,
-             (SELECT COUNT(ID) FROM ${DatabaseHelper.tableListaCompras} WHERE Transacao_ID = t.ID) as HasItems
-      FROM ${DatabaseHelper.tableTransacoes} t
-      JOIN ${DatabaseHelper.tableCategorias} c ON t.Categoria_ID = c.ID
-      JOIN ${DatabaseHelper.tableContasBancarias} cb ON t.Conta_ID = cb.ID
-      JOIN ${DatabaseHelper.tableUsuarios} u ON t.Usuario_ID = u.ID
-      JOIN ${DatabaseHelper.tableMetodosPagamento} mp ON t.Metodo_ID = mp.ID
-      WHERE $whereClause
-      ORDER BY $_sortOrder
-    ''', whereArgs);
+    final List<Map<String, dynamic>> result = await db.rawQuery(sql);
+    List<Map<String, dynamic>> modifiableResult = List.from(result);
+
+    // Ordenação
+    if (_sortOrder == 't.Data DESC') {
+      modifiableResult.sort((a, b) => DateTime.parse(b['Data']).compareTo(DateTime.parse(a['Data'])));
+    } else if (_sortOrder == 't.Data ASC') {
+      modifiableResult.sort((a, b) => DateTime.parse(a['Data']).compareTo(DateTime.parse(b['Data'])));
+    } else if (_sortOrder == 't.Valor DESC') {
+      modifiableResult.sort((a, b) => (b['Valor'] as num).compareTo(a['Valor'] as num));
+    }
 
     setState(() {
-      _transactions = result;
+      _transactions = modifiableResult;
       _isLoading = false;
     });
   }
 
-  Future<void> _togglePagaStatus(int id, int currentStatus) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.update(DatabaseHelper.tableTransacoes, {'Paga': currentStatus == 1 ? 0 : 1}, where: 'ID = ?', whereArgs: [id]);
+  Future<void> _togglePagaStatus(String id, int currentStatus) async {
+    final db = await SupabaseHelper.instance.database;
+    await db.update(SupabaseHelper.tableTransacoes, {'Paga': currentStatus == 1 ? 0 : 1}, where: 'ID = ?', whereArgs: [id]);
     _loadTransactions();
     ref.refresh(dashboardDataProvider);
   }
 
-  Future<void> _deleteTransaction(int id) async {
+  Future<void> _deleteTransaction(String id) async {
     await TransactionHelper.deleteTransactionWithConfirmation(context, id, ref, () {
       _loadTransactions();
       ref.refresh(dashboardDataProvider);
@@ -235,10 +233,10 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
     );
   }
 
-  Future<void> _showReceiptModal(int transacaoId, String transacaoTitle) async {
-    final db = await DatabaseHelper.instance.database;
+  Future<void> _showReceiptModal(String transacaoId, String transacaoTitle) async {
+    final db = await SupabaseHelper.instance.database;
     final items = await db.query(
-      DatabaseHelper.tableListaCompras, 
+      SupabaseHelper.tableListaCompras, 
       where: 'Transacao_ID = ?', 
       whereArgs: [transacaoId]
     );

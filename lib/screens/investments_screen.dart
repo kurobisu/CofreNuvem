@@ -7,7 +7,7 @@ import '../providers/investments_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import 'package:flutter/services.dart';
 import 'investment_details_screen.dart';
 
@@ -34,11 +34,11 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
   };
 
   Future<void> _showAddInvestmentDialog() async {
-    final db = await DatabaseHelper.instance.database;
-    final usuarios = await db.query(DatabaseHelper.tableUsuarios);
-    final contas = await db.query(DatabaseHelper.tableContasBancarias);
-    final metodos = await db.query(DatabaseHelper.tableMetodosPagamento);
-    final investimentosExistentes = await db.query(DatabaseHelper.tableInvestimentos);
+    final db = await SupabaseHelper.instance.database;
+    final usuarios = await db.query(SupabaseHelper.tableUsuarios);
+    final contas = await db.query(SupabaseHelper.tableContasBancarias);
+    final metodos = await db.query(SupabaseHelper.tableMetodosPagamento);
+    final investimentosExistentes = await db.query(SupabaseHelper.tableInvestimentos);
 
     if (usuarios.isEmpty || contas.isEmpty) {
       if (mounted) {
@@ -51,12 +51,12 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
     final valorController = TextEditingController();
     
     bool isNewInvestment = true;
-    int? selectedExistingInvestmentId = investimentosExistentes.isNotEmpty ? investimentosExistentes.first['ID'] as int : null;
+    String? selectedExistingInvestmentId = investimentosExistentes.isNotEmpty ? investimentosExistentes.first['ID'].toString() : null;
 
-    int? selectedUser = usuarios.first['ID'] as int?;
+    String? selectedUser = usuarios.first['ID']?.toString();
     
     List<Map<String, dynamic>> filteredContas = contas.where((c) => c['Usuario_ID'] == selectedUser).toList();
-    int? selectedConta = filteredContas.isNotEmpty ? filteredContas.first['ID'] as int : null;
+    String? selectedConta = filteredContas.isNotEmpty ? filteredContas.first['ID'].toString() : null;
     
     String selectedLiquidez = 'Diária';
     final liquidezOptions = ['Diária', 'No Vencimento', 'D+1', 'D+30'];
@@ -70,19 +70,19 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
-            void updateTitular(int? val) {
+            void updateTitular(String? val) {
               selectedUser = val;
               filteredContas = contas.where((c) => c['Usuario_ID'] == selectedUser).toList();
               if (!filteredContas.any((c) => c['ID'] == selectedConta)) {
-                selectedConta = filteredContas.isNotEmpty ? filteredContas.first['ID'] as int : null;
+                selectedConta = filteredContas.isNotEmpty ? filteredContas.first['ID'].toString() : null;
               }
             }
 
-            void updateExistingAsset(int? val) {
+            void updateExistingAsset(String? val) {
               selectedExistingInvestmentId = val;
               if (val != null) {
                 final inv = investimentosExistentes.firstWhere((i) => i['ID'] == val);
-                updateTitular(inv['Usuario_ID'] as int);
+                updateTitular(inv['Usuario_ID'].toString());
               }
             }
 
@@ -152,28 +152,28 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                         decoration: const InputDecoration(labelText: 'Liquidez'),
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<int>(
+                      DropdownButtonFormField<String>(
                         isExpanded: true,
                         value: selectedUser,
-                        items: usuarios.map((u) => DropdownMenuItem<int>(value: u['ID'] as int, child: Text(u['Nome'].toString()))).toList(),
+                        items: usuarios.map((u) => DropdownMenuItem<String>(value: u['ID'].toString(), child: Text(u['Nome'].toString()))).toList(),
                         onChanged: (val) => setStateDialog(() => updateTitular(val)),
                         decoration: const InputDecoration(labelText: 'Titular'),
                       ),
                     ] else ...[
-                      DropdownButtonFormField<int>(
+                      DropdownButtonFormField<String>(
                         isExpanded: true,
                         value: selectedExistingInvestmentId,
-                        items: investimentosExistentes.map((i) => DropdownMenuItem<int>(value: i['ID'] as int, child: Text(i['Ativo'].toString()))).toList(),
+                        items: investimentosExistentes.map((i) => DropdownMenuItem<String>(value: i['ID'].toString(), child: Text(i['Ativo'].toString()))).toList(),
                         onChanged: (val) => setStateDialog(() => updateExistingAsset(val)),
                         decoration: const InputDecoration(labelText: 'Ativo Existente'),
                       ),
                     ],
 
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
+                    DropdownButtonFormField<String>(
                       isExpanded: true,
                       value: selectedConta,
-                      items: filteredContas.map((c) => DropdownMenuItem<int>(value: c['ID'] as int, child: Text(c['Nome'].toString()))).toList(),
+                      items: filteredContas.map((c) => DropdownMenuItem<String>(value: c['ID'].toString(), child: Text(c['Nome'].toString()))).toList(),
                       onChanged: (val) => setStateDialog(() => selectedConta = val!),
                       decoration: const InputDecoration(labelText: 'Origem do Dinheiro (Conta)'),
                     ),
@@ -203,10 +203,10 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                           if (selectedConta == null) return;
                           if (!isNewInvestment && selectedExistingInvestmentId == null) return;
                           
-                          int insertedInvId;
+                          String insertedInvId;
 
                           if (isNewInvestment) {
-                            insertedInvId = await db.insert(DatabaseHelper.tableInvestimentos, {
+                            insertedInvId = await db.insert(SupabaseHelper.tableInvestimentos, {
                               'Ativo': nomeController.text.trim(),
                               'Data_Aporte': DateTime.now().toIso8601String(),
                               'Valor_Investido': val,
@@ -217,7 +217,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                               'Icone': selectedIcon,
                             });
 
-                            await db.insert(DatabaseHelper.tableHistoricoRendimentos, {
+                            await db.insert(SupabaseHelper.tableHistoricoRendimentos, {
                               'Investimento_ID': insertedInvId,
                               'Data': DateTime.now().toIso8601String().substring(0, 10),
                               'Valor': val,
@@ -228,32 +228,32 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                             final novoValorInvestido = (inv['Valor_Investido'] as num).toDouble() + val;
                             final novoValorAtualizado = (inv['Valor_Atualizado'] as num).toDouble() + val;
 
-                            await db.update(DatabaseHelper.tableInvestimentos, {
+                            await db.update(SupabaseHelper.tableInvestimentos, {
                               'Valor_Investido': novoValorInvestido,
                               'Valor_Atualizado': novoValorAtualizado,
                             }, where: 'ID = ?', whereArgs: [insertedInvId]);
 
-                            await db.insert(DatabaseHelper.tableHistoricoRendimentos, {
+                            await db.insert(SupabaseHelper.tableHistoricoRendimentos, {
                               'Investimento_ID': insertedInvId,
                               'Data': DateTime.now().toIso8601String().substring(0, 10),
                               'Valor': novoValorAtualizado,
                             });
                           }
                           
-                          int? categoriaInvestimentoId;
-                          final catRes = await db.query(DatabaseHelper.tableCategorias, where: "Nome = 'Investimentos'");
+                          String? categoriaInvestimentoId;
+                          final catRes = await db.query(SupabaseHelper.tableCategorias, where: "Nome = 'Investimentos'");
                           if (catRes.isEmpty) {
-                            categoriaInvestimentoId = await db.insert(DatabaseHelper.tableCategorias, {'Nome': 'Investimentos', 'Cor_Hexadecimal': '#4CAF50', 'Tipo': 'Despesa'});
+                            categoriaInvestimentoId = await db.insert(SupabaseHelper.tableCategorias, {'Nome': 'Investimentos', 'Cor_Hexadecimal': '#4CAF50', 'Tipo': 'Despesa'});
                           } else {
-                            categoriaInvestimentoId = catRes.first['ID'] as int;
+                            categoriaInvestimentoId = catRes.first['ID'].toString();
                           }
 
-                          int? metodoId = metodos.where((m) => m['Conta_ID'] == selectedConta).firstOrNull?['ID'] as int?;
+                          String? metodoId = metodos.where((m) => m['Conta_ID'] == selectedConta).firstOrNull?['ID']?.toString();
                           if (metodoId == null && metodos.isNotEmpty) {
-                              metodoId = metodos.first['ID'] as int;
+                              metodoId = metodos.first['ID'].toString();
                           }
 
-                          await db.insert(DatabaseHelper.tableTransacoes, {
+                          await db.insert(SupabaseHelper.tableTransacoes, {
                             'Descricao': 'Aporte - ${isNewInvestment ? nomeController.text.trim() : investimentosExistentes.firstWhere((i) => i['ID'] == insertedInvId)['Ativo']}',
                             'Valor': val,
                             'Data': DateTime.now().toIso8601String(),
@@ -292,7 +292,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
     if (investments.isEmpty) return;
     
     // Map of ID to its new text controller
-    Map<int, TextEditingController> controllers = {};
+    Map<String, TextEditingController> controllers = {};
     for (var inv in investments) {
       controllers[inv['ID']] = TextEditingController(text: CurrencyFormatter.format(inv['Valor_Atualizado']));
     }
@@ -353,7 +353,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
-                        final db = await DatabaseHelper.instance.database;
+                        final db = await SupabaseHelper.instance.database;
                         final now = DateTime.now().toIso8601String().substring(0, 10);
                         
                         for (var inv in investments) {
@@ -366,14 +366,14 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                           if (newVal > 0 && newVal != inv['Valor_Atualizado']) {
                             // Update Current Value
                             await db.update(
-                              DatabaseHelper.tableInvestimentos,
+                              SupabaseHelper.tableInvestimentos,
                               {'Valor_Atualizado': newVal},
                               where: 'ID = ?',
                               whereArgs: [inv['ID']],
                             );
                             
                             // Save to History
-                            await db.insert(DatabaseHelper.tableHistoricoRendimentos, {
+                            await db.insert(SupabaseHelper.tableHistoricoRendimentos, {
                               'Investimento_ID': inv['ID'],
                               'Data': now,
                               'Valor': newVal,
@@ -758,7 +758,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                           color: Colors.transparent,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(16),
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => InvestmentDetailsScreen(investmentId: item['ID'] as int))),
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => InvestmentDetailsScreen(investmentId: item['ID'].toString()))),
                             child: Padding(
                               padding: const EdgeInsets.all(16.0),
                               child: Row(

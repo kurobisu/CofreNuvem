@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 
 class TransactionHelper {
   static Future<void> deleteTransactionWithConfirmation(
-      BuildContext context, int transactionId, WidgetRef ref, VoidCallback onSuccess) async {
+      BuildContext context, String transactionId, WidgetRef ref, VoidCallback onSuccess) async {
     
     // Alerta 1
     final confirmar1 = await showDialog<bool>(
@@ -22,12 +22,12 @@ class TransactionHelper {
     if (confirmar1 != true) return;
     if (!context.mounted) return;
 
-    final db = await DatabaseHelper.instance.database;
-    final tRes = await db.query(DatabaseHelper.tableTransacoes, where: 'ID = ?', whereArgs: [transactionId]);
+    final db = await SupabaseHelper.instance.database;
+    final tRes = await db.query(SupabaseHelper.tableTransacoes, where: 'ID = ?', whereArgs: [transactionId]);
     if (tRes.isEmpty) return;
     
     final t = tRes.first;
-    final int? invId = t['Investimento_ID'] as int?;
+    final int? invId = t['investimento_id'] as int?;
     
     if (invId != null) {
       // Alerta 2 Rigoroso
@@ -49,15 +49,15 @@ class TransactionHelper {
 
       if (confirmar2 != true) return;
       
-      final invRes = await db.query(DatabaseHelper.tableInvestimentos, where: 'ID = ?', whereArgs: [invId]);
+      final invRes = await db.query(SupabaseHelper.tableInvestimentos, where: 'ID = ?', whereArgs: [invId]);
       if (invRes.isNotEmpty) {
         final inv = invRes.first;
-        final tipo = t['Tipo'] as String;
-        final val = (t['Valor'] as num).toDouble();
+        final tipo = t['tipo'] as String;
+        final val = (t['valor'] as num).toDouble();
         
-        double atu = (inv['Valor_Atualizado'] as num).toDouble();
-        double invst = (inv['Valor_Investido'] as num).toDouble();
-        String status = inv['Status'] as String;
+        double atu = (inv['valor_atualizado'] as num).toDouble();
+        double invst = (inv['valor_investido'] as num).toDouble();
+        String status = inv['status'] as String;
         
         if (tipo == 'Despesa') {
           // Aporte sendo apagado -> reduzir
@@ -77,13 +77,13 @@ class TransactionHelper {
           }
         }
 
-        await db.update(DatabaseHelper.tableInvestimentos, {
+        await db.update(SupabaseHelper.tableInvestimentos, {
           'Valor_Atualizado': atu,
           'Valor_Investido': invst,
           'Status': status,
         }, where: 'ID = ?', whereArgs: [invId]);
         
-        await db.insert(DatabaseHelper.tableHistoricoRendimentos, {
+        await db.insert(SupabaseHelper.tableHistoricoRendimentos, {
           'Investimento_ID': invId,
           'Data': DateTime.now().toIso8601String().substring(0, 10),
           'Valor': atu,
@@ -91,7 +91,7 @@ class TransactionHelper {
       }
     }
 
-    await db.delete(DatabaseHelper.tableTransacoes, where: 'ID = ?', whereArgs: [transactionId]);
+    await db.delete(SupabaseHelper.tableTransacoes, where: 'ID = ?', whereArgs: [transactionId]);
     if (context.mounted) {
       onSuccess();
     }

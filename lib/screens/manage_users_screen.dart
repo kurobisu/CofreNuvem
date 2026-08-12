@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import '../theme/app_theme.dart';
 
 class ManageUsersScreen extends StatefulWidget {
@@ -20,8 +20,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   }
 
   Future<void> _loadUsers() async {
-    final db = await DatabaseHelper.instance.database;
-    final List<Map<String, dynamic>> users = await db.query(DatabaseHelper.tableUsuarios, orderBy: 'Ordem ASC');
+    final db = await SupabaseHelper.instance.database;
+    final List<Map<String, dynamic>> users = await db.query(SupabaseHelper.tableUsuarios, orderBy: 'Ordem ASC');
     setState(() {
       _users = List<Map<String, dynamic>>.from(users); // Make modifiable
       _isLoading = false;
@@ -35,17 +35,17 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       _users.insert(newIndex, item);
     });
 
-    final db = await DatabaseHelper.instance.database;
+    final db = await SupabaseHelper.instance.database;
     final batch = db.batch();
     for (int i = 0; i < _users.length; i++) {
-      batch.update(DatabaseHelper.tableUsuarios, {'Ordem': i}, where: 'ID = ?', whereArgs: [_users[i]['ID']]);
+      batch.update(SupabaseHelper.tableUsuarios, {'Ordem': i}, where: 'ID = ?', whereArgs: [_users[i]['id'] ?? _users[i]['ID']]);
     }
     await batch.commit(noResult: true);
   }
 
   void _showUserDialog([Map<String, dynamic>? user]) {
-    final nomeController = TextEditingController(text: user?['Nome'] ?? '');
-    final pinController = TextEditingController(text: user?['PIN_Acesso'] ?? '');
+    final nomeController = TextEditingController(text: user?['nome'] ?? user?['Nome'] ?? '');
+    final pinController = TextEditingController(text: user?['pin_acesso'] ?? user?['PIN_Acesso'] ?? '');
     
     showDialog(
       context: context,
@@ -81,22 +81,22 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 
                 if (nome.isEmpty) return;
                 
-                final db = await DatabaseHelper.instance.database;
+                final db = await SupabaseHelper.instance.database;
                 
                 if (user == null) {
                   // Determina a ordem para o final da lista
                   final maxOrdem = _users.isEmpty ? 0 : _users.length;
-                  await db.insert(DatabaseHelper.tableUsuarios, {
+                  await db.insert(SupabaseHelper.tableUsuarios, {
                     'Nome': nome,
                     'PIN_Acesso': pin,
                     'Ordem': maxOrdem,
                   });
                 } else {
                   await db.update(
-                    DatabaseHelper.tableUsuarios,
+                    SupabaseHelper.tableUsuarios,
                     {'Nome': nome, 'PIN_Acesso': pin},
                     where: 'ID = ?',
-                    whereArgs: [user['ID']],
+                    whereArgs: [user['id'] ?? user['ID']],
                   );
                 }
                 
@@ -112,12 +112,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
-  void _deleteUser(int id) async {
-    final db = await DatabaseHelper.instance.database;
+  void _deleteUser(String id) async {
+    final db = await SupabaseHelper.instance.database;
     
     // Validate if the user can be deleted (maybe they have accounts or transactions)
-    final accounts = await db.query(DatabaseHelper.tableContasBancarias, where: 'Usuario_ID = ?', whereArgs: [id]);
-    final trans = await db.query(DatabaseHelper.tableTransacoes, where: 'Usuario_ID = ?', whereArgs: [id]);
+    final accounts = await db.query(SupabaseHelper.tableContasBancarias, where: 'Usuario_ID = ?', whereArgs: [id]);
+    final trans = await db.query(SupabaseHelper.tableTransacoes, where: 'Usuario_ID = ?', whereArgs: [id]);
     
     if (accounts.isNotEmpty || trans.isNotEmpty) {
       if (!mounted) return;
@@ -127,7 +127,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       return;
     }
 
-    await db.delete(DatabaseHelper.tableUsuarios, where: 'ID = ?', whereArgs: [id]);
+    await db.delete(SupabaseHelper.tableUsuarios, where: 'ID = ?', whereArgs: [id]);
     _loadUsers();
   }
 
@@ -142,14 +142,17 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             itemCount: _users.length,
             itemBuilder: (context, index) {
               final user = _users[index];
+              final nome = user['nome'] ?? user['Nome'] ?? '?';
+              final pin = user['pin_acesso'] ?? user['PIN_Acesso'];
+              final id = user['id'] ?? user['ID'];
               return ListTile(
-                key: ValueKey(user['ID']),
+                key: ValueKey(id),
                 leading: CircleAvatar(
                   backgroundColor: AppTheme.accent.withOpacity(0.2),
-                  child: Text(user['Nome'].substring(0, 1), style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
+                  child: Text(nome.isNotEmpty ? nome.substring(0, 1) : '?', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold)),
                 ),
-                title: Text(user['Nome']),
-                subtitle: Text(user['PIN_Acesso']?.isNotEmpty == true ? 'Com PIN' : 'Sem restrição'),
+                title: Text(nome),
+                subtitle: Text(pin?.isNotEmpty == true ? 'Com PIN' : 'Sem restrição'),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -159,7 +162,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteUser(user['ID']),
+                      onPressed: () => _deleteUser(id),
                     ),
                     const Icon(Icons.drag_handle, color: Colors.grey),
                   ],

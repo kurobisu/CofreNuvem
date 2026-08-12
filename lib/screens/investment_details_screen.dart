@@ -9,10 +9,10 @@ import '../providers/dashboard_provider.dart';
 import '../providers/investments_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 
 class InvestmentDetailsScreen extends ConsumerStatefulWidget {
-  final int investmentId;
+  final String investmentId;
   const InvestmentDetailsScreen({super.key, required this.investmentId});
 
   @override
@@ -32,9 +32,9 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
   };
 
   Future<void> _showRedeemInvestmentDialog(Map<String, dynamic> item) async {
-    final db = await DatabaseHelper.instance.database;
-    final contas = await db.query(DatabaseHelper.tableContasBancarias, where: 'Usuario_ID = ?', whereArgs: [item['Usuario_ID']]);
-    final metodos = await db.query(DatabaseHelper.tableMetodosPagamento);
+    final db = await SupabaseHelper.instance.database;
+    final contas = await db.query(SupabaseHelper.tableContasBancarias, where: 'Usuario_ID = ?', whereArgs: [item['Usuario_ID']]);
+    final metodos = await db.query(SupabaseHelper.tableMetodosPagamento);
 
     if (contas.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhuma conta bancária cadastrada.')));
@@ -42,7 +42,7 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
     }
 
     final valorController = TextEditingController();
-    int? selectedConta = contas.first['ID'] as int?;
+    String? selectedConta = contas.first['ID']?.toString();
 
     if (!mounted) return;
     showModalBottomSheet(
@@ -63,10 +63,10 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                     const SizedBox(height: 8),
                     Text('Saldo Atual: ${CurrencyFormatter.format(item['Valor_Atualizado'])}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
                     const SizedBox(height: 24),
-                    DropdownButtonFormField<int>(
+                    DropdownButtonFormField<String>(
                       isExpanded: true,
                       value: selectedConta,
-                      items: contas.map((c) => DropdownMenuItem<int>(value: c['ID'] as int, child: Text(c['Nome'].toString()))).toList(),
+                      items: contas.map((c) => DropdownMenuItem<String>(value: c['ID'].toString(), child: Text(c['Nome'].toString()))).toList(),
                       onChanged: (val) => setStateDialog(() => selectedConta = val!),
                       decoration: const InputDecoration(labelText: 'Conta Destino (Crédito)'),
                     ),
@@ -122,38 +122,38 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                           
                           if (novoAtualizado < 0.01) {
                             // Soft Delete (Status = 'Resgatado')
-                            await db.update(DatabaseHelper.tableInvestimentos, {
+                            await db.update(SupabaseHelper.tableInvestimentos, {
                               'Valor_Investido': 0.0,
                               'Valor_Atualizado': 0.0,
                               'Status': 'Resgatado'
                             }, where: 'ID = ?', whereArgs: [item['ID']]);
                           } else {
-                            await db.update(DatabaseHelper.tableInvestimentos, {
+                            await db.update(SupabaseHelper.tableInvestimentos, {
                               'Valor_Investido': novoInvestido,
                               'Valor_Atualizado': novoAtualizado,
                             }, where: 'ID = ?', whereArgs: [item['ID']]);
                             
-                            await db.insert(DatabaseHelper.tableHistoricoRendimentos, {
+                            await db.insert(SupabaseHelper.tableHistoricoRendimentos, {
                               'Investimento_ID': item['ID'],
                               'Data': DateTime.now().toIso8601String().substring(0, 10),
                               'Valor': novoAtualizado,
                             });
                           }
                           
-                          int? categoriaInvestimentoId;
-                          final catRes = await db.query(DatabaseHelper.tableCategorias, where: "Nome = 'Resgate de Investimento'");
+                          String? categoriaInvestimentoId;
+                          final catRes = await db.query(SupabaseHelper.tableCategorias, where: "Nome = 'Resgate de Investimento'");
                           if (catRes.isEmpty) {
-                            categoriaInvestimentoId = await db.insert(DatabaseHelper.tableCategorias, {'Nome': 'Resgate de Investimento', 'Cor_Hexadecimal': '#8BC34A', 'Tipo': 'Receita'});
+                            categoriaInvestimentoId = await db.insert(SupabaseHelper.tableCategorias, {'Nome': 'Resgate de Investimento', 'Cor_Hexadecimal': '#8BC34A', 'Tipo': 'Receita'});
                           } else {
-                            categoriaInvestimentoId = catRes.first['ID'] as int;
+                            categoriaInvestimentoId = catRes.first['ID'].toString();
                           }
 
-                          int? metodoId = metodos.where((m) => m['Conta_ID'] == selectedConta).firstOrNull?['ID'] as int?;
+                          String? metodoId = metodos.where((m) => m['Conta_ID'] == selectedConta).firstOrNull?['ID']?.toString();
                           if (metodoId == null && metodos.isNotEmpty) {
-                              metodoId = metodos.first['ID'] as int;
+                              metodoId = metodos.first['ID'].toString();
                           }
 
-                          await db.insert(DatabaseHelper.tableTransacoes, {
+                          await db.insert(SupabaseHelper.tableTransacoes, {
                             'Descricao': 'Resgate - ${item['Ativo']}',
                             'Valor': valResgate,
                             'Data': DateTime.now().toIso8601String(),

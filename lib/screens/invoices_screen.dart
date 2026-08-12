@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import 'package:intl/intl.dart';
 
@@ -27,9 +27,9 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   }
 
   Future<void> _loadFaturas() async {
-    final db = await DatabaseHelper.instance.database;
+    final db = await SupabaseHelper.instance.database;
     final res = await db.query(
-      DatabaseHelper.tableTransacoes,
+      SupabaseHelper.tableTransacoes,
       where: 'Metodo_ID = ?',
       whereArgs: [widget.metodo['ID']],
       orderBy: 'Data DESC',
@@ -66,12 +66,12 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   }
 
   Future<void> _pagarFatura(String vencimento, List<Map<String, dynamic>> transacoes) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = await SupabaseHelper.instance.database;
     final batch = db.batch();
 
     for (var t in transacoes) {
       if (t['Paga'] == 0) {
-        batch.update(DatabaseHelper.tableTransacoes, {'Paga': 1}, where: 'ID = ?', whereArgs: [t['ID']]);
+        batch.update(SupabaseHelper.tableTransacoes, {'Paga': 1}, where: 'ID = ?', whereArgs: [t['ID']]);
       }
     }
 
@@ -86,9 +86,9 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
     _loadFaturas();
   }
 
-  Future<void> _verCupomFiscal(int transacaoId) async {
-    final db = await DatabaseHelper.instance.database;
-    final itens = await db.query(DatabaseHelper.tableListaCompras, where: 'Transacao_ID = ?', whereArgs: [transacaoId]);
+  Future<void> _verCupomFiscal(String transacaoId) async {
+    final db = await SupabaseHelper.instance.database;
+    final itens = await db.query(SupabaseHelper.tableListaCompras, where: 'Transacao_ID = ?', whereArgs: [transacaoId]);
 
     if (itens.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Nenhum item associado a esta compra.')));
@@ -191,7 +191,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                             title: Text(t['Descricao']),
                             subtitle: Text(DateFormat('dd/MM/yyyy').format(DateTime.parse(t['Data'].toString()))),
                             trailing: Text(CurrencyFormatter.format((t['Valor'] as num).toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
-                            onTap: () => _verCupomFiscal(t['ID'] as int),
+                            onTap: () => _verCupomFiscal(t['ID'].toString()),
                           );
                         }).toList(),
                       ],

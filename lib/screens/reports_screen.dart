@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency_formatter.dart';
 
@@ -48,37 +48,44 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final db = await DatabaseHelper.instance.database;
+    final db = await SupabaseHelper.instance.database;
 
     final parts = _selectedMonth.split('/');
     final start = DateTime(int.parse(parts[1]), int.parse(parts[0]), 1).toIso8601String();
     final end = DateTime(int.parse(parts[1]), int.parse(parts[0]) + 1, 1).toIso8601String();
 
-    // 1. Fetch expenses
-    final expenses = await db.rawQuery('''
-      SELECT t.ID, t.Valor, c.Nome as CategoriaNome, c.Cor_Hexadecimal, mp.Nome as MetodoNome, cb.Nome as BancoNome
-      FROM ${DatabaseHelper.tableTransacoes} t
-      JOIN ${DatabaseHelper.tableCategorias} c ON t.Categoria_ID = c.ID
-      JOIN ${DatabaseHelper.tableMetodosPagamento} mp ON t.Metodo_ID = mp.ID
-      JOIN ${DatabaseHelper.tableContasBancarias} cb ON t.Conta_ID = cb.ID
-      WHERE t.Tipo = 'Despesa' AND t.Paga = 1 AND t.Data >= ? AND t.Data < ?
-    ''', [start, end]);
+    final allTrans = await db.rawQuery('''
+      SELECT t.*, c.Nome as CategoriaNome, c.Cor_Hexadecimal, cb.Nome as BancoNome, mp.Nome as MetodoNome
+      FROM transacoes t
+      JOIN categorias c ON t.Categoria_ID = c.ID
+      JOIN contas_bancarias cb ON t.Conta_ID = cb.ID
+      JOIN metodos_pagamento mp ON t.Metodo_ID = mp.ID
+      WHERE t.deleted_at IS NULL
+    ''');
+    final startDt = DateTime.parse(start);
+    final endDt = DateTime.parse(end);
+
+    List<Map<String, dynamic>> expenses = [];
+    List<String> expenseIds = [];
+    for (var t in allTrans) {
+      if (t['Tipo'] == 'Despesa' && t['Paga'] == 1) {
+        final d = DateTime.parse(t['Data']);
+        if ((d.isAfter(startDt) || d.isAtSameMomentAs(startDt)) && d.isBefore(endDt)) {
+          expenses.add(t);
+          expenseIds.add(t['ID'].toString());
+        }
+      }
+    }
 
     // 2. Fetch items for these expenses
-    final items = await db.rawQuery('''
-      SELECT lc.Transacao_ID, lc.Preco, lc.Quantidade, c.Nome as CategoriaNome, c.Cor_Hexadecimal
-      FROM ${DatabaseHelper.tableListaCompras} lc
-      JOIN ${DatabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
-      LEFT JOIN ${DatabaseHelper.tableProdutos} p ON lc.Nome = p.Nome
-      LEFT JOIN ${DatabaseHelper.tableCategorias} c ON p.Categoria_ID = c.ID
-      WHERE t.Tipo = 'Despesa' AND t.Paga = 1 AND t.Data >= ? AND t.Data < ?
-    ''', [start, end]);
-
-    Map<int, List<Map<String, dynamic>>> itemsByTrans = {};
-    for (var item in items) {
-      final tId = item['Transacao_ID'] as int;
-      if (!itemsByTrans.containsKey(tId)) itemsByTrans[tId] = [];
-      itemsByTrans[tId]!.add(item);
+    final allItems = await db.query(SupabaseHelper.tableListaCompras);
+    Map<String, List<Map<String, dynamic>>> itemsByTrans = {};
+    for (var item in allItems) {
+      final tId = item['Transacao_ID'].toString();
+      if (expenseIds.contains(tId)) {
+        if (!itemsByTrans.containsKey(tId)) itemsByTrans[tId] = [];
+        itemsByTrans[tId]!.add(item);
+      }
     }
 
     Map<String, double> catTotals = {};
@@ -88,7 +95,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     double grandTotal = 0;
 
     for (var exp in expenses) {
-      final tId = exp['ID'] as int;
+      final tId = exp['ID'].toString();
       final metName = exp['MetodoNome'] as String;
       final bnkName = exp['BancoNome'] as String;
       double valor = (exp['Valor'] as num).toDouble();

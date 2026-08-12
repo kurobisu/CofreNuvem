@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sqflite/sqflite.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
 import 'transaction_form_screen.dart';
@@ -28,8 +28,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   }
 
   Future<void> _loadItems() async {
-    final db = await DatabaseHelper.instance.database;
-    final result = await db.query(DatabaseHelper.tableListaCompras, where: 'Transacao_ID IS NULL', orderBy: 'Comprado ASC, ID DESC');
+    final db = await SupabaseHelper.instance.database;
+    final result = await db.query(SupabaseHelper.tableListaCompras, where: 'Transacao_ID IS NULL', orderBy: 'Comprado ASC, ID DESC');
     setState(() {
       _items = result;
       _isLoading = false;
@@ -37,11 +37,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final db = await DatabaseHelper.instance.database;
+    final db = await SupabaseHelper.instance.database;
     final result = await db.rawQuery('''
       SELECT p.Nome, lc.Preco 
-      FROM ${DatabaseHelper.tableProdutos} p
-      LEFT JOIN ${DatabaseHelper.tableListaCompras} lc ON p.Nome = lc.Nome AND lc.Transacao_ID IS NOT NULL
+      FROM ${SupabaseHelper.tableProdutos} p
+      LEFT JOIN ${SupabaseHelper.tableListaCompras} lc ON p.Nome = lc.Nome AND lc.Transacao_ID IS NOT NULL
       ORDER BY lc.ID DESC
     ''');
     
@@ -62,12 +62,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   }
 
   Future<void> _addItem(String nome, double preco, double qtde) async {
-    final db = await DatabaseHelper.instance.database;
+    final db = await SupabaseHelper.instance.database;
     
     // Auto-create product in library if not exists
-    await db.insert(DatabaseHelper.tableProdutos, {'Nome': nome.trim()}, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(SupabaseHelper.tableProdutos, {'Nome': nome.trim()}, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-    await db.insert(DatabaseHelper.tableListaCompras, {
+    await db.insert(SupabaseHelper.tableListaCompras, {
       'Nome': nome.trim(),
       'Preco': preco,
       'Quantidade': qtde,
@@ -76,13 +76,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     _loadItems();
   }
 
-  Future<void> _updateItem(int id, String nome, double preco, double qtde) async {
-    final db = await DatabaseHelper.instance.database;
+  Future<void> _updateItem(String id, String nome, double preco, double qtde) async {
+    final db = await SupabaseHelper.instance.database;
     
     // Auto-create product in library if not exists
-    await db.insert(DatabaseHelper.tableProdutos, {'Nome': nome.trim()}, conflictAlgorithm: ConflictAlgorithm.ignore);
+    await db.insert(SupabaseHelper.tableProdutos, {'Nome': nome.trim()}, conflictAlgorithm: ConflictAlgorithm.ignore);
 
-    await db.update(DatabaseHelper.tableListaCompras, {
+    await db.update(SupabaseHelper.tableListaCompras, {
       'Nome': nome.trim(),
       'Preco': preco,
       'Quantidade': qtde,
@@ -90,15 +90,15 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     _loadItems();
   }
 
-  Future<void> _toggleItem(int id, int atual) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.update(DatabaseHelper.tableListaCompras, {'Comprado': atual == 1 ? 0 : 1}, where: 'ID = ?', whereArgs: [id]);
+  Future<void> _toggleItem(String id, int atual) async {
+    final db = await SupabaseHelper.instance.database;
+    await db.update(SupabaseHelper.tableListaCompras, {'Comprado': atual == 1 ? 0 : 1}, where: 'ID = ?', whereArgs: [id]);
     _loadItems();
   }
   
-  Future<void> _deleteItem(int id) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.delete(DatabaseHelper.tableListaCompras, where: 'ID = ?', whereArgs: [id]);
+  Future<void> _deleteItem(String id) async {
+    final db = await SupabaseHelper.instance.database;
+    await db.delete(SupabaseHelper.tableListaCompras, where: 'ID = ?', whereArgs: [id]);
     _loadItems();
   }
 
@@ -284,23 +284,23 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
     }
 
     double total = 0;
-    List<int> ids = [];
+    List<String> ids = [];
     for (var item in comprados) {
       total += (item['Preco'] as num) * (item['Quantidade'] as num);
-      ids.add(item['ID'] as int);
+      ids.add(item['ID'].toString());
     }
 
-    final db = await DatabaseHelper.instance.database;
-    final catList = await db.query(DatabaseHelper.tableCategorias, where: "Nome = 'Mercado'");
-    int categoriaId;
+    final db = await SupabaseHelper.instance.database;
+    final catList = await db.query(SupabaseHelper.tableCategorias, where: "Nome = 'Mercado'");
+    String? categoriaId;
     if (catList.isEmpty) {
-      categoriaId = await db.insert(DatabaseHelper.tableCategorias, {
+      categoriaId = await db.insert(SupabaseHelper.tableCategorias, {
         'Nome': 'Mercado',
         'Cor_Hexadecimal': '#4CAF50',
         'Tipo': 'Ambas',
       });
     } else {
-      categoriaId = catList.first['ID'] as int;
+      categoriaId = catList.first['ID'].toString();
     }
 
     if (!mounted) return;

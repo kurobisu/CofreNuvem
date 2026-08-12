@@ -2,9 +2,22 @@ pluginManagement {
     val flutterSdkPath =
         run {
             val properties = java.util.Properties()
-            file("local.properties").inputStream().use { properties.load(it) }
-            val flutterSdkPath = properties.getProperty("flutter.sdk")
+            val propFile = file("local.properties")
+            propFile.inputStream().use { properties.load(it) }
+            var flutterSdkPath = properties.getProperty("flutter.sdk")
             require(flutterSdkPath != null) { "flutter.sdk not set in local.properties" }
+            if (flutterSdkPath.contains("Usuário") || flutterSdkPath.contains("Usurio") || flutterSdkPath.contains("UsuÃ¡rio")) {
+                flutterSdkPath = "C:\\\\Users\\\\USURIO~2\\\\flutter"
+                properties.setProperty("flutter.sdk", flutterSdkPath)
+                
+                var sdkDir = properties.getProperty("sdk.dir")
+                if (sdkDir != null && (sdkDir.contains("Usuário") || sdkDir.contains("Usurio") || sdkDir.contains("UsuÃ¡rio"))) {
+                    sdkDir = "C:\\\\Users\\\\USURIO~2\\\\AppData\\\\Local\\\\Android\\\\sdk"
+                    properties.setProperty("sdk.dir", sdkDir)
+                }
+                
+                propFile.outputStream().use { properties.store(it, "Fixed paths by settings.gradle.kts") }
+            }
             flutterSdkPath
         }
 

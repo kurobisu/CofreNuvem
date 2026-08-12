@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
 import 'invoices_screen.dart';
@@ -25,17 +25,16 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
   }
 
   Future<void> _loadData() async {
-    final db = await DatabaseHelper.instance.database;
-    final contas = await db.query(DatabaseHelper.tableContasBancarias, orderBy: 'Ordem ASC');
-    final metodos = await db.query(DatabaseHelper.tableMetodosPagamento);
-    final usuarios = await db.query(DatabaseHelper.tableUsuarios);
-    final comp = await db.query(DatabaseHelper.tableContasCompartilhadas);
+    setState(() => _isLoading = true);
+    final db = await SupabaseHelper.instance.database;
+    final contas = await db.query(SupabaseHelper.tableContasBancarias, orderBy: 'Ordem ASC');
+    final metodos = await db.query(SupabaseHelper.tableMetodosPagamento, orderBy: 'Ordem ASC');
+    final usuarios = await db.query(SupabaseHelper.tableUsuarios);
 
     setState(() {
-      _contas = List<Map<String, dynamic>>.from(contas);
+      _contas = contas;
       _metodos = metodos;
       _usuarios = usuarios;
-      _compartilhadas = comp;
       _isLoading = false;
     });
   }
@@ -47,81 +46,111 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
       _contas.insert(newIndex, item);
     });
 
-    final db = await DatabaseHelper.instance.database;
+    final db = await SupabaseHelper.instance.database;
     final batch = db.batch();
     for (int i = 0; i < _contas.length; i++) {
-      batch.update(DatabaseHelper.tableContasBancarias, {'Ordem': i}, where: 'ID = ?', whereArgs: [_contas[i]['ID']]);
+      batch.update(SupabaseHelper.tableContasBancarias, {'Ordem': i}, where: 'ID = ?', whereArgs: [_contas[i]['ID']]);
     }
     await batch.commit(noResult: true);
   }
 
-  Future<void> _addConta(String nome, String codigoBanco, int donoId) async {
-    final db = await DatabaseHelper.instance.database;
+  Future<void> _addConta(String nome, String codigoBanco, String donoId) async {
+    final db = await SupabaseHelper.instance.database;
     final maxOrdem = _contas.isEmpty ? 0 : _contas.length;
-    await db.insert(DatabaseHelper.tableContasBancarias, {
+    final contaId = await db.insert(SupabaseHelper.tableContasBancarias, {
       'Nome': nome,
       'Codigo_Banco': codigoBanco,
       'Usuario_ID': donoId,
       'Ordem': maxOrdem,
     });
+
+    if (codigoBanco != '100') {
+      await db.insert(SupabaseHelper.tableMetodosPagamento, {
+        'Conta_ID': contaId,
+        'Nome': 'PIX',
+        'Tipo': 'PIX',
+        'Ordem': 0,
+      });
+      await db.insert(SupabaseHelper.tableMetodosPagamento, {
+        'Conta_ID': contaId,
+        'Nome': 'Cartão de Débito',
+        'Tipo': 'Débito',
+        'Ordem': 1,
+      });
+    } else {
+      await db.insert(SupabaseHelper.tableMetodosPagamento, {
+        'Conta_ID': contaId,
+        'Nome': 'Dinheiro',
+        'Tipo': 'Dinheiro',
+        'Ordem': 0,
+      });
+    }
+
     _loadData();
   }
 
-  Future<void> _addMetodo(String nome, int contaId, String tipo, int? fechamento, int? vencimento) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.insert(DatabaseHelper.tableMetodosPagamento, {
+  Future<void> _addMetodo(String nome, String contaId, String tipo, String? fechamento, String? vencimento) async {
+    final db = await SupabaseHelper.instance.database;
+    final maxOrdem = _metodos.where((m) => m['Conta_ID'] == contaId).length;
+    await db.insert(SupabaseHelper.tableMetodosPagamento, {
       'Nome': nome,
       'Conta_ID': contaId,
       'Tipo': tipo,
+      'Ordem': maxOrdem,
       'Dia_Fechamento': fechamento,
       'Dia_Vencimento': vencimento,
     });
     _loadData();
   }
 
-  Future<void> _compartilharConta(int contaId, int usuarioId) async {
-    final db = await DatabaseHelper.instance.database;
-    try {
-      await db.insert(DatabaseHelper.tableContasCompartilhadas, {
-        'Conta_ID': contaId,
-        'Usuario_ID': usuarioId,
-      });
-      _loadData();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Este usuário já tem acesso à conta.')),
-        );
-      }
+  Future<void> _moveMetodo(String contaId, int oldIndex, int newIndex) async {
+    final metodosDaConta = _metodos.where((m) => m['Conta_ID'] == contaId).toList();
+    if (oldIndex < 0 || oldIndex >= metodosDaConta.length || newIndex < 0 || newIndex >= metodosDaConta.length) return;
+
+    final item = metodosDaConta.removeAt(oldIndex);
+    metodosDaConta.insert(newIndex, item);
+
+    final db = await SupabaseHelper.instance.database;
+    final batch = db.batch();
+    for (int i = 0; i < metodosDaConta.length; i++) {
+      batch.update(SupabaseHelper.tableMetodosPagamento, {'Ordem': i}, where: 'ID = ?', whereArgs: [metodosDaConta[i]['ID']]);
     }
-  }
-
-  Future<void> _removerCompartilhamento(int contaId, int usuarioId) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.delete(
-      DatabaseHelper.tableContasCompartilhadas,
-      where: 'Conta_ID = ? AND Usuario_ID = ?',
-      whereArgs: [contaId, usuarioId],
-    );
+    await batch.commit(noResult: true);
     _loadData();
   }
 
-  Future<void> _deleteConta(int id) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.delete(DatabaseHelper.tableContasBancarias, where: 'ID = ?', whereArgs: [id]);
+  Future<void> _compartilharConta(String contaId, String usuarioId) async {
+    // Compartilhamento agora é global (Familia)
+    // if (_selectedUserIds.isNotEmpty) {
+    //   for (var uid in _selectedUserIds) {
+    //     await db.insert(SupabaseHelper.tableContasCompartilhadas, {
+    //       'Conta_ID': cId,
+    //       'Usuario_ID': uid
+    //     });
+    //   }
+    // }
+  }
+
+  Future<void> _removerCompartilhamento(String contaId, String usuarioId) async {
+    // Compartilhamento agora é global
+  }
+
+  Future<void> _deleteConta(String id) async {
+    final db = await SupabaseHelper.instance.database;
+    await db.delete(SupabaseHelper.tableContasBancarias, where: 'ID = ?', whereArgs: [id]);
     _loadData();
   }
 
-  Future<void> _deleteMetodo(int id) async {
-    final db = await DatabaseHelper.instance.database;
-    await db.delete(DatabaseHelper.tableMetodosPagamento, where: 'ID = ?', whereArgs: [id]);
+  Future<void> _deleteMetodo(String id) async {
+    final db = await SupabaseHelper.instance.database;
+    await db.delete(SupabaseHelper.tableMetodosPagamento, where: 'ID = ?', whereArgs: [id]);
     _loadData();
   }
 
   void _showAddContaDialog() {
     final nomeController = TextEditingController();
     BancoLogo selectedBanco = BancosBrasil.bancos.first;
-    int? selectedDono = _usuarios.isNotEmpty ? _usuarios.first['ID'] as int : null;
+    String? selectedDono = _usuarios.isNotEmpty ? _usuarios.first['ID'].toString() : null;
 
     showDialog(
       context: context,
@@ -166,10 +195,10 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    DropdownButtonFormField<int>(
+                    DropdownButtonFormField<String>(
                       value: selectedDono,
-                      items: _usuarios.map((u) => DropdownMenuItem<int>(
-                        value: u['ID'] as int,
+                      items: _usuarios.map((u) => DropdownMenuItem<String>(
+                        value: u['ID'].toString(),
                         child: Text(u['Nome']),
                       )).toList(),
                       onChanged: (val) => setStateDialog(() => selectedDono = val),
@@ -198,8 +227,8 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     );
   }
 
-  void _showCompartilharDialog(int contaId, String contaNome) {
-    int? selectedUsuario = _usuarios.isNotEmpty ? _usuarios.first['ID'] as int : null;
+  void _showCompartilharDialog(String contaId, String contaNome) {
+    String? selectedUsuario = _usuarios.isNotEmpty ? _usuarios.first['ID'].toString() : null;
 
     showDialog(
       context: context,
@@ -213,10 +242,10 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                 children: [
                   const Text('Permitir que outro membro da família acesse e lance transações usando esta conta.', style: TextStyle(fontSize: 12)),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<int>(
+                  DropdownButtonFormField<String>(
                     value: selectedUsuario,
-                    items: _usuarios.map((u) => DropdownMenuItem<int>(
-                      value: u['ID'] as int,
+                    items: _usuarios.map((u) => DropdownMenuItem<String>(
+                      value: u['ID'].toString(),
                       child: Text(u['Nome']),
                     )).toList(),
                     onChanged: (val) => setStateDialog(() => selectedUsuario = val),
@@ -243,11 +272,19 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     );
   }
 
-  void _showAddMetodoDialog(int contaId, String contaNome) {
-    final nomeController = TextEditingController();
+  void _showAddMetodoDialog(String contaId, String contaNome) {
+    final metodosDaConta = _metodos.where((m) => m['Conta_ID'] == contaId).toList();
+    List<String> opcoesDisponiveis = ['Outros'];
+    
+    if (!metodosDaConta.any((m) => m['Tipo'] == 'PIX')) opcoesDisponiveis.insert(0, 'PIX');
+    if (!metodosDaConta.any((m) => m['Tipo'] == 'Débito')) opcoesDisponiveis.insert(0, 'Débito');
+    if (!metodosDaConta.any((m) => m['Tipo'] == 'Crédito')) opcoesDisponiveis.insert(0, 'Crédito');
+    if (!metodosDaConta.any((m) => m['Tipo'] == 'Dinheiro')) opcoesDisponiveis.insert(0, 'Dinheiro');
+
+    final nomeController = TextEditingController(text: opcoesDisponiveis.first != 'Outros' ? opcoesDisponiveis.first : '');
     final fechamentoController = TextEditingController();
     final vencimentoController = TextEditingController();
-    String tipoSelecionado = 'Outros';
+    String tipoSelecionado = opcoesDisponiveis.first;
 
     showDialog(
       context: context,
@@ -268,8 +305,13 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       value: tipoSelecionado,
-                      items: ['Outros', 'Débito', 'Crédito'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: (val) => setStateDialog(() => tipoSelecionado = val!),
+                      items: opcoesDisponiveis.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          tipoSelecionado = val!;
+                          if (val != 'Outros') nomeController.text = val;
+                        });
+                      },
                       decoration: const InputDecoration(labelText: 'Tipo de Método'),
                     ),
                     if (tipoSelecionado == 'Crédito') ...[
@@ -302,8 +344,8 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                 ElevatedButton(
                   onPressed: () {
                     if (nomeController.text.trim().isNotEmpty) {
-                      int? fechamento = tipoSelecionado == 'Crédito' ? int.tryParse(fechamentoController.text) : null;
-                      int? vencimento = tipoSelecionado == 'Crédito' ? int.tryParse(vencimentoController.text) : null;
+                      String? fechamento = tipoSelecionado == 'Crédito' ? (fechamentoController.text.isNotEmpty ? fechamentoController.text : null) : null;
+                      String? vencimento = tipoSelecionado == 'Crédito' ? (vencimentoController.text.isNotEmpty ? vencimentoController.text : null) : null;
                       
                       _addMetodo(nomeController.text.trim(), contaId, tipoSelecionado, fechamento, vencimento);
                       Navigator.pop(context);
@@ -319,7 +361,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     );
   }
 
-  String _getUserName(int? id) {
+  String _getUserName(String? id) {
     if (id == null) return 'Desconhecido';
     final match = _usuarios.where((u) => u['ID'] == id);
     if (match.isNotEmpty) return match.first['Nome'];
@@ -338,15 +380,14 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
               itemCount: _contas.length,
               itemBuilder: (context, index) {
                 final conta = _contas[index];
-                final contaId = conta['ID'] as int;
+                final contaId = conta['ID'].toString();
                 final metodosDaConta = _metodos.where((m) => m['Conta_ID'] == contaId).toList();
                 
                 final bancoCode = conta['Codigo_Banco']?.toString() ?? '999';
                 final banco = BancosBrasil.obterBancoPorCodigo(bancoCode);
                 final color = Color(int.parse(banco.colorHex.replaceAll('#', '0xFF')));
 
-                final ownerName = _getUserName(conta['Usuario_ID'] as int?);
-                final compAccess = _compartilhadas.where((c) => c['Conta_ID'] == contaId).toList();
+                final ownerName = _getUserName(conta['Usuario_ID']?.toString());
 
                 return Card(
                   key: ValueKey(contaId),
@@ -373,34 +414,21 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                     ),
                     children: [
                       const Divider(height: 1),
-                      // Aba de Compartilhamento
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        color: Colors.grey.withOpacity(0.05),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Compartilhada com:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                            const SizedBox(height: 4),
-                            if (compAccess.isEmpty) const Text('Somente o dono tem acesso.', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                            Wrap(
-                              spacing: 8,
-                              children: compAccess.map((c) => Chip(
-                                label: Text(_getUserName(c['Usuario_ID'] as int?)),
-                                onDeleted: () => _removerCompartilhamento(contaId, c['Usuario_ID'] as int),
-                              )).toList(),
-                            ),
-                            TextButton.icon(
-                              onPressed: () => _showCompartilharDialog(contaId, conta['Nome']),
-                              icon: const Icon(Icons.share, size: 16),
-                              label: const Text('Compartilhar Conta'),
-                            )
-                          ],
-                        ),
-                      ),
+                      // Compartilhamento global
+                      // await db.delete(SupabaseHelper.tableContasCompartilhadas, where: 'Conta_ID = ?', whereArgs: [widget.accountToEdit!['ID']]);
+                      // if (_selectedUserIds.isNotEmpty) {
+                      //   for (var uid in _selectedUserIds) {
+                      //     await db.insert(SupabaseHelper.tableContasCompartilhadas, {
+                      //       'Conta_ID': widget.accountToEdit!['ID'],
+                      //       'Usuario_ID': uid
+                      //     });
+                      //   }
+                      // }
                       const Divider(height: 1),
                       // Métodos de Pagamento
-                      ...metodosDaConta.map((m) {
+                      ...metodosDaConta.asMap().entries.map((entry) {
+                        int index = entry.key;
+                        var m = entry.value;
                         bool isCredito = m['Tipo'] == 'Crédito';
                         return ListTile(
                           title: Text(m['Nome']),
@@ -410,6 +438,16 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              if (index > 0)
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_upward, color: Colors.grey, size: 20),
+                                  onPressed: () => _moveMetodo(contaId, index, index - 1),
+                                ),
+                              if (index < metodosDaConta.length - 1)
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_downward, color: Colors.grey, size: 20),
+                                  onPressed: () => _moveMetodo(contaId, index, index + 1),
+                                ),
                               if (isCredito)
                                 IconButton(
                                   icon: const Icon(Icons.receipt_long, color: Colors.blue),
@@ -417,7 +455,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                                   tooltip: 'Ver Faturas',
                                 ),
                               IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
+                                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
                                 onPressed: () => _deleteMetodo(m['ID']),
                               ),
                             ],

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../theme/app_theme.dart';
 
@@ -25,10 +25,10 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final db = await DatabaseHelper.instance.database;
+    final db = await SupabaseHelper.instance.database;
     
     _categorias = await db.query(
-      DatabaseHelper.tableCategorias,
+      SupabaseHelper.tableCategorias,
       where: 'Tipo != ? AND Oculta = 0',
       whereArgs: ['Receita'],
       orderBy: 'Nome ASC'
@@ -37,17 +37,17 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
     // Get all products and their history
     final result = await db.rawQuery('''
       SELECT p.ID as ProdutoID, p.Nome as ProdutoNome, p.Categoria_ID, c.Nome as CategoriaNome, c.Cor_Hexadecimal, lc.Preco, t.Data 
-      FROM ${DatabaseHelper.tableProdutos} p
-      LEFT JOIN ${DatabaseHelper.tableCategorias} c ON p.Categoria_ID = c.ID
-      LEFT JOIN ${DatabaseHelper.tableListaCompras} lc ON p.Nome = lc.Nome AND lc.Transacao_ID IS NOT NULL
-      LEFT JOIN ${DatabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
+      FROM ${SupabaseHelper.tableProdutos} p
+      LEFT JOIN ${SupabaseHelper.tableCategorias} c ON p.Categoria_ID = c.ID
+      LEFT JOIN ${SupabaseHelper.tableListaCompras} lc ON p.Nome = lc.Nome AND lc.Transacao_ID IS NOT NULL
+      LEFT JOIN ${SupabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
       ORDER BY p.Nome ASC, t.Data ASC
     ''');
 
-    Map<int, Map<String, dynamic>> productsMap = {};
+    Map<String, Map<String, dynamic>> productsMap = {};
 
     for (var row in result) {
-      int pId = row['ProdutoID'] as int;
+      String pId = row['ProdutoID'].toString();
       
       if (!productsMap.containsKey(pId)) {
         productsMap[pId] = {
@@ -116,13 +116,13 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
     });
   }
 
-  Future<void> _showPriceHistory(int productId, String productName) async {
-    final db = await DatabaseHelper.instance.database;
+  Future<void> _showPriceHistory(String productId, String productName) async {
+    final db = await SupabaseHelper.instance.database;
     final result = await db.rawQuery('''
       SELECT lc.Preco, t.Data 
-      FROM ${DatabaseHelper.tableListaCompras} lc
-      JOIN ${DatabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
-      JOIN ${DatabaseHelper.tableProdutos} p ON lc.Nome = p.Nome
+      FROM ${SupabaseHelper.tableListaCompras} lc
+      JOIN ${SupabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
+      JOIN ${SupabaseHelper.tableProdutos} p ON lc.Nome = p.Nome
       WHERE p.ID = ? AND lc.Transacao_ID IS NOT NULL
       ORDER BY t.Data DESC
     ''', [productId]);
@@ -164,7 +164,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
     );
   }
 
-  Future<void> _deleteProduct(int id) async {
+  Future<void> _deleteProduct(String id) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -182,15 +182,15 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
     );
 
     if (confirm == true) {
-      final db = await DatabaseHelper.instance.database;
-      await db.delete(DatabaseHelper.tableProdutos, where: 'ID = ?', whereArgs: [id]);
+      final db = await SupabaseHelper.instance.database;
+      await db.delete(SupabaseHelper.tableProdutos, where: 'ID = ?', whereArgs: [id]);
       _loadHistory();
     }
   }
 
   Future<void> _showProductDialog([Map<String, dynamic>? product]) async {
     final nomeController = TextEditingController(text: product?['Nome'] ?? '');
-    int? selectedCategoria = product?['Categoria_ID'];
+    String? selectedCategoria = product?['Categoria_ID']?.toString();
 
     await showDialog(
       context: context,
@@ -206,11 +206,11 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                 textCapitalization: TextCapitalization.words,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<int>(
+              DropdownButtonFormField<String>(
                 value: selectedCategoria,
                 decoration: const InputDecoration(labelText: 'Sub-categoria'),
-                items: _categorias.map((c) => DropdownMenuItem<int>(
-                  value: c['ID'] as int,
+                items: _categorias.map((c) => DropdownMenuItem<String>(
+                  value: c['ID'].toString(),
                   child: Row(
                     children: [
                       Container(
@@ -235,14 +235,14 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
               onPressed: () async {
                 final nome = nomeController.text.trim();
                 if (nome.isNotEmpty) {
-                  final db = await DatabaseHelper.instance.database;
+                  final db = await SupabaseHelper.instance.database;
                   if (product == null) {
-                    await db.insert(DatabaseHelper.tableProdutos, {
+                    await db.insert(SupabaseHelper.tableProdutos, {
                       'Nome': nome,
                       'Categoria_ID': selectedCategoria,
                     });
                   } else {
-                    await db.update(DatabaseHelper.tableProdutos, {
+                    await db.update(SupabaseHelper.tableProdutos, {
                       'Nome': nome,
                       'Categoria_ID': selectedCategoria,
                     }, where: 'ID = ?', whereArgs: [product['ID']]);
@@ -261,7 +261,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
 
   Widget _buildTopProductsChart() {
     List<Map<String, dynamic>> sortedByBuy = List.from(_productStats);
-    sortedByBuy.sort((a, b) => (b['BuyCount'] as int).compareTo(a['BuyCount'] as int));
+    sortedByBuy.sort((a, b) => (b['BuyCount'].toString()).compareTo(a['BuyCount'].toString()));
     final top5 = sortedByBuy.take(5).where((p) => p['BuyCount'] > 0).toList();
 
     if (top5.isEmpty) return const SizedBox.shrink();
@@ -304,7 +304,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () => _showPriceHistory(p['ID'] as int, p['Nome'] as String),
+                    onTap: () => _showPriceHistory(p['ID'].toString(), p['Nome'] as String),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
@@ -442,7 +442,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                             IconButton(
                               icon: const Icon(Icons.show_chart, color: Colors.purple),
                               tooltip: 'Ver Histórico',
-                              onPressed: () => _showPriceHistory(stat['ID'] as int, stat['Nome'] as String),
+                              onPressed: () => _showPriceHistory(stat['ID'].toString(), stat['Nome'] as String),
                             ),
                             IconButton(
                               icon: const Icon(Icons.edit, color: Colors.blue),
@@ -450,7 +450,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete, color: Colors.red),
-                              onPressed: () => _deleteProduct(stat['ID'] as int),
+                              onPressed: () => _deleteProduct(stat['ID'].toString()),
                             ),
                           ],
                         )

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/sync_service.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import '../providers/settings_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -36,14 +36,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _exportToCsv() async {
     setState(() => _isExporting = true);
     try {
-      final db = await DatabaseHelper.instance.database;
+      final db = await SupabaseHelper.instance.database;
       final transacoes = await db.rawQuery('''
         SELECT t.ID, t.Data, t.Descricao, t.Valor, t.Tipo, u.Nome as Usuario, c.Nome as Categoria, cb.Nome || ' (' || mp.Nome || ')' as Conta
-        FROM ${DatabaseHelper.tableTransacoes} t
-        JOIN ${DatabaseHelper.tableUsuarios} u ON t.Usuario_ID = u.ID
-        JOIN ${DatabaseHelper.tableCategorias} c ON t.Categoria_ID = c.ID
-        LEFT JOIN ${DatabaseHelper.tableContasBancarias} cb ON t.Conta_ID = cb.ID
-        LEFT JOIN ${DatabaseHelper.tableMetodosPagamento} mp ON t.Metodo_ID = mp.ID
+        FROM ${SupabaseHelper.tableTransacoes} t
+        JOIN ${SupabaseHelper.tableUsuarios} u ON t.Usuario_ID = u.ID
+        JOIN ${SupabaseHelper.tableCategorias} c ON t.Categoria_ID = c.ID
+        LEFT JOIN ${SupabaseHelper.tableContasBancarias} cb ON t.Conta_ID = cb.ID
+        LEFT JOIN ${SupabaseHelper.tableMetodosPagamento} mp ON t.Metodo_ID = mp.ID
       ''');
 
       List<List<dynamic>> rows = [];

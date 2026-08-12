@@ -122,12 +122,15 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
   Future<void> _updateContasParaUsuario({bool maintainSelection = false}) async {
     if (_selectedUsuario == null) return;
     final db = await SupabaseHelper.instance.database;
-    final result = await db.query(
-      SupabaseHelper.tableContasBancarias,
-      where: 'Usuario_ID = ?',
-      whereArgs: [_selectedUsuario],
-      orderBy: 'Ordem ASC'
-    );
+    final result = await db.rawQuery('''
+      SELECT c.* FROM ${SupabaseHelper.tableContasBancarias} c
+      WHERE c.Usuario_ID = ?
+      UNION
+      SELECT c.* FROM ${SupabaseHelper.tableContasBancarias} c
+      JOIN ${SupabaseHelper.tableContasCompartilhadas} cc ON c.ID = cc.Conta_ID
+      WHERE cc.Usuario_ID = ?
+      ORDER BY Ordem ASC
+    ''', [_selectedUsuario, _selectedUsuario]);
     
     setState(() {
       _contas = result;
@@ -202,8 +205,6 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
     final int finalPaga = isCredit ? 0 : (_isPaga ? 1 : 0);
     
     DateTime dataTransacao = _selectedDate;
-    DateTime? dataFatura;
-
     if (isCredit) {
       final diaFechamento = int.tryParse(selectedMetodoData['dia_fechamento']?.toString() ?? '') ?? 1;
       final diaVencimento = int.tryParse(selectedMetodoData['dia_vencimento']?.toString() ?? '') ?? 10;
@@ -215,22 +216,15 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
         mesFatura++;
       }
       
+      // Caso dia_vencimento < dia_fechamento, geralmente significa que o vencimento cai no mês seguinte fisicamente
       if (diaVencimento < diaFechamento) {
         mesFatura++;
       }
 
-      if (mesFatura > 12) {
-        anoFatura += (mesFatura - 1) ~/ 12;
-        mesFatura = (mesFatura - 1) % 12 + 1;
-      }
-
-      dataFatura = DateTime(anoFatura, mesFatura, diaVencimento);
-    } else {
-      dataFatura = dataTransacao;
+      dataTransacao = DateTime(anoFatura, mesFatura, diaVencimento);
     }
     
     final dataStr = dataTransacao.toIso8601String();
-    final dataFaturaStr = dataFatura.toIso8601String();
     String? insertedId;
     final String groupId = DateTime.now().millisecondsSinceEpoch.toString();
 
@@ -238,7 +232,6 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
       // EDIT MODE (Parcelamento não permitido em edição por simplificação)
       await db.update(SupabaseHelper.tableTransacoes, {
         'Data': dataStr,
-        'Data_Fatura': dataFaturaStr,
         'Descricao': _descricaoController.text,
         'Valor': valor,
         'Tipo': _tipo,
@@ -254,24 +247,9 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
       if (_tipo == 'Despesa' && _isParcelado) {
         final valorParcela = valor / _parcelas;
         for (int i = 1; i <= _parcelas; i++) {
-          final dataParcela = DateTime(_selectedDate.year, _selectedDate.month + (i - 1), _selectedDate.day);
-          
-          DateTime faturaParcela;
-          if (isCredit) {
-            int mesP = dataFatura.month + (i - 1);
-            int anoP = dataFatura.year;
-            if (mesP > 12) {
-              anoP += (mesP - 1) ~/ 12;
-              mesP = (mesP - 1) % 12 + 1;
-            }
-            faturaParcela = DateTime(anoP, mesP, dataFatura.day);
-          } else {
-            faturaParcela = dataParcela;
-          }
-
+          final dataParcela = DateTime(_selectedDate.year, _selectedDate.month + (i - 1), _selectedDate.day).toIso8601String();
           final id = await db.insert(SupabaseHelper.tableTransacoes, {
-            'Data': dataParcela.toIso8601String(),
-            'Data_Fatura': faturaParcela.toIso8601String(),
+            'Data': dataParcela,
             'Descricao': '${_descricaoController.text} ($i/$_parcelas)',
             'Valor': valorParcela,
             'Tipo': _tipo,
@@ -289,7 +267,6 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
       } else {
         insertedId = await db.insert(SupabaseHelper.tableTransacoes, {
           'Data': dataStr,
-          'Data_Fatura': dataFaturaStr,
           'Descricao': _descricaoController.text,
           'Valor': valor,
           'Tipo': _tipo,

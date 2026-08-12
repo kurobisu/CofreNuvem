@@ -4,6 +4,9 @@ import 'transaction_form_screen.dart';
 import 'shopping_list_screen.dart';
 import 'investments_screen.dart';
 import 'settings_screen.dart';
+import 'onboarding_screen.dart';
+import '../database/supabase_helper.dart';
+import '../services/sync_manager.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -14,6 +17,36 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkOnboarding();
+      _startSync();
+    });
+  }
+
+  Future<void> _startSync() async {
+    // Sincroniza dados locais com nuvem (Pull/Push) ao abrir o app
+    await SyncManager.instance.sync();
+    // Liga o Listener para atualizar em tempo real quando outros usuários alterarem algo
+    SyncManager.instance.listenToRealtimeUpdates(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  Future<void> _checkOnboarding() async {
+    try {
+      final db = await SupabaseHelper.instance.database;
+      final countRes = await db.query(SupabaseHelper.tableUsuarios, limit: 1);
+      if (countRes.isEmpty && mounted) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const OnboardingScreen()));
+      }
+    } catch (e) {
+      debugPrint('Erro onboarding: $e');
+    }
+  }
 
   final List<Widget> _pages = [
     const DashboardScreen(),

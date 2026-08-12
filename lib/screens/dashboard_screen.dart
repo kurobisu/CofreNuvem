@@ -5,7 +5,7 @@ import '../providers/dashboard_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
-import '../database/database_helper.dart';
+import '../database/supabase_helper.dart';
 import 'invoices_screen.dart';
 import 'reports_screen.dart';
 import 'settings_screen.dart';
@@ -128,7 +128,7 @@ class DashboardScreen extends ConsumerWidget {
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: InkWell(
-            onTap: () => _showUserReportModal(context, ub['id'] as int, ub['nome'] as String),
+            onTap: () => _showUserReportModal(context, ub['id'].toString(), ub['nome'] as String),
             borderRadius: BorderRadius.circular(20),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -277,15 +277,15 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _deleteTransaction(BuildContext context, WidgetRef ref, int id) async {
+  Future<void> _deleteTransaction(BuildContext context, WidgetRef ref, String id) async {
     await TransactionHelper.deleteTransactionWithConfirmation(context, id, ref, () {
       ref.refresh(dashboardDataProvider);
     });
   }
 
   Future<void> _showReceiptModal(BuildContext context, int transacaoId, String transacaoTitle) async {
-    final db = await DatabaseHelper.instance.database;
-    final items = await db.query(DatabaseHelper.tableListaCompras, where: 'Transacao_ID = ?', whereArgs: [transacaoId]);
+    final db = await SupabaseHelper.instance.database;
+    final items = await db.query(SupabaseHelper.tableListaCompras, where: 'Transacao_ID = ?', whereArgs: [transacaoId]);
     if (!context.mounted) return;
     showModalBottomSheet(
       context: context,
@@ -497,7 +497,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _showUserReportModal(BuildContext context, int userId, String userName) async {
+  Future<void> _showUserReportModal(BuildContext context, String userId, String userName) async {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -540,8 +540,8 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Future<List<Map<String, dynamic>>> _fetchUserReport(int userId) async {
-    final db = await DatabaseHelper.instance.database;
+  Future<List<Map<String, dynamic>>> _fetchUserReport(String userId) async {
+    final db = await SupabaseHelper.instance.database;
     return await db.rawQuery('''
       SELECT 
         c.Nome as ContaNome, 
@@ -549,9 +549,9 @@ class DashboardScreen extends ConsumerWidget {
         m.Nome as MetodoNome, 
         t.Tipo,
         SUM(t.Valor) as Total
-      FROM ${DatabaseHelper.tableTransacoes} t
-      JOIN ${DatabaseHelper.tableContasBancarias} c ON t.Conta_ID = c.ID
-      JOIN ${DatabaseHelper.tableMetodosPagamento} m ON t.Metodo_ID = m.ID
+      FROM ${SupabaseHelper.tableTransacoes} t
+      JOIN ${SupabaseHelper.tableContasBancarias} c ON t.Conta_ID = c.ID
+      JOIN ${SupabaseHelper.tableMetodosPagamento} m ON t.Metodo_ID = m.ID
       WHERE t.Usuario_ID = ? AND t.Paga = 1
       GROUP BY c.Nome, m.Nome, t.Tipo
       ORDER BY c.Nome, m.Nome, t.Tipo
