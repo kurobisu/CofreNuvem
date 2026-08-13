@@ -12,15 +12,19 @@ import '../utils/currency_formatter.dart';
 class FamilyTransferScreen extends ConsumerStatefulWidget {
   final String targetUserId;
   final String targetUserName;
+  final String? sourceUserId;
   final double? initialValor;
   final String? initialContaOrigem;
+  final String? initialContaDestino;
 
   const FamilyTransferScreen({
     super.key,
     required this.targetUserId,
     required this.targetUserName,
+    this.sourceUserId,
     this.initialValor,
     this.initialContaOrigem,
+    this.initialContaDestino,
   });
 
   @override
@@ -70,30 +74,41 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
       final supabase = SupabaseHelper.instance.client;
       final currentUserAuthId = supabase.auth.currentUser?.id;
 
-      // 1. Carregar usuário de origem (logado)
+      // 1. Carregar usuário de origem (logado ou explicitamente passado por parâmetro de estorno)
       final allUsers = await db.query(SupabaseHelper.tableUsuarios);
       
-      final currentUserName = supabase.auth.currentUser?.userMetadata?['nome']?.toString().toLowerCase();
-      final match = allUsers.where((u) {
-        final uAuth = u['auth_id'] ?? u['Auth_ID'];
-        final uNome = (u['nome'] ?? u['Nome'] ?? '').toString().toLowerCase();
-        return uAuth == currentUserAuthId || 
-               (currentUserName != null && uNome == currentUserName);
-      }).toList();
-
-      if (match.isEmpty && allUsers.isNotEmpty) {
-        _usuarioOrigem = match.isEmpty ? allUsers.first : match.first;
-      } else if (match.isNotEmpty) {
-        _usuarioOrigem = match.first;
+      if (widget.sourceUserId != null) {
+        final matchSource = allUsers.where((u) => (u['id'] ?? u['ID'])?.toString() == widget.sourceUserId).toList();
+        if (matchSource.isNotEmpty) {
+          _usuarioOrigem = matchSource.first;
+        }
       }
 
       if (_usuarioOrigem == null) {
-        throw Exception('Usuário logado não encontrado no sistema.');
+        final supabase = SupabaseHelper.instance.client;
+        final currentUserAuthId = supabase.auth.currentUser?.id;
+        final currentUserName = supabase.auth.currentUser?.userMetadata?['nome']?.toString().toLowerCase();
+        final match = allUsers.where((u) {
+          final uAuth = u['auth_id'] ?? u['Auth_ID'];
+          final uNome = (u['nome'] ?? u['Nome'] ?? '').toString().toLowerCase();
+          return uAuth == currentUserAuthId || 
+                 (currentUserName != null && uNome == currentUserName);
+        }).toList();
+
+        if (match.isEmpty && allUsers.isNotEmpty) {
+          _usuarioOrigem = match.isEmpty ? allUsers.first : match.first;
+        } else if (match.isNotEmpty) {
+          _usuarioOrigem = match.first;
+        }
+      }
+
+      if (_usuarioOrigem == null) {
+        throw Exception('Usuário de origem não encontrado no sistema.');
       }
 
       final origemId = _usuarioOrigem!['id'] ?? _usuarioOrigem!['ID'];
 
-      // 2. Carregar contas de origem (usuário logado)
+      // 2. Carregar contas de origem
       _contasOrigem = await db.query(
         SupabaseHelper.tableContasBancarias,
         where: 'usuario_id = ?',
@@ -132,7 +147,14 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
             _updateMetodosParaContaOrigem();
           }
 
-          if (_contasDestino.isNotEmpty) {
+          if (widget.initialContaDestino != null) {
+            final exists = _contasDestino.any((c) => (c['id'] ?? c['ID'])?.toString() == widget.initialContaDestino);
+            if (exists) {
+              _selectedContaDestino = widget.initialContaDestino;
+            } else if (_contasDestino.isNotEmpty) {
+              _selectedContaDestino = (_contasDestino.first['id'] ?? _contasDestino.first['ID'])?.toString();
+            }
+          } else if (_contasDestino.isNotEmpty) {
             _selectedContaDestino = (_contasDestino.first['id'] ?? _contasDestino.first['ID'])?.toString();
           }
 

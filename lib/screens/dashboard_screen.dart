@@ -415,11 +415,11 @@ class DashboardScreen extends ConsumerWidget {
                         final despesaOrig = irmaos.firstWhere((x) => (x['tipo'] ?? x['Tipo']) == 'Despesa');
                         final receitaOrig = irmaos.firstWhere((x) => (x['tipo'] ?? x['Tipo']) == 'Receita');
                         
-                        // Para a DEVOLUÇÃO (fluxo inverso):
-                        // O novo remetente (origem) será quem recebeu originalmente (receitaOrig['usuario_id'])
-                        // O novo destinatário (destino) será quem enviou originalmente (despesaOrig['usuario_id'])
                         final novoDestinatarioId = despesaOrig['usuario_id'] ?? despesaOrig['Usuario_ID'];
+                        final novoRemetenteId = receitaOrig['usuario_id'] ?? receitaOrig['Usuario_ID'];
+                        
                         final contaOrigemDevolucao = receitaOrig['conta_id'] ?? receitaOrig['Conta_ID'];
+                        final contaDestinoDevolucao = despesaOrig['conta_id'] ?? despesaOrig['Conta_ID'];
                         final valorDevolucao = ((despesaOrig['valor'] ?? despesaOrig['Valor'] ?? 0) as num).toDouble();
                         
                         // Buscar o nome do novo destinatário
@@ -432,10 +432,12 @@ class DashboardScreen extends ConsumerWidget {
                           context,
                           MaterialPageRoute(
                             builder: (context) => FamilyTransferScreen(
+                              sourceUserId: novoRemetenteId.toString(),
                               targetUserId: novoDestinatarioId.toString(),
                               targetUserName: destUserName.toString(),
                               initialValor: valorDevolucao,
                               initialContaOrigem: contaOrigemDevolucao?.toString(),
+                              initialContaDestino: contaDestinoDevolucao?.toString(),
                             ),
                           ),
                         ).then((_) => ref.refresh(dashboardDataProvider));
@@ -460,6 +462,7 @@ class DashboardScreen extends ConsumerWidget {
                         }
                         
                         // Buscar o usuário pelo nome extraído
+                        final db = await SupabaseHelper.instance.database;
                         final matchUsers = await db.query(
                           SupabaseHelper.tableUsuarios,
                           where: 'nome = ?',
@@ -478,18 +481,41 @@ class DashboardScreen extends ConsumerWidget {
                         final targetUserId = targetUser['id'] ?? targetUser['ID'];
                         final targetUserName = targetUser['nome'] ?? targetUser['Nome'];
                         
-                        // Para devolução, a conta de origem local é onde o dinheiro está agora
-                        final contaOrigem = tipoTx == 'Receita' ? (singleTx['conta_id'] ?? singleTx['Conta_ID']) : null;
+                        final String logadoId = (singleTx['usuario_id'] ?? singleTx['Usuario_ID']).toString();
+                        
+                        String? sourceUserId;
+                        String actualTargetUserId = '';
+                        String actualTargetUserName = '';
+                        String? initialContaOrigem;
+                        String? initialContaDestino;
+
+                        if (tipoTx == 'Despesa') {
+                          // Remetente do estorno: Maria
+                          sourceUserId = targetUserId.toString();
+                          // Destinatário do estorno: Clovis (logado)
+                          actualTargetUserId = logadoId;
+                          actualTargetUserName = 'Usuário'; // Será resolvido na inicialização da tela
+                          initialContaDestino = (singleTx['conta_id'] ?? singleTx['Conta_ID'])?.toString();
+                        } else {
+                          // Remetente do estorno: Maria (logada)
+                          sourceUserId = logadoId;
+                          // Destinatário do estorno: Clovis
+                          actualTargetUserId = targetUserId.toString();
+                          actualTargetUserName = targetUserName.toString();
+                          initialContaOrigem = (singleTx['conta_id'] ?? singleTx['Conta_ID'])?.toString();
+                        }
                         
                         if (!context.mounted) return;
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => FamilyTransferScreen(
-                              targetUserId: targetUserId.toString(),
-                              targetUserName: targetUserName.toString(),
+                              sourceUserId: sourceUserId,
+                              targetUserId: actualTargetUserId,
+                              targetUserName: actualTargetUserName,
                               initialValor: valorDevolucao,
-                              initialContaOrigem: contaOrigem?.toString(),
+                              initialContaOrigem: initialContaOrigem,
+                              initialContaDestino: initialContaDestino,
                             ),
                           ),
                         ).then((_) => ref.refresh(dashboardDataProvider));
