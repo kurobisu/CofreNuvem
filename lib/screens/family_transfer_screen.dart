@@ -118,7 +118,12 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
       if (mounted) {
         setState(() {
           if (widget.initialContaOrigem != null) {
-            _selectedContaOrigem = widget.initialContaOrigem;
+            final exists = _contasOrigem.any((c) => (c['id'] ?? c['ID'])?.toString() == widget.initialContaOrigem);
+            if (exists) {
+              _selectedContaOrigem = widget.initialContaOrigem;
+            } else if (_contasOrigem.isNotEmpty) {
+              _selectedContaOrigem = (_contasOrigem.first['id'] ?? _contasOrigem.first['ID'])?.toString();
+            }
           } else if (_contasOrigem.isNotEmpty) {
             _selectedContaOrigem = (_contasOrigem.first['id'] ?? _contasOrigem.first['ID'])?.toString();
           }
@@ -216,10 +221,16 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
         });
       }
 
-      // 2. Gerar transferencia_id (UUID comum)
+      // 2. Gerar transferencia_id (UUID comum) e obter os auth_ids correspondentes
       final String transferUuid = const Uuid().v4();
       final dateStr = _selectedDate.toIso8601String();
       final origemId = _usuarioOrigem!['id'] ?? _usuarioOrigem!['ID'];
+
+      final List<Map<String, dynamic>> users = await db.query(SupabaseHelper.tableUsuarios);
+      final origemUser = users.firstWhere((u) => (u['id'] ?? u['ID']).toString() == origemId.toString());
+      final destinoUser = users.firstWhere((u) => (u['id'] ?? u['ID']).toString() == widget.targetUserId);
+      final String? authIdOrigem = (origemUser['auth_id'] ?? origemUser['Auth_ID'])?.toString();
+      final String? authIdDestino = (destinoUser['auth_id'] ?? destinoUser['Auth_ID'])?.toString();
 
       // 3. Criar a Despesa (Saída)
       final despesaFuture = db.insert(SupabaseHelper.tableTransacoes, {
@@ -233,6 +244,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
         'Categoria_ID': categoriaId,
         'Paga': 1,
         'transferencia_id': transferUuid,
+        'auth_id': authIdOrigem,
       });
 
       // 4. Buscar método de pagamento Pix do destinatário para a receita
@@ -268,6 +280,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
         'Categoria_ID': categoriaId,
         'Paga': 1,
         'transferencia_id': transferUuid,
+        'auth_id': authIdDestino,
       });
 
       // Executar inserções no Supabase em paralelo
@@ -393,13 +406,13 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
-
-                // Conta Origem
+                              // Conta Origem
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   menuMaxHeight: 280,
-                  value: _selectedContaOrigem,
+                  value: _contasOrigem.any((c) => (c['id'] ?? c['ID'])?.toString() == _selectedContaOrigem) 
+                      ? _selectedContaOrigem 
+                      : null,
                   decoration: InputDecoration(
                     labelText: 'Sair da Conta (Origem)',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
@@ -422,7 +435,15 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                   key: ValueKey(_selectedContaOrigem),
                   isExpanded: true,
                   menuMaxHeight: 280,
-                  value: _selectedMetodoOrigem,
+                  value: _metodosOrigem.where((m) {
+                    final contaId = (m['conta_id'] ?? m['Conta_ID'])?.toString().toLowerCase();
+                    final nome = (m['nome'] ?? m['Nome'] ?? '').toString().toLowerCase();
+                    return _selectedContaOrigem == null || 
+                           contaId == _selectedContaOrigem!.toLowerCase() || 
+                           nome.contains('pix');
+                  }).any((m) => (m['id'] ?? m['ID'])?.toString() == _selectedMetodoOrigem) 
+                      ? _selectedMetodoOrigem 
+                      : null,
                   decoration: InputDecoration(
                     labelText: 'Método Utilizado',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
@@ -446,7 +467,9 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   menuMaxHeight: 280,
-                  value: _selectedContaDestino,
+                  value: _contasDestino.any((c) => (c['id'] ?? c['ID'])?.toString() == _selectedContaDestino) 
+                      ? _selectedContaDestino 
+                      : null,
                   decoration: InputDecoration(
                     labelText: 'Entrar na Conta (Destino)',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
