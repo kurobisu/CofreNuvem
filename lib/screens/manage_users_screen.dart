@@ -35,12 +35,11 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       _users.insert(newIndex, item);
     });
 
-    final db = await SupabaseHelper.instance.database;
-    final batch = db.batch();
+    final supabase = SupabaseHelper.instance.client;
     for (int i = 0; i < _users.length; i++) {
-      batch.update(SupabaseHelper.tableUsuarios, {'Ordem': i}, where: 'ID = ?', whereArgs: [_users[i]['id'] ?? _users[i]['ID']]);
+      final id = _users[i]['id'] ?? _users[i]['ID'];
+      await supabase.from('usuarios').update({'ordem': i}).eq('id', id);
     }
-    await batch.commit(noResult: true);
   }
 
   void _showUserDialog([Map<String, dynamic>? user]) {

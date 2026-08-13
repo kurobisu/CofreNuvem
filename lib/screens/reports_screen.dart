@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../database/supabase_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/app_version.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -20,14 +21,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
   // Data
   Map<String, double> _categoryTotals = {};
   Map<String, String> _categoryColors = {};
-  Map<String, double> _methodTotals = {};
-  Map<String, double> _bankTotals = {};
   double _totalExpenses = 0.0;
+
+  // New stacked chart data
+  // Per Bank: { bankName: { 'receita': X, 'despesa': Y } }
+  Map<String, Map<String, double>> _bankFlows = {};
+  // Per User+Bank: { 'UserName - BankName': { 'receita': X, 'despesa': Y } }
+  Map<String, Map<String, double>> _userBankFlows = {};
 
   // Interaction State
   int _touchedIndexPie = -1;
-  int _touchedIndexBank = -1;
-  int _touchedIndexMethod = -1;
+  String? _selectedBankDetail;
+  String? _selectedUserBankDetail;
 
   @override
   void initState() {
@@ -48,153 +53,181 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final db = await SupabaseHelper.instance.database;
 
-    final parts = _selectedMonth.split('/');
-    final start = DateTime(int.parse(parts[1]), int.parse(parts[0]), 1).toIso8601String();
-    final end = DateTime(int.parse(parts[1]), int.parse(parts[0]) + 1, 1).toIso8601String();
+    try {
+      final supabase = SupabaseHelper.instance.client;
 
-    final allTrans = await db.rawQuery('''
-      SELECT t.*, c.Nome as CategoriaNome, c.Cor_Hexadecimal, cb.Nome as BancoNome, mp.Nome as MetodoNome
-      FROM transacoes t
-      JOIN categorias c ON t.Categoria_ID = c.ID
-      JOIN contas_bancarias cb ON t.Conta_ID = cb.ID
-      JOIN metodos_pagamento mp ON t.Metodo_ID = mp.ID
-      WHERE t.deleted_at IS NULL
-    ''');
-    final startDt = DateTime.parse(start);
-    final endDt = DateTime.parse(end);
+      final parts = _selectedMonth.split('/');
+      final start = DateTime(int.parse(parts[1]), int.parse(parts[0]), 1).toIso8601String();
+      final end = DateTime(int.parse(parts[1]), int.parse(parts[0]) + 1, 1).toIso8601String();
 
-    List<Map<String, dynamic>> expenses = [];
-    List<String> expenseIds = [];
-    for (var t in allTrans) {
-      if (t['Tipo'] == 'Despesa' && t['Paga'] == 1) {
-        final d = DateTime.parse(t['Data']);
-        if ((d.isAfter(startDt) || d.isAtSameMomentAs(startDt)) && d.isBefore(endDt)) {
-          expenses.add(t);
-          expenseIds.add(t['ID'].toString());
-        }
-      }
-    }
+      final allTransRaw = await supabase
+          .from('transacoes')
+          .select('*, categorias(nome, cor_hexadecimal), contas_bancarias(nome), metodos_pagamento(nome), usuarios(nome)')
+          .filter('deleted_at', 'is', null);
 
-    // 2. Fetch items for these expenses
-    final allItems = await db.query(SupabaseHelper.tableListaCompras);
-    Map<String, List<Map<String, dynamic>>> itemsByTrans = {};
-    for (var item in allItems) {
-      final tId = item['Transacao_ID'].toString();
-      if (expenseIds.contains(tId)) {
-        if (!itemsByTrans.containsKey(tId)) itemsByTrans[tId] = [];
-        itemsByTrans[tId]!.add(item);
-      }
-    }
+      final allTrans = allTransRaw.map((r) => <String, dynamic>{
+        ...r,
+        'CategoriaNome': r['categorias']?['nome'] ?? 'Sem Categoria',
+        'Cor_Hexadecimal': r['categorias']?['cor_hexadecimal'] ?? '#9E9E9E',
+        'BancoNome': r['contas_bancarias']?['nome'] ?? 'Sem Conta',
+        'MetodoNome': r['metodos_pagamento']?['nome'] ?? 'Sem Método',
+        'UsuarioNome': r['usuarios']?['nome'] ?? 'Sem Usuário',
+        'Data': r['data'],
+        'Valor': r['valor'],
+        'ID': r['id'],
+        'Tipo': r['tipo'],
+        'Paga': r['paga'],
+      }).toList();
 
-    Map<String, double> catTotals = {};
-    Map<String, String> catColors = {};
-    Map<String, double> metTotals = {};
-    Map<String, double> bnkTotals = {};
-    double grandTotal = 0;
+      final startDt = DateTime.parse(start);
+      final endDt = DateTime.parse(end);
 
-    for (var exp in expenses) {
-      final tId = exp['ID'].toString();
-      final metName = exp['MetodoNome'] as String;
-      final bnkName = exp['BancoNome'] as String;
-      double valor = (exp['Valor'] as num).toDouble();
-      
-      grandTotal += valor;
-      metTotals[metName] = (metTotals[metName] ?? 0) + valor;
-      bnkTotals[bnkName] = (bnkTotals[bnkName] ?? 0) + valor;
+      // Filter paid transactions within the selected month
+      List<Map<String, dynamic>> monthTransactions = [];
+      List<Map<String, dynamic>> expenses = [];
+      List<String> expenseIds = [];
 
-      if (itemsByTrans.containsKey(tId)) {
-        double itemsSum = 0;
-        for (var item in itemsByTrans[tId]!) {
-          double preco = (item['Preco'] as num?)?.toDouble() ?? 0;
-          double qtde = (item['Quantidade'] as num?)?.toDouble() ?? 1;
-          double itemTotal = preco * qtde;
-          itemsSum += itemTotal;
-
-          String catName = item['CategoriaNome'] as String? ?? exp['CategoriaNome'] as String;
-          String catColor = item['Cor_Hexadecimal'] as String? ?? exp['Cor_Hexadecimal'] as String;
-          
-          catTotals[catName] = (catTotals[catName] ?? 0) + itemTotal;
-          catColors[catName] = catColor;
-        }
+      for (var t in allTrans) {
+        if (t['Paga'] != 1) continue;
+        final dataStr = t['Data']?.toString() ?? '';
+        if (dataStr.isEmpty) continue;
         
-        double remainder = valor - itemsSum;
-        if (remainder > 0.01) { 
-          String catName = exp['CategoriaNome'] as String;
-          String catColor = exp['Cor_Hexadecimal'] as String;
-          catTotals[catName] = (catTotals[catName] ?? 0) + remainder;
+        try {
+          final d = DateTime.parse(dataStr);
+          if ((d.isAfter(startDt) || d.isAtSameMomentAs(startDt)) && d.isBefore(endDt)) {
+            monthTransactions.add(t);
+            if (t['Tipo'] == 'Despesa') {
+              expenses.add(t);
+              expenseIds.add(t['ID'].toString());
+            }
+          }
+        } catch (_) {}
+      }
+
+      // Fetch items for expense transactions
+      final allItemsRaw = await supabase.from('lista_compras').select().filter('deleted_at', 'is', null);
+      final allItems = allItemsRaw.map((r) => <String, dynamic>{
+        ...r,
+        'Transacao_ID': r['transacao_id'],
+        'Preco': r['preco'],
+        'Quantidade': r['quantidade'],
+        'CategoriaNome': r['categoria_nome'],
+        'Cor_Hexadecimal': r['cor_hexadecimal'],
+      }).toList();
+
+      Map<String, List<Map<String, dynamic>>> itemsByTrans = {};
+      for (var item in allItems) {
+        final tId = item['Transacao_ID'].toString();
+        if (expenseIds.contains(tId)) {
+          if (!itemsByTrans.containsKey(tId)) itemsByTrans[tId] = [];
+          itemsByTrans[tId]!.add(item);
+        }
+      }
+
+      // Category totals (expenses only)
+      Map<String, double> catTotals = {};
+      Map<String, String> catColors = {};
+      double grandTotal = 0;
+
+      for (var exp in expenses) {
+        final tId = exp['ID'].toString();
+        double valor = ((exp['Valor'] as num?) ?? 0).toDouble();
+        grandTotal += valor;
+
+        if (itemsByTrans.containsKey(tId)) {
+          double itemsSum = 0;
+          for (var item in itemsByTrans[tId]!) {
+            double preco = (item['Preco'] as num?)?.toDouble() ?? 0;
+            double qtde = (item['Quantidade'] as num?)?.toDouble() ?? 1;
+            double itemTotal = preco * qtde;
+            itemsSum += itemTotal;
+
+            String catName = (item['CategoriaNome'] as String?) ?? (exp['CategoriaNome'] as String? ?? 'Sem Categoria');
+            String catColor = (item['Cor_Hexadecimal'] as String?) ?? (exp['Cor_Hexadecimal'] as String? ?? '#9E9E9E');
+
+            catTotals[catName] = (catTotals[catName] ?? 0) + itemTotal;
+            catColors[catName] = catColor;
+          }
+
+          double remainder = valor - itemsSum;
+          if (remainder > 0.01) {
+            String catName = exp['CategoriaNome'] as String? ?? 'Sem Categoria';
+            String catColor = exp['Cor_Hexadecimal'] as String? ?? '#9E9E9E';
+            catTotals[catName] = (catTotals[catName] ?? 0) + remainder;
+            catColors[catName] = catColor;
+          }
+        } else {
+          String catName = exp['CategoriaNome'] as String? ?? 'Sem Categoria';
+          String catColor = exp['Cor_Hexadecimal'] as String? ?? '#9E9E9E';
+          catTotals[catName] = (catTotals[catName] ?? 0) + valor;
           catColors[catName] = catColor;
         }
-      } else {
-        String catName = exp['CategoriaNome'] as String;
-        String catColor = exp['Cor_Hexadecimal'] as String;
-        catTotals[catName] = (catTotals[catName] ?? 0) + valor;
-        catColors[catName] = catColor;
+      }
+
+      // --- NEW: Build bank flows (receita vs despesa per bank) ---
+      Map<String, Map<String, double>> bankFlows = {};
+      Map<String, Map<String, double>> userBankFlows = {};
+
+      for (var t in monthTransactions) {
+        final bankName = t['BancoNome'] as String? ?? 'Sem Conta';
+        final userName = t['UsuarioNome'] as String? ?? 'Sem Usuário';
+        final tipo = t['Tipo'] as String? ?? '';
+        double valor = ((t['Valor'] as num?) ?? 0).toDouble();
+
+        // Per bank
+        bankFlows.putIfAbsent(bankName, () => {'receita': 0.0, 'despesa': 0.0});
+        if (tipo == 'Receita') {
+          bankFlows[bankName]!['receita'] = (bankFlows[bankName]!['receita'] ?? 0) + valor;
+        } else if (tipo == 'Despesa') {
+          bankFlows[bankName]!['despesa'] = (bankFlows[bankName]!['despesa'] ?? 0) + valor;
+        }
+
+        // Per user + bank
+        final userBankKey = '$userName\n$bankName';
+        userBankFlows.putIfAbsent(userBankKey, () => {'receita': 0.0, 'despesa': 0.0});
+        if (tipo == 'Receita') {
+          userBankFlows[userBankKey]!['receita'] = (userBankFlows[userBankKey]!['receita'] ?? 0) + valor;
+        } else if (tipo == 'Despesa') {
+          userBankFlows[userBankKey]!['despesa'] = (userBankFlows[userBankKey]!['despesa'] ?? 0) + valor;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _categoryTotals = catTotals;
+          _categoryColors = catColors;
+          _totalExpenses = grandTotal;
+          _bankFlows = bankFlows;
+          _userBankFlows = userBankFlows;
+          _isLoading = false;
+          _touchedIndexPie = -1;
+          _selectedBankDetail = null;
+          _selectedUserBankDetail = null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar relatórios: $e'), backgroundColor: Colors.red),
+        );
       }
     }
-
-    setState(() {
-      _categoryTotals = catTotals;
-      _categoryColors = catColors;
-      _methodTotals = metTotals;
-      _bankTotals = bnkTotals;
-      _totalExpenses = grandTotal;
-      _isLoading = false;
-      
-      _touchedIndexPie = -1;
-      _touchedIndexBank = -1;
-      _touchedIndexMethod = -1;
-    });
-  }
-
-  LinearGradient _getBankGradient(String bankName) {
-    String name = bankName.toLowerCase();
-    if (name.contains('nubank')) {
-      return const LinearGradient(colors: [Color(0xFF8A05BE), Color(0xFFC040FF)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('itaú') || name.contains('itau')) {
-      return const LinearGradient(colors: [Color(0xFFEC7000), Color(0xFFFFB200)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('inter')) {
-      return const LinearGradient(colors: [Color(0xFFFF7A00), Color(0xFFFFB461)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('brasil') || name.contains('bb')) {
-      return const LinearGradient(colors: [Color(0xFF0038A8), Color(0xFFFBE122)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('bradesco')) {
-      return const LinearGradient(colors: [Color(0xFFCC092F), Color(0xFFFF4D6D)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('santander')) {
-      return const LinearGradient(colors: [Color(0xFFEC0000), Color(0xFFFF6666)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('caixa')) {
-      return const LinearGradient(colors: [Color(0xFF005CA9), Color(0xFFF39200)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    }
-    // Default gradient
-    return const LinearGradient(colors: [Color(0xFF3F51B5), Color(0xFF00BCD4)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-  }
-
-  LinearGradient _getMethodGradient(String methodName) {
-    String name = methodName.toLowerCase();
-    if (name.contains('crédito') || name.contains('credito')) {
-      return const LinearGradient(colors: [Color(0xFF00C6FF), Color(0xFF0072FF)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('débito') || name.contains('debito')) {
-      return const LinearGradient(colors: [Color(0xFF11998E), Color(0xFF38EF7D)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('pix')) {
-      return const LinearGradient(colors: [Color(0xFF32BFA4), Color(0xFF90F7EC)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    } else if (name.contains('dinheiro')) {
-      return const LinearGradient(colors: [Color(0xFF56AB2F), Color(0xFFA8E063)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
-    }
-    return const LinearGradient(colors: [Color(0xFF8E2DE2), Color(0xFF4A00E0)], begin: Alignment.bottomCenter, end: Alignment.topCenter);
   }
 
   Widget _buildDonutChart() {
     if (_categoryTotals.isEmpty) return const SizedBox.shrink();
 
     final List<MapEntry<String, double>> sortedData = _categoryTotals.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    
+
     final List<PieChartSectionData> sections = [];
     int idx = 0;
 
     for (var entry in sortedData) {
       final isTouched = idx == _touchedIndexPie;
       final radius = isTouched ? 45.0 : 35.0;
-      
+
       Color c;
       if (_categoryColors.containsKey(entry.key)) {
         c = Color(int.parse(_categoryColors[entry.key]!.replaceAll('#', '0xFF')));
@@ -206,18 +239,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
         PieChartSectionData(
           color: c,
           value: entry.value,
-          title: '', // Text in legend instead
+          title: '',
           radius: radius,
           borderSide: isTouched ? BorderSide(color: Colors.white.withOpacity(0.8), width: 3) : BorderSide.none,
-          badgeWidget: isTouched 
-            ? Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
-                child: Text('${((entry.value / _totalExpenses) * 100).toStringAsFixed(1)}%', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-              )
-            : null,
+          badgeWidget: isTouched
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black87, borderRadius: BorderRadius.circular(8)),
+                  child: Text('${((entry.value / _totalExpenses) * 100).toStringAsFixed(1)}%',
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                )
+              : null,
           badgePositionPercentageOffset: 1.1,
-        )
+        ),
       );
       idx++;
     }
@@ -253,13 +287,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         },
                       ),
                       sectionsSpace: 2,
-                      centerSpaceRadius: 70, // Donut hole
+                      centerSpaceRadius: 70,
                       sections: sections,
                     ),
                     swapAnimationDuration: const Duration(milliseconds: 600),
                     swapAnimationCurve: Curves.easeInOutBack,
                   ),
-                  // Center Text
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -281,7 +314,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            // Legend
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -289,7 +321,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 int i = e.key;
                 String catName = e.value.key;
                 double val = e.value.value;
-                Color c = Color(int.parse(_categoryColors[catName]!.replaceAll('#', '0xFF')));
+                Color c = _categoryColors.containsKey(catName)
+                    ? Color(int.parse(_categoryColors[catName]!.replaceAll('#', '0xFF')))
+                    : Colors.grey;
                 bool isTouched = i == _touchedIndexPie;
 
                 return AnimatedContainer(
@@ -323,12 +357,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _buildBeautifulBarChart(String title, Map<String, double> data, bool isBank) {
-    if (data.isEmpty) return const SizedBox.shrink();
+  /// Builds a stacked bar chart with green (receita) on bottom and red (despesa) on top
+  Widget _buildStackedFlowChart(String title, Map<String, Map<String, double>> flowData, {required bool isUserBank, String? selectedDetail, required ValueChanged<String?> onSelect}) {
+    if (flowData.isEmpty) return const SizedBox.shrink();
 
-    final List<MapEntry<String, double>> sortedData = data.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    final double maxVal = sortedData.first.value;
-    final touchedIndex = isBank ? _touchedIndexBank : _touchedIndexMethod;
+    final entries = flowData.entries.toList();
+    // Sort by total volume descending
+    entries.sort((a, b) {
+      final totalA = (a.value['receita'] ?? 0) + (a.value['despesa'] ?? 0);
+      final totalB = (b.value['receita'] ?? 0) + (b.value['despesa'] ?? 0);
+      return totalB.compareTo(totalA);
+    });
+
+    double maxVal = 0;
+    for (var e in entries) {
+      final total = (e.value['receita'] ?? 0) + (e.value['despesa'] ?? 0);
+      if (total > maxVal) maxVal = total;
+    }
+    if (maxVal == 0) maxVal = 1;
 
     return Card(
       elevation: 4,
@@ -341,39 +387,41 @@ class _ReportsScreenState extends State<ReportsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 32),
+            const SizedBox(height: 8),
+            // Legend
+            Row(
+              children: [
+                Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(3))),
+                const SizedBox(width: 6),
+                const Text('Receita', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(width: 16),
+                Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(3))),
+                const SizedBox(width: 6),
+                const Text('Despesa', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+            const SizedBox(height: 24),
             SizedBox(
-              height: 220,
+              height: 240,
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
-                  maxY: maxVal * 1.3, // extra space for tooltips
+                  maxY: maxVal * 1.2,
                   barTouchData: BarTouchData(
+                    enabled: true,
                     touchCallback: (FlTouchEvent event, barTouchResponse) {
-                      setState(() {
-                        if (!event.isInterestedForInteractions || barTouchResponse == null || barTouchResponse.spot == null) {
-                          if (isBank) _touchedIndexBank = -1;
-                          else _touchedIndexMethod = -1;
-                          return;
+                      if (event.isInterestedForInteractions && barTouchResponse?.spot != null) {
+                        final idx = barTouchResponse!.spot!.touchedBarGroupIndex;
+                        if (idx >= 0 && idx < entries.length) {
+                          setState(() {
+                            onSelect(entries[idx].key);
+                          });
                         }
-                        if (isBank) _touchedIndexBank = barTouchResponse.spot!.touchedBarGroupIndex;
-                        else _touchedIndexMethod = barTouchResponse.spot!.touchedBarGroupIndex;
-                      });
+                      }
                     },
                     touchTooltipData: BarTouchTooltipData(
-                      getTooltipColor: (group) => Colors.black87,
-                      getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                        return BarTooltipItem(
-                          '${sortedData[group.x.toInt()].key}\n',
-                          const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                          children: [
-                            TextSpan(
-                              text: CurrencyFormatter.format(rod.toY),
-                              style: const TextStyle(color: Colors.greenAccent, fontSize: 14),
-                            ),
-                          ],
-                        );
-                      },
+                      getTooltipColor: (group) => Colors.transparent,
+                      getTooltipItem: (group, groupIndex, rod, rodIndex) => null,
                     ),
                   ),
                   titlesData: FlTitlesData(
@@ -381,15 +429,32 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 40,
+                        reservedSize: isUserBank ? 50 : 40,
                         getTitlesWidget: (value, meta) {
-                          if (value >= 0 && value < sortedData.length) {
-                            String name = sortedData[value.toInt()].key;
-                            if (name.length > 10) name = '${name.substring(0, 10)}...';
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(name, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
-                            );
+                          if (value >= 0 && value < entries.length) {
+                            String name = entries[value.toInt()].key;
+                            if (isUserBank) {
+                              // Format "User\nBank" for display
+                              final parts = name.split('\n');
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 6.0),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(parts[0].length > 8 ? '${parts[0].substring(0, 8)}.' : parts[0],
+                                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
+                                    Text(parts.length > 1 ? (parts[1].length > 8 ? '${parts[1].substring(0, 8)}.' : parts[1]) : '',
+                                        style: TextStyle(fontSize: 8, color: Colors.grey.shade500)),
+                                  ],
+                                ),
+                              );
+                            } else {
+                              if (name.length > 10) name = '${name.substring(0, 10)}..';
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Text(name, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                              );
+                            }
                           }
                           return const Text('');
                         },
@@ -405,32 +470,139 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1),
                   ),
                   borderData: FlBorderData(show: false),
-                  barGroups: sortedData.asMap().entries.map((entry) {
-                    final isTouched = entry.key == touchedIndex;
+                  barGroups: entries.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final rec = entry.value.value['receita'] ?? 0.0;
+                    final desp = entry.value.value['despesa'] ?? 0.0;
+                    final isSelected = selectedDetail == entry.value.key;
+                    final barWidth = isSelected ? 30.0 : 22.0;
+
                     return BarChartGroupData(
-                      x: entry.key,
+                      x: idx,
                       barRods: [
                         BarChartRodData(
-                          toY: entry.value.value,
-                          gradient: isBank ? _getBankGradient(entry.value.key) : _getMethodGradient(entry.value.key),
-                          width: isTouched ? 28 : 22, // Fatter on touch
+                          toY: rec + desp,
+                          width: barWidth,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                          rodStackItems: [
+                            // Green (receita) on bottom
+                            BarChartRodStackItem(0, rec, Colors.green.shade400),
+                            // Red (despesa) on top
+                            BarChartRodStackItem(rec, rec + desp, Colors.red.shade400),
+                          ],
                           backDrawRodData: BackgroundBarChartRodData(
                             show: true,
-                            toY: maxVal * 1.3,
-                            color: Theme.of(context).brightness == Brightness.dark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05),
+                            toY: maxVal * 1.2,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white.withOpacity(0.03)
+                                : Colors.black.withOpacity(0.03),
                           ),
-                        )
+                        ),
                       ],
                     );
                   }).toList(),
                 ),
-                swapAnimationDuration: const Duration(milliseconds: 600),
+                swapAnimationDuration: const Duration(milliseconds: 500),
                 swapAnimationCurve: Curves.easeInOut,
               ),
             ),
+            // Detail text when a column is selected
+            if (selectedDetail != null && flowData.containsKey(selectedDetail))
+              _buildFlowDetailCard(selectedDetail!, flowData[selectedDetail]!, isUserBank),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFlowDetailCard(String key, Map<String, double> values, bool isUserBank) {
+    final rec = values['receita'] ?? 0.0;
+    final desp = values['despesa'] ?? 0.0;
+    final saldo = rec - desp;
+    final total = rec + desp;
+    final recPct = total > 0 ? (rec / total * 100) : 0.0;
+    final despPct = total > 0 ? (desp / total * 100) : 0.0;
+
+    String displayName = key;
+    if (isUserBank) {
+      displayName = key.replaceAll('\n', ' — ');
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutBack,
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.green.shade900.withOpacity(0.15),
+            Colors.red.shade900.withOpacity(0.15),
+          ],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(displayName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  children: [
+                    Icon(Icons.arrow_downward, color: Colors.green.shade400, size: 20),
+                    const SizedBox(height: 4),
+                    Text('Entrada', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    const SizedBox(height: 2),
+                    Text(CurrencyFormatter.format(rec),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade400)),
+                    Text('${recPct.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  ],
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 60,
+                color: Colors.grey.withOpacity(0.3),
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    Icon(Icons.arrow_upward, color: Colors.red.shade400, size: 20),
+                    const SizedBox(height: 4),
+                    Text('Saída', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    const SizedBox(height: 2),
+                    Text(CurrencyFormatter.format(desp),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade400)),
+                    Text('${despPct.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Saldo: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              Text(
+                CurrencyFormatter.format(saldo),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: saldo >= 0 ? Colors.green.shade400 : Colors.red.shade400,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -439,7 +611,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Relatórios Avançados'),
+        title: const Text('Relatórios $appVersion', style: TextStyle(fontSize: 16)),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -462,16 +634,28 @@ class _ReportsScreenState extends State<ReportsScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _categoryTotals.isEmpty
-              ? const Center(child: Text('Nenhuma despesa neste mês.'))
+          : _categoryTotals.isEmpty && _bankFlows.isEmpty
+              ? const Center(child: Text('Nenhuma transação neste mês.'))
               : SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
                   physics: const BouncingScrollPhysics(),
                   child: Column(
                     children: [
                       _buildDonutChart(),
-                      _buildBeautifulBarChart('Bancos Mais Utilizados', _bankTotals, true),
-                      _buildBeautifulBarChart('Métodos de Pagamento', _methodTotals, false),
+                      _buildStackedFlowChart(
+                        'Entrada e Saída por Banco',
+                        _bankFlows,
+                        isUserBank: false,
+                        selectedDetail: _selectedBankDetail,
+                        onSelect: (val) => _selectedBankDetail = val,
+                      ),
+                      _buildStackedFlowChart(
+                        'Entrada e Saída por Usuário e Banco',
+                        _userBankFlows,
+                        isUserBank: true,
+                        selectedDetail: _selectedUserBankDetail,
+                        onSelect: (val) => _selectedUserBankDetail = val,
+                      ),
                     ],
                   ),
                 ),

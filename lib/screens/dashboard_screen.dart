@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/dashboard_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/bancos_brasil.dart';
@@ -11,6 +12,7 @@ import 'reports_screen.dart';
 import 'settings_screen.dart';
 import 'transaction_form_screen.dart';
 import '../utils/transaction_helper.dart';
+import '../utils/app_version.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -22,7 +24,7 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Visão Geral'),
+        title: const Text('Visão Geral $appVersion', style: TextStyle(fontSize: 18)),
         actions: [
           IconButton(
             icon: Icon(isBalanceHidden ? Icons.visibility_off : Icons.visibility),
@@ -50,13 +52,36 @@ class DashboardScreen extends ConsumerWidget {
           final creditCards = (data['creditCards'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
 
           return RefreshIndicator(
-            onRefresh: () => ref.refresh(dashboardDataProvider.future),
+            onRefresh: () async {
+              ref.refresh(dashboardDataProvider.future);
+            },
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (Supabase.instance.client.auth.currentUser != null && Supabase.instance.client.auth.currentUser!.emailConfirmedAt == null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade800,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: Colors.white),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Por segurança, verifique seu e-mail clicando no link que enviamos para você.',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   _buildTotalBalanceCard(context, totalBalance, isBalanceHidden),
                   const SizedBox(height: 24),
                   _buildUserBalancesList(userBalances, isBalanceHidden),
@@ -202,12 +227,12 @@ class DashboardScreen extends ConsumerWidget {
                           children: [
                             const Icon(Icons.credit_card, color: AppTheme.accent, size: 20),
                             const SizedBox(width: 8),
-                            Expanded(child: Text(card['BancoNome'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                            Expanded(child: Text((card['BancoNome'] ?? card['bancoNome'] ?? 'Banco').toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
                           ],
                         ),
                         const Spacer(),
-                        Text(card['Nome'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text('${card['UsuarioNome']} • Fecha dia ${card['Dia_Fechamento']}', style: const TextStyle(fontSize: 10, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text((card['Nome'] ?? card['nome'] ?? 'Cartão').toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text('${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}', style: const TextStyle(fontSize: 10, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
@@ -283,7 +308,7 @@ class DashboardScreen extends ConsumerWidget {
     });
   }
 
-  Future<void> _showReceiptModal(BuildContext context, int transacaoId, String transacaoTitle) async {
+  Future<void> _showReceiptModal(BuildContext context, String transacaoId, String transacaoTitle) async {
     final db = await SupabaseHelper.instance.database;
     final items = await db.query(SupabaseHelper.tableListaCompras, where: 'Transacao_ID = ?', whereArgs: [transacaoId]);
     if (!context.mounted) return;
@@ -312,8 +337,8 @@ class DashboardScreen extends ConsumerWidget {
                     separatorBuilder: (context, index) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final item = items[index];
-                      final preco = item['Preco'] as num;
-                      final qtde = item['Quantidade'] as num;
+                      final preco = (item['Preco'] ?? item['preco'] ?? 0) as num;
+                      final qtde = (item['Quantidade'] ?? item['quantidade'] ?? 1) as num;
                       final total = preco * qtde;
                       return ListTile(
                         title: Text(item['Nome'].toString(), style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -335,13 +360,13 @@ class DashboardScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
+      builder: (bottomSheetContext) {
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 16),
-              Text(t['Descricao'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              Text(t['Descricao'] ?? t['descricao'] ?? 'Sem Descrição', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
               const Text('Opções da Transação', style: TextStyle(color: Colors.grey)),
               const Divider(),
               if ((t['HasItems'] ?? 0) > 0)
@@ -349,19 +374,19 @@ class DashboardScreen extends ConsumerWidget {
                   leading: const Icon(Icons.receipt_long, color: Colors.green),
                   title: const Text('Ver Cupom Fiscal (Itens da Compra)'),
                   onTap: () {
-                    Navigator.pop(context);
-                    _showReceiptModal(context, t['ID'], t['Descricao']);
+                    Navigator.pop(bottomSheetContext);
+                    _showReceiptModal(context, t['id'] ?? t['ID'], t['Descricao'] ?? t['descricao'] ?? '');
                   },
                 ),
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.blue),
                 title: const Text('Editar Transação'),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(bottomSheetContext);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => TransactionFormScreen(transactionId: t['ID']),
+                      builder: (context) => TransactionFormScreen(transactionId: t['id'] ?? t['ID']),
                     ),
                   ).then((_) => ref.refresh(dashboardDataProvider));
                 },
@@ -370,7 +395,7 @@ class DashboardScreen extends ConsumerWidget {
                 leading: const Icon(Icons.delete, color: Colors.red),
                 title: const Text('Excluir Transação'),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(bottomSheetContext);
                   showDialog(
                     context: context,
                     builder: (ctx) => AlertDialog(
@@ -382,7 +407,7 @@ class DashboardScreen extends ConsumerWidget {
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
                           onPressed: () {
                             Navigator.pop(ctx);
-                            _deleteTransaction(context, ref, t['ID']);
+                            _deleteTransaction(context, ref, (t['id'] ?? t['ID']).toString());
                           },
                           child: const Text('Excluir'),
                         )
@@ -469,8 +494,8 @@ class DashboardScreen extends ConsumerWidget {
                             )
                         ],
                       ),
-                      title: Text(t['Descricao'], style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text(t['CategoriaNome'].toString() + ' • ' + banco.nome + ' (' + (t['MetodoNome'] ?? '') + ')'),
+                      title: Text(t['Descricao'] ?? t['descricao'] ?? 'Sem Descrição', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('${t['CategoriaNome'] ?? 'Sem Categoria'} • ${banco.nome} (${t['MetodoNome'] ?? ''})'),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -541,21 +566,50 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Future<List<Map<String, dynamic>>> _fetchUserReport(String userId) async {
-    final db = await SupabaseHelper.instance.database;
-    return await db.rawQuery('''
-      SELECT 
-        c.Nome as ContaNome, 
-        c.Codigo_Banco,
-        m.Nome as MetodoNome, 
-        t.Tipo,
-        SUM(t.Valor) as Total
-      FROM ${SupabaseHelper.tableTransacoes} t
-      JOIN ${SupabaseHelper.tableContasBancarias} c ON t.Conta_ID = c.ID
-      JOIN ${SupabaseHelper.tableMetodosPagamento} m ON t.Metodo_ID = m.ID
-      WHERE t.Usuario_ID = ? AND t.Paga = 1
-      GROUP BY c.Nome, m.Nome, t.Tipo
-      ORDER BY c.Nome, m.Nome, t.Tipo
-    ''', [userId]);
+    try {
+      final supabase = SupabaseHelper.instance.client;
+      final transacoes = await supabase
+          .from('transacoes')
+          .select('valor, tipo, contas_bancarias(nome, codigo_banco), metodos_pagamento(nome)')
+          .eq('usuario_id', userId)
+          .eq('paga', 1)
+          .filter('deleted_at', 'is', null);
+
+      Map<String, Map<String, dynamic>> groups = {};
+      for (var t in transacoes) {
+        String cNome = t['contas_bancarias']?['nome'] ?? 'Sem Conta';
+        String cCod = t['contas_bancarias']?['codigo_banco'] ?? '';
+        String mNome = t['metodos_pagamento']?['nome'] ?? 'Sem Método';
+        String tipo = t['tipo'] ?? '';
+        double val = (t['valor'] as num?)?.toDouble() ?? 0.0;
+        
+        String key = '$cNome-$mNome-$tipo';
+        if (!groups.containsKey(key)) {
+          groups[key] = {
+            'ContaNome': cNome,
+            'Codigo_Banco': cCod,
+            'MetodoNome': mNome,
+            'Tipo': tipo,
+            'Total': 0.0,
+          };
+        }
+        groups[key]!['Total'] += val;
+      }
+
+      final result = groups.values.toList();
+      result.sort((a, b) {
+        int c1 = a['ContaNome'].compareTo(b['ContaNome']);
+        if (c1 != 0) return c1;
+        int c2 = a['MetodoNome'].compareTo(b['MetodoNome']);
+        if (c2 != 0) return c2;
+        return a['Tipo'].compareTo(b['Tipo']);
+      });
+      
+      return result;
+    } catch (e) {
+      debugPrint('Erro ao buscar relatorio de usuario: $e');
+      return [];
+    }
   }
 
   Widget _buildReportContent(BuildContext context, List<Map<String, dynamic>> data) {

@@ -9,13 +9,18 @@ final investmentDetailsProvider = FutureProvider.family<Map<String, dynamic>, St
   
   final historyRes = await db.query(SupabaseHelper.tableHistoricoRendimentos, where: 'Investimento_ID = ?', whereArgs: [id], orderBy: 'Data ASC');
   
-  final transRes = await db.rawQuery('''
-    SELECT t.*, c.Nome as ContaNome 
-    FROM ${SupabaseHelper.tableTransacoes} t
-    LEFT JOIN ${SupabaseHelper.tableContasBancarias} c ON t.Conta_ID = c.ID
-    WHERE t.Investimento_ID = ?
-    ORDER BY t.Data DESC
-  ''', [id]);
+  final supabase = SupabaseHelper.instance.client;
+  final transRaw = await supabase
+      .from('transacoes')
+      .select('*, contas_bancarias(nome)')
+      .eq('investimento_id', id)
+      .filter('deleted_at', 'is', null)
+      .order('data', ascending: false);
+
+  final transRes = transRaw.map((r) => {
+    ...r,
+    'ContaNome': r['contas_bancarias']?['nome'] ?? 'Sem Conta',
+  }).toList();
   
   return {
     'investment': invRes.first,

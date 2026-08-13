@@ -1,6 +1,5 @@
 import 'dart:collection';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'database_helper.dart';
 
 class CaseInsensitiveMap extends MapView<String, dynamic> {
   final Map<String, String> _lowerKeys;
@@ -25,7 +24,7 @@ class SupabaseHelper {
   static final SupabaseHelper instance = SupabaseHelper._privateConstructor();
   SupabaseHelper._privateConstructor();
 
-  final _client = Supabase.instance.client;
+  final client = Supabase.instance.client;
 
   // Tables
   static const tableUsuarios = 'usuarios';
@@ -38,19 +37,17 @@ class SupabaseHelper {
   static const tableListaCompras = 'lista_compras';
   static const tableProdutos = 'produtos';
   static const tableContasCompartilhadas = 'contas_compartilhadas';
-  
-  // O Proxy agora aponta para o SQLite Local! Offline-First!
-  Future<OfflineSyncProxy> get database async {
-    final db = await DatabaseHelper.instance.database;
-    return OfflineSyncProxy(db, _client);
+
+  Future<OnlineProxy> get database async {
+    return OnlineProxy(client);
   }
 }
 
-class OfflineSyncProxy {
-  final dynamic _db; // SQLite Database
+
+class OnlineProxy {
   final SupabaseClient _client;
   
-  OfflineSyncProxy(this._db, this._client);
+  OnlineProxy(this._client);
 
   Future<List<Map<String, dynamic>>> query(
     String table, {
@@ -64,40 +61,77 @@ class OfflineSyncProxy {
     int? limit,
     int? offset,
   }) async {
-    // Filtra automaticamente itens deletados (Soft Delete)
-    String finalWhere = where != null ? '($where) AND deleted_at IS NULL' : 'deleted_at IS NULL';
-    
-    final result = await _db.query(
-      table,
-      distinct: distinct,
-      columns: columns,
-      where: finalWhere,
-      whereArgs: whereArgs,
-      groupBy: groupBy,
-      having: having,
-      orderBy: orderBy,
-      limit: limit,
-      offset: offset
-    );
-    
-    return (result as List).map((e) => CaseInsensitiveMap(e as Map<String, dynamic>)).toList();
+    try {
+      dynamic q = _client.from(table).select();
+      
+      if (where != null) {
+        final wLower = where.toLowerCase();
+        if (wLower.contains('transacao_id is null')) {
+          q = q.filter('transacao_id', 'is', null);
+        }
+        if (wLower.contains('parent_id is null')) {
+          q = q.filter('parent_id', 'is', null);
+        }
+        
+        if (whereArgs != null && whereArgs.isNotEmpty) {
+          if (wLower.contains('usuario_id =') || wLower.contains('usuario_id=')) {
+            q = q.eq('usuario_id', whereArgs[0]!);
+          } else if (wLower.contains('transacao_id =') || wLower.contains('transacao_id=')) {
+            q = q.eq('transacao_id', whereArgs[0]!);
+          } else if (wLower.contains('investimento_id =') || wLower.contains('investimento_id=')) {
+            q = q.eq('investimento_id', whereArgs[0]!);
+          } else if (wLower.contains('categoria_id =') || wLower.contains('categoria_id=')) {
+            q = q.eq('categoria_id', whereArgs[0]!);
+          } else if (wLower.contains('parent_id =') || wLower.contains('parent_id=')) {
+            q = q.eq('parent_id', whereArgs[0]!);
+          } else if (wLower.contains('nome =') || wLower.contains('nome=')) {
+            q = q.eq('nome', whereArgs[0]!);
+          } else if (wLower.contains('id =') || wLower.contains('id=')) {
+            q = q.eq('id', whereArgs[0]!);
+          } else if (wLower.contains('tipo !=') || wLower.contains('tipo!=')) {
+            q = q.neq('tipo', whereArgs[0]!);
+          }
+        }
+
+        if (wLower.contains('oculta = 0') || wLower.contains('oculta=0')) {
+          q = q.eq('oculta', 0);
+        }
+      }
+      
+      // Filtro nativo de soft delete
+      q = q.filter('deleted_at', 'is', null);
+
+      if (orderBy != null) {
+        final orders = orderBy.split(',');
+        for (var order in orders) {
+          final parts = order.trim().split(RegExp(r'\s+'));
+          final colName = parts[0].toLowerCase();
+          final isAsc = parts.length > 1 ? parts[1].toUpperCase() == 'ASC' : true;
+          q = q.order(colName, ascending: isAsc);
+        }
+      }
+
+      if (limit != null) q = q.limit(limit);
+
+      final result = await q;
+      return (result as List).map((e) => CaseInsensitiveMap(e as Map<String, dynamic>)).cast<Map<String, dynamic>>().toList();
+    } catch (e) {
+      print('Erro no OnlineProxy.query ($table): $e');
+      return [];
+    }
   }
 
-  Future<List<Map<String, dynamic>>> rawQuery(String sql, [List<Object?>? arguments]) async {
-    final result = await _db.rawQuery(sql, arguments);
-    return (result as List).map((e) => CaseInsensitiveMap(e as Map<String, dynamic>)).toList();
-  }
-
-  Future<String> insert(String table, Map<String, Object?> values, {dynamic conflictAlgorithm}) async {
+  Future<String> insert(String table, Map<String, Object?> values) async {
     final lowerValues = values.map((k, v) => MapEntry(k.toLowerCase(), v));
-    final authId = _client.auth.currentUser?.id ?? '00000000-0000-0000-0000-000000000000';
-    return await DatabaseHelper.instance.insert(table, lowerValues, authId);
+    lowerValues['auth_id'] = _client.auth.currentUser?.id ?? '00000000-0000-0000-0000-000000000000';
+    final res = await _client.from(table).insert(lowerValues).select('id').single();
+    return res['id'].toString();
   }
 
   Future<int> update(String table, Map<String, Object?> values, {String? where, List<Object?>? whereArgs}) async {
     final lowerValues = values.map((k, v) => MapEntry(k.toLowerCase(), v));
+    lowerValues['updated_at'] = DateTime.now().toUtc().toIso8601String();
     
-    // SQLite usually uses `where: 'id = ?'`. If whereArgs is provided, we use the first arg as ID.
     String id = '';
     if (where != null && whereArgs != null && whereArgs.isNotEmpty) {
        id = whereArgs.first.toString();
@@ -107,7 +141,8 @@ class OfflineSyncProxy {
 
     if (id.isEmpty) return 0;
     
-    return await DatabaseHelper.instance.update(table, lowerValues, id);
+    await _client.from(table).update(lowerValues).eq('id', id);
+    return 1;
   }
 
   Future<int> delete(String table, {String? where, List<Object?>? whereArgs}) async {
@@ -118,35 +153,11 @@ class OfflineSyncProxy {
     
     if (id.isEmpty) return 0;
     
-    return await DatabaseHelper.instance.delete(table, id);
+    await _client.from(table).update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).eq('id', id);
+    return 1;
   }
-  
-  OfflineSyncBatch batch() {
-    return OfflineSyncBatch(this);
-  }
-}
 
-class OfflineSyncBatch {
-  final OfflineSyncProxy _proxy;
-  final List<Function> _operations = [];
-  
-  OfflineSyncBatch(this._proxy);
-  
-  void insert(String table, Map<String, Object?> values) {
-    _operations.add(() => _proxy.insert(table, values));
-  }
-  
-  void update(String table, Map<String, Object?> values, {String? where, List<Object?>? whereArgs}) {
-    _operations.add(() => _proxy.update(table, values, where: where, whereArgs: whereArgs));
-  }
-  
-  void delete(String table, {String? where, List<Object?>? whereArgs}) {
-    _operations.add(() => _proxy.delete(table, where: where, whereArgs: whereArgs));
-  }
-  
-  Future<void> commit({bool? noResult, bool? continueOnError}) async {
-    for (var op in _operations) {
-      await op();
-    }
+  Future<List<Map<String, dynamic>>> rawQuery(String sql, [List<Object?>? arguments]) async {
+    throw Exception('rawQuery não suportado em OnlineProxy. Migre para consultas diretas Supabase.');
   }
 }

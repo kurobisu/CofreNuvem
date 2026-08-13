@@ -22,78 +22,89 @@ class TransactionHelper {
     if (confirmar1 != true) return;
     if (!context.mounted) return;
 
-    final db = await SupabaseHelper.instance.database;
-    final tRes = await db.query(SupabaseHelper.tableTransacoes, where: 'ID = ?', whereArgs: [transactionId]);
-    if (tRes.isEmpty) return;
-    
-    final t = tRes.first;
-    final int? invId = t['investimento_id'] as int?;
-    
-    if (invId != null) {
-      // Alerta 2 Rigoroso
-      final confirmar2 = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('⚠️ ALERTA RIGOROSO', style: TextStyle(color: Colors.red)),
-          content: const Text('Esta transação faz parte de um Investimento.\nExcluí-la irá alterar os saldos do seu investimento e isso é irreversível.\nDeseja REALMENTE continuar?'),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-              onPressed: () => Navigator.pop(context, true), 
-              child: const Text('EXCLUIR ASSIM MESMO')
-            ),
-          ],
-        ),
-      );
-
-      if (confirmar2 != true) return;
+    final supabase = SupabaseHelper.instance.client;
+    try {
+      final tRes = await supabase.from('transacoes').select().eq('id', transactionId);
+      if (tRes.isEmpty) return;
       
-      final invRes = await db.query(SupabaseHelper.tableInvestimentos, where: 'ID = ?', whereArgs: [invId]);
-      if (invRes.isNotEmpty) {
-        final inv = invRes.first;
-        final tipo = t['tipo'] as String;
-        final val = (t['valor'] as num).toDouble();
+      final t = tRes.first;
+      final String? invId = t['investimento_id']?.toString();
+      
+      if (invId != null && invId.isNotEmpty && invId != 'null') {
+        // Alerta 2 Rigoroso
+        final confirmar2 = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('⚠️ ALERTA RIGOROSO', style: TextStyle(color: Colors.red)),
+            content: const Text('Esta transação faz parte de um Investimento.\nExcluí-la irá alterar os saldos do seu investimento e isso é irreversível.\nDeseja REALMENTE continuar?'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(context, true), 
+                child: const Text('EXCLUIR ASSIM MESMO')
+              ),
+            ],
+          ),
+        );
+
+        if (confirmar2 != true) return;
         
-        double atu = (inv['valor_atualizado'] as num).toDouble();
-        double invst = (inv['valor_investido'] as num).toDouble();
-        String status = inv['status'] as String;
-        
-        if (tipo == 'Despesa') {
-          // Aporte sendo apagado -> reduzir
-          atu -= val;
-          invst -= val;
-          if (atu <= 0) {
-            atu = 0;
-            invst = 0;
-            status = 'Resgatado';
+        final invRes = await supabase.from('investimentos').select().eq('id', invId);
+        if (invRes.isNotEmpty) {
+          final inv = invRes.first;
+          final tipo = t['tipo']?.toString() ?? 'Despesa';
+          final val = (t['valor'] as num?)?.toDouble() ?? 0.0;
+          
+          double atu = (inv['valor_atualizado'] as num?)?.toDouble() ?? 0.0;
+          double invst = (inv['valor_investido'] as num?)?.toDouble() ?? 0.0;
+          String status = inv['status']?.toString() ?? 'Ativo';
+          
+          if (tipo == 'Despesa') {
+            // Aporte sendo apagado -> reduzir
+            atu -= val;
+            invst -= val;
+            if (atu <= 0) {
+              atu = 0;
+              invst = 0;
+              status = 'Resgatado';
+            }
+          } else if (tipo == 'Receita') {
+            // Resgate sendo apagado -> restaurar
+            atu += val;
+            invst += val;
+            if (status == 'Resgatado') {
+              status = 'Ativo';
+            }
           }
-        } else if (tipo == 'Receita') {
-          // Resgate sendo apagado -> restaurar
-          atu += val;
-          invst += val;
-          if (status == 'Resgatado') {
-            status = 'Ativo';
-          }
+
+          await supabase.from('investimentos').update({
+            'valor_atualizado': atu,
+            'valor_investido': invst,
+            'status': status,
+          }).eq('id', invId);
+          
+          await supabase.from('historico_rendimentos').insert({
+            'investimento_id': invId,
+            'data': DateTime.now().toIso8601String().substring(0, 10),
+            'valor': atu,
+          });
         }
-
-        await db.update(SupabaseHelper.tableInvestimentos, {
-          'Valor_Atualizado': atu,
-          'Valor_Investido': invst,
-          'Status': status,
-        }, where: 'ID = ?', whereArgs: [invId]);
-        
-        await db.insert(SupabaseHelper.tableHistoricoRendimentos, {
-          'Investimento_ID': invId,
-          'Data': DateTime.now().toIso8601String().substring(0, 10),
-          'Valor': atu,
-        });
       }
-    }
 
-    await db.delete(SupabaseHelper.tableTransacoes, where: 'ID = ?', whereArgs: [transactionId]);
-    if (context.mounted) {
-      onSuccess();
+      await supabase.from('transacoes').update({'deleted_at': DateTime.now().toIso8601String()}).eq('id', transactionId);
+      if (context.mounted) {
+        onSuccess();
+      }
+    } catch (e, stack) {
+      debugPrint('Erro na exclusão: $e\\n$stack');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Falha ao excluir: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ));
+      }
     }
   }
 }

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/currency_input_formatter.dart';
 import '../theme/app_theme.dart';
 
 class ProductHistoryScreen extends StatefulWidget {
@@ -25,86 +28,115 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
   }
 
   Future<void> _loadHistory() async {
-    final db = await SupabaseHelper.instance.database;
-    
-    _categorias = await db.query(
-      SupabaseHelper.tableCategorias,
-      where: 'Tipo != ? AND Oculta = 0',
-      whereArgs: ['Receita'],
-      orderBy: 'Nome ASC'
-    );
-
-    // Get all products and their history
-    final result = await db.rawQuery('''
-      SELECT p.ID as ProdutoID, p.Nome as ProdutoNome, p.Categoria_ID, c.Nome as CategoriaNome, c.Cor_Hexadecimal, lc.Preco, t.Data 
-      FROM ${SupabaseHelper.tableProdutos} p
-      LEFT JOIN ${SupabaseHelper.tableCategorias} c ON p.Categoria_ID = c.ID
-      LEFT JOIN ${SupabaseHelper.tableListaCompras} lc ON p.Nome = lc.Nome AND lc.Transacao_ID IS NOT NULL
-      LEFT JOIN ${SupabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
-      ORDER BY p.Nome ASC, t.Data ASC
-    ''');
-
-    Map<String, Map<String, dynamic>> productsMap = {};
-
-    for (var row in result) {
-      String pId = row['ProdutoID'].toString();
+    try {
+      final supabase = SupabaseHelper.instance.client;
       
-      if (!productsMap.containsKey(pId)) {
-        productsMap[pId] = {
-          'ID': pId,
-          'Nome': row['ProdutoNome'],
-          'Categoria_ID': row['Categoria_ID'],
-          'CategoriaNome': row['CategoriaNome'],
-          'Cor_Hexadecimal': row['Cor_Hexadecimal'],
-          'Prices': <double>[],
-          'BuyCount': 0,
-        };
+      final catsRes = await supabase.from('categorias').select().neq('tipo', 'Receita').eq('oculta', 0).filter('deleted_at', 'is', null).order('nome', ascending: true);
+      _categorias = catsRes;
+
+      final Map<String, Map<String, dynamic>> catsMap = {};
+      for (var cRaw in catsRes) {
+        final c = CaseInsensitiveMap(cRaw as Map<String, dynamic>);
+        catsMap[(c['id'] ?? c['ID'])?.toString() ?? ''] = c;
       }
-      
-      if (row['Preco'] != null) {
-        productsMap[pId]!['Prices'].add((row['Preco'] as num).toDouble());
-        productsMap[pId]!['BuyCount'] = (productsMap[pId]!['BuyCount'] as int) + 1;
+
+      final listaComprasRaw = await supabase.from('lista_compras')
+          .select()
+          .filter('deleted_at', 'is', null)
+          .order('id', ascending: false);
+          
+      final prefs = await SharedPreferences.getInstance();
+      Map<String, Map<String, dynamic>> productsMap = {};
+      final Map<String, String> onlineProdCats = {};
+
+      for (var lcRaw in listaComprasRaw) {
+        final lc = CaseInsensitiveMap(lcRaw as Map<String, dynamic>);
+        String lcName = (lc['nome'] ?? '').toString().trim();
+        if (lcName.isEmpty) continue;
+
+        if (lcName.startsWith('prod_cat:')) {
+          final parts = lcName.split(':');
+          if (parts.length >= 3) {
+            final pName = parts[1].toLowerCase().trim();
+            final catId = parts[2].trim();
+            if (!onlineProdCats.containsKey(pName) && catId.isNotEmpty) {
+              onlineProdCats[pName] = catId;
+            }
+          }
+          continue;
+        }
+
+        final key = lcName.toLowerCase();
+        String? catId = lc['categoria_id']?.toString() ?? onlineProdCats[key] ?? prefs.getString('prod_cat_$key');
+        final catMap = catId != null ? catsMap[catId] : null;
+        double preco = ((lc['preco'] ?? 0) as num).toDouble();
+
+        if (!productsMap.containsKey(key)) {
+          productsMap[key] = {
+            'ID': lc['id']?.toString() ?? key,
+            'Nome': lcName,
+            'Categoria_ID': catId,
+            'CategoriaNome': catMap?['nome'] ?? catMap?['Nome'] ?? 'Sem Categoria',
+            'Cor_Hexadecimal': catMap?['cor_hexadecimal'] ?? catMap?['Cor_Hexadecimal'] ?? '#9E9E9E',
+            'Prices': <double>[],
+            'BuyCount': 0,
+          };
+        }
+
+        productsMap[key]!['BuyCount'] = (productsMap[key]!['BuyCount'] as int) + 1;
+        if (preco > 0) {
+          (productsMap[key]!['Prices'] as List<double>).add(preco);
+        }
+      }
+
+      List<Map<String, dynamic>> stats = [];
+      productsMap.forEach((key, data) {
+        List<double> prices = data['Prices'];
+        
+        double currentPrice = 0;
+        double maxPrice = 0;
+        double minPrice = 0;
+        double previousPrice = 0;
+        
+        if (prices.isNotEmpty) {
+          currentPrice = prices.first;
+          maxPrice = prices.reduce((curr, next) => curr > next ? curr : next);
+          minPrice = prices.reduce((curr, next) => curr < next ? curr : next);
+          previousPrice = prices.length > 1 ? prices[1] : currentPrice;
+        }
+
+        stats.add({
+          'ID': data['ID'],
+          'Nome': data['Nome'],
+          'CategoriaNome': data['CategoriaNome'],
+          'Cor_Hexadecimal': data['Cor_Hexadecimal'],
+          'Categoria_ID': data['Categoria_ID'],
+          'CurrentPrice': currentPrice,
+          'MaxPrice': maxPrice,
+          'MinPrice': minPrice,
+          'PreviousPrice': previousPrice,
+          'HistoryCount': prices.length,
+          'BuyCount': data['BuyCount'],
+        });
+      });
+
+      stats.sort((a, b) => (a['Nome'] ?? '').toString().toLowerCase().compareTo((b['Nome'] ?? '').toString().toLowerCase()));
+
+      if (mounted) {
+        setState(() {
+          _productStats = stats;
+          _filteredStats = stats;
+        });
+      }
+    } catch (e) {
+      debugPrint('Erro _loadHistory no product_history_screen: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
-
-    List<Map<String, dynamic>> stats = [];
-    productsMap.forEach((id, data) {
-      List<double> prices = data['Prices'];
-      
-      double currentPrice = 0;
-      double maxPrice = 0;
-      double minPrice = 0;
-      double previousPrice = 0;
-      
-      if (prices.isNotEmpty) {
-        currentPrice = prices.last;
-        maxPrice = prices.reduce((curr, next) => curr > next ? curr : next);
-        minPrice = prices.reduce((curr, next) => curr < next ? curr : next);
-        previousPrice = prices.length > 1 ? prices[prices.length - 2] : currentPrice;
-      }
-
-      stats.add({
-        'ID': data['ID'],
-        'Nome': data['Nome'],
-        'CategoriaNome': data['CategoriaNome'],
-        'Cor_Hexadecimal': data['Cor_Hexadecimal'],
-        'Categoria_ID': data['Categoria_ID'],
-        'CurrentPrice': currentPrice,
-        'MaxPrice': maxPrice,
-        'MinPrice': minPrice,
-        'PreviousPrice': previousPrice,
-        'HistoryCount': prices.length,
-        'BuyCount': data['BuyCount'],
-      });
-    });
-
-    stats.sort((a, b) => a['Nome'].toString().toLowerCase().compareTo(b['Nome'].toString().toLowerCase()));
-
-    setState(() {
-      _productStats = stats;
-      _filteredStats = stats;
-      _isLoading = false;
-    });
   }
 
   void _filterProducts(String query) {
@@ -117,15 +149,20 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
   }
 
   Future<void> _showPriceHistory(String productId, String productName) async {
-    final db = await SupabaseHelper.instance.database;
-    final result = await db.rawQuery('''
-      SELECT lc.Preco, t.Data 
-      FROM ${SupabaseHelper.tableListaCompras} lc
-      JOIN ${SupabaseHelper.tableTransacoes} t ON lc.Transacao_ID = t.ID
-      JOIN ${SupabaseHelper.tableProdutos} p ON lc.Nome = p.Nome
-      WHERE p.ID = ? AND lc.Transacao_ID IS NOT NULL
-      ORDER BY t.Data DESC
-    ''', [productId]);
+    final supabase = SupabaseHelper.instance.client;
+    
+    // Simulating the JOIN: find lista_compras where name = productName
+    final resultRaw = await supabase.from('lista_compras')
+        .select('preco, transacoes(data)')
+        .eq('nome', productName)
+        .not('transacao_id', 'is', null)
+        .filter('deleted_at', 'is', null);
+        
+    final result = resultRaw.map((r) => {
+      'Preco': r['preco'],
+      'Data': r['transacoes']?['data'] ?? '',
+    }).toList();
+    result.sort((a, b) => (b['Data']?.toString() ?? '').compareTo(a['Data']?.toString() ?? ''));
 
     if (!mounted) return;
 
@@ -143,9 +180,9 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                     itemCount: result.length,
                     itemBuilder: (context, index) {
                       final row = result[index];
-                      final dateStr = row['Data'] as String;
-                      final price = (row['Preco'] as num).toDouble();
-                      final date = DateTime.parse(dateStr);
+                      final dateStr = (row['Data'] ?? row['data'] ?? '').toString();
+                      final price = ((row['Preco'] ?? row['preco'] ?? 0) as num).toDouble();
+                      final date = DateTime.tryParse(dateStr) ?? DateTime.now();
                       final formattedDate = "${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
 
                       return ListTile(
@@ -164,12 +201,12 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
     );
   }
 
-  Future<void> _deleteProduct(String id) async {
+  Future<void> _deleteProduct(String nome) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Produto'),
-        content: const Text('Tem certeza que deseja excluir este produto? Esta ação é irreversível.'),
+        content: const Text('Tem certeza que deseja excluir este produto do histórico?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           ElevatedButton(
@@ -182,80 +219,304 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
     );
 
     if (confirm == true) {
-      final db = await SupabaseHelper.instance.database;
-      await db.delete(SupabaseHelper.tableProdutos, where: 'ID = ?', whereArgs: [id]);
+      final supabase = SupabaseHelper.instance.client;
+      await supabase.from('lista_compras').update({'deleted_at': DateTime.now().toUtc().toIso8601String()}).filter('nome', 'eq', nome);
       _loadHistory();
     }
   }
 
+  List<Map<String, dynamic>> _buildStructuredCategories(List<dynamic> rawCats) {
+    final clean = rawCats.map((c) => CaseInsensitiveMap(c as Map<String, dynamic>)).toList();
+    final Map<String, Map<String, dynamic>> uniqueMap = {};
+    for (var c in clean) {
+      final name = (c['nome'] ?? '').toString().trim();
+      final pId = (c['parent_id'] ?? 'root').toString();
+      final key = '${name.toLowerCase()}_$pId';
+      if (!uniqueMap.containsKey(key)) {
+        uniqueMap[key] = c;
+      }
+    }
+    final allCats = uniqueMap.values.toList();
+
+    final keywords = ['mercado', 'saúde', 'saude', 'farmác', 'farmac', 'higiene', 'limpeza', 'pet', 'alimento', 'hortifruti', 'açougue', 'padaria', 'bebida', 'mercearia', 'frio', 'congelado', 'biscoito', 'guloseima'];
+
+    bool isRelevant(Map<String, dynamic> c) {
+      final name = (c['nome'] ?? '').toString().toLowerCase();
+      final parentId = (c['parent_id'])?.toString();
+      if (keywords.any((kw) => name.contains(kw))) return true;
+      if (parentId != null && parentId != 'null') {
+        final parent = allCats.firstWhere((p) => (p['id'] ?? p['ID'])?.toString() == parentId, orElse: () => {});
+        if (parent.isNotEmpty) {
+          final parentName = (parent['nome'] ?? '').toString().toLowerCase();
+          if (keywords.any((kw) => parentName.contains(kw))) return true;
+        }
+      }
+      return false;
+    }
+
+    final filteredCats = allCats.where(isRelevant).toList();
+
+    final parents = filteredCats.where((c) => c['parent_id'] == null || c['parent_id'] == 'null').toList();
+    parents.sort((a, b) => (a['nome'] ?? '').toString().compareTo((b['nome'] ?? '').toString()));
+
+    List<Map<String, dynamic>> structured = [];
+    for (var p in parents) {
+      structured.add(p);
+      final children = filteredCats.where((c) => (c['parent_id']?.toString() ?? '') == (p['id']?.toString() ?? '')).toList();
+      children.sort((a, b) => (a['nome'] ?? '').toString().compareTo((b['nome'] ?? '').toString()));
+      for (var child in children) {
+        structured.add(child);
+      }
+    }
+    return structured;
+  }
+
   Future<void> _showProductDialog([Map<String, dynamic>? product]) async {
     final nomeController = TextEditingController(text: product?['Nome'] ?? '');
+    
+    double initialPrice = 0.0;
+    if (product != null) {
+      initialPrice = ((product['CurrentPrice'] ?? product['Preco'] ?? product['preco'] ?? 0) as num).toDouble();
+    }
+    final precoUnitarioController = TextEditingController(
+      text: initialPrice > 0 ? CurrencyFormatter.format(initialPrice) : '',
+    );
+    final pesoOuQtdeController = TextEditingController(text: '1');
+
+    final prefs = await SharedPreferences.getInstance();
+    final initialKey = (product?['Nome'] ?? '').toString().trim().toLowerCase();
     String? selectedCategoria = product?['Categoria_ID']?.toString();
+    if ((selectedCategoria == null || selectedCategoria.isEmpty) && initialKey.isNotEmpty) {
+      selectedCategoria = prefs.getString('prod_cat_$initialKey');
+    }
+
+    String modoCalculo = prefs.getString('prod_modo_$initialKey') ?? 'Unidade';
+    String unidadePeso = prefs.getString('prod_unidade_$initialKey') ?? 'g';
+
+    if (product != null && prefs.getString('prod_modo_$initialKey') == null) {
+      if (initialKey.contains('kg') || initialKey.contains('peso') || initialKey.contains('tangerina') || initialKey.contains('tomate')) {
+        modoCalculo = 'Peso';
+      }
+    }
+
+    final structuredCats = _buildStructuredCategories(_categorias);
+    final validCatIds = structuredCats.map((c) => (c['id'] ?? c['ID'])?.toString()).whereType<String>().toSet();
+    if (selectedCategoria != null && !validCatIds.contains(selectedCategoria)) {
+      selectedCategoria = null;
+    }
 
     await showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          title: Text(product == null ? 'Novo Produto' : 'Editar Produto'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nomeController,
-                decoration: const InputDecoration(labelText: 'Nome do Produto'),
-                textCapitalization: TextCapitalization.words,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: selectedCategoria,
-                decoration: const InputDecoration(labelText: 'Sub-categoria'),
-                items: _categorias.map((c) => DropdownMenuItem<String>(
-                  value: c['ID'].toString(),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12, height: 12,
-                        decoration: BoxDecoration(
-                          color: Color(int.parse((c['Cor_Hexadecimal'] as String).replaceAll('#', '0xFF'))),
-                          shape: BoxShape.circle,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+            scrollable: true,
+            title: Text(product == null ? 'Novo Produto na Biblioteca' : 'Editar Produto'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextField(
+                  controller: nomeController,
+                  decoration: const InputDecoration(labelText: 'Nome do Produto'),
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedCategoria,
+                  menuMaxHeight: 280,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Categoria / Área'),
+                  items: structuredCats.map((c) {
+                    final cId = (c['id'] ?? c['ID'])?.toString();
+                    final cNome = (c['nome'] ?? c['Nome'] ?? 'Sem Categoria').toString();
+                    final colorHex = (c['cor_hexadecimal'] ?? c['Cor_Hexadecimal'] ?? '#9E9E9E').toString().replaceAll('#', '0xFF');
+                    final isChild = c['parent_id'] != null && c['parent_id'] != 'null';
+
+                    return DropdownMenuItem<String>(
+                      value: cId,
+                      child: Row(
+                        children: [
+                          if (isChild) const SizedBox(width: 12),
+                          if (isChild) const Icon(Icons.subdirectory_arrow_right, size: 14, color: Colors.grey),
+                          if (isChild) const SizedBox(width: 4),
+                          Container(
+                            width: 10, height: 10,
+                            decoration: BoxDecoration(
+                              color: Color(int.parse(colorHex)),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              cNome,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: isChild ? FontWeight.normal : FontWeight.bold,
+                                fontSize: isChild ? 12 : 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) => setStateDialog(() => selectedCategoria = val),
+                ),
+                const SizedBox(height: 16),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'Unidade', label: Text('Por Unidade', style: TextStyle(fontSize: 12))),
+                    ButtonSegment(value: 'Peso', label: Text('Por Peso', style: TextStyle(fontSize: 12))),
+                  ],
+                  selected: {modoCalculo},
+                  onSelectionChanged: (Set<String> newSelection) {
+                    setStateDialog(() {
+                      modoCalculo = newSelection.first;
+                      if (modoCalculo == 'Unidade') {
+                        pesoOuQtdeController.text = '1';
+                      } else {
+                        pesoOuQtdeController.text = unidadePeso == 'g' ? '1000' : '1.0';
+                      }
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: precoUnitarioController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                        decoration: InputDecoration(
+                          labelText: modoCalculo == 'Peso' ? r'Preço por Kg (R$)' : r'Preço Unitário (R$)',
+                          border: const OutlineInputBorder(),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Text(c['Nome'] as String),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: pesoOuQtdeController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: modoCalculo == 'Peso' ? (unidadePeso == 'g' ? 'Peso (g)' : 'Peso (Kg)') : 'Quantidade (Un)',
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (modoCalculo == 'Peso') ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      const Text('Unidade: ', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      Expanded(
+                        child: SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(value: 'g', label: Text('Gramas (g)', style: TextStyle(fontSize: 10))),
+                            ButtonSegment(value: 'kg', label: Text('Quilos (Kg)', style: TextStyle(fontSize: 10))),
+                          ],
+                          selected: {unidadePeso},
+                          onSelectionChanged: (Set<String> sel) {
+                            setStateDialog(() {
+                              unidadePeso = sel.first;
+                            });
+                          },
+                        ),
+                      ),
                     ],
                   ),
-                )).toList(),
-                onChanged: (val) => setStateDialog(() => selectedCategoria = val),
-              )
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-            ElevatedButton(
-              onPressed: () async {
-                final nome = nomeController.text.trim();
-                if (nome.isNotEmpty) {
-                  final db = await SupabaseHelper.instance.database;
-                  if (product == null) {
-                    await db.insert(SupabaseHelper.tableProdutos, {
-                      'Nome': nome,
-                      'Categoria_ID': selectedCategoria,
-                    });
-                  } else {
-                    await db.update(SupabaseHelper.tableProdutos, {
-                      'Nome': nome,
-                      'Categoria_ID': selectedCategoria,
-                    }, where: 'ID = ?', whereArgs: [product['ID']]);
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+              ElevatedButton(
+                onPressed: () async {
+                  final nome = nomeController.text.trim();
+                  if (nome.isEmpty) return;
+
+                  try {
+                    final supabase = SupabaseHelper.instance.client;
+                    final authId = supabase.auth.currentUser?.id;
+
+                    final numericUnit = precoUnitarioController.text.replaceAll(RegExp('[^0-9]'), '');
+                    final unitPriceInput = numericUnit.isEmpty ? 0.0 : double.parse(numericUnit) / 100;
+
+                    double finalPrice = unitPriceInput;
+                    double finalQtde = 1.0;
+
+                    if (modoCalculo == 'Unidade') {
+                      finalQtde = double.tryParse(pesoOuQtdeController.text.replaceAll(',', '.')) ?? 1.0;
+                    } else if (modoCalculo == 'Peso') {
+                      final rawWeight = double.tryParse(pesoOuQtdeController.text.replaceAll(',', '.')) ?? 1000.0;
+                      finalQtde = unidadePeso == 'g' ? (rawWeight / 1000.0) : rawWeight;
+                    }
+
+                    final Map<String, dynamic> itemData = {
+                      'nome': nome,
+                      'quantidade': finalQtde,
+                      'comprado': 2,
+                    };
+                    if (finalPrice > 0) itemData['preco'] = finalPrice;
+                    if (authId != null) itemData['auth_id'] = authId;
+
+                    if (product == null) {
+                      await supabase.from('lista_compras').insert(itemData);
+                    } else {
+                      await supabase.from('lista_compras').update(itemData).filter('nome', 'eq', product['Nome']);
+                    }
+
+                    final prefs = await SharedPreferences.getInstance();
+                    final prodKey = nome.toLowerCase();
+                    await prefs.setString('prod_modo_$prodKey', modoCalculo);
+                    await prefs.setString('prod_unidade_$prodKey', unidadePeso);
+
+                    final onlineCatPrefix = 'prod_cat:$prodKey:';
+
+                    try {
+                      await supabase.from('lista_compras').delete().filter('nome', 'like', 'prod_cat:$prodKey:%');
+                    } catch (_) {}
+
+                    if (selectedCategoria != null && selectedCategoria!.isNotEmpty) {
+                      await prefs.setString('prod_cat_$prodKey', selectedCategoria!);
+                      try {
+                        await supabase.from('lista_compras').insert({
+                          'nome': '$onlineCatPrefix${selectedCategoria!}',
+                          'comprado': -1,
+                          'quantidade': 0,
+                          'preco': 0,
+                          if (authId != null) 'auth_id': authId,
+                        });
+                      } catch (_) {}
+                    } else {
+                      await prefs.remove('prod_cat_$prodKey');
+                    }
+
+                    if (mounted) {
+                      Navigator.pop(ctx);
+                      _loadHistory();
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Erro ao salvar produto: $e')),
+                      );
+                    }
                   }
-                  if (mounted) Navigator.pop(context);
-                  _loadHistory();
-                }
-              },
-              child: const Text('Salvar'),
-            )
-          ],
-        )
-      )
+                },
+                child: const Text('Salvar'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

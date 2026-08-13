@@ -66,16 +66,14 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   }
 
   Future<void> _pagarFatura(String vencimento, List<Map<String, dynamic>> transacoes) async {
-    final db = await SupabaseHelper.instance.database;
-    final batch = db.batch();
+    final supabase = SupabaseHelper.instance.client;
 
     for (var t in transacoes) {
-      if (t['Paga'] == 0) {
-        batch.update(SupabaseHelper.tableTransacoes, {'Paga': 1}, where: 'ID = ?', whereArgs: [t['ID']]);
+      final id = t['ID'] ?? t['id'];
+      if (t['Paga'] == 0 || t['paga'] == 0) {
+        await supabase.from('transacoes').update({'paga': 1}).eq('id', id);
       }
     }
-
-    await batch.commit(noResult: true);
     
     ref.refresh(dashboardDataProvider);
 

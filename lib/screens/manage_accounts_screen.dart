@@ -46,12 +46,11 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
       _contas.insert(newIndex, item);
     });
 
-    final db = await SupabaseHelper.instance.database;
-    final batch = db.batch();
+    final supabase = SupabaseHelper.instance.client;
     for (int i = 0; i < _contas.length; i++) {
-      batch.update(SupabaseHelper.tableContasBancarias, {'Ordem': i}, where: 'ID = ?', whereArgs: [_contas[i]['ID']]);
+      final id = _contas[i]['ID'] ?? _contas[i]['id'];
+      await supabase.from('contas_bancarias').update({'ordem': i}).eq('id', id);
     }
-    await batch.commit(noResult: true);
   }
 
   Future<void> _addConta(String nome, String codigoBanco, String donoId) async {
@@ -110,12 +109,11 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     final item = metodosDaConta.removeAt(oldIndex);
     metodosDaConta.insert(newIndex, item);
 
-    final db = await SupabaseHelper.instance.database;
-    final batch = db.batch();
+    final supabase = SupabaseHelper.instance.client;
     for (int i = 0; i < metodosDaConta.length; i++) {
-      batch.update(SupabaseHelper.tableMetodosPagamento, {'Ordem': i}, where: 'ID = ?', whereArgs: [metodosDaConta[i]['ID']]);
+      final id = metodosDaConta[i]['ID'] ?? metodosDaConta[i]['id'];
+      await supabase.from('metodos_pagamento').update({'ordem': i}).eq('id', id);
     }
-    await batch.commit(noResult: true);
     _loadData();
   }
 

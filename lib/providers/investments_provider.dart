@@ -2,25 +2,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/supabase_helper.dart';
 
 final investmentsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final db = await SupabaseHelper.instance.database;
-  final result = await db.rawQuery('''
-    SELECT i.*, u.Nome as UsuarioNome 
-    FROM ${SupabaseHelper.tableInvestimentos} i
-    JOIN ${SupabaseHelper.tableUsuarios} u ON i.Usuario_ID = u.ID
-    WHERE i.Status = 'Ativo' OR i.Status IS NULL
-    ORDER BY i.Data_Aporte DESC
-  ''');
-  return result;
+  final supabase = SupabaseHelper.instance.client;
+  final result = await supabase
+      .from('investimentos')
+      .select('*, usuarios(nome)')
+      .filter('deleted_at', 'is', null)
+      .or('status.eq.Ativo,status.is.null')
+      .order('data_aporte', ascending: false);
+      
+  return result.map((r) => {
+    ...r,
+    'UsuarioNome': r['usuarios']?['nome'] ?? 'N/A'
+  }).toList();
 });
 
 final investmentHistoryProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final db = await SupabaseHelper.instance.database;
-  final result = await db.rawQuery('''
-    SELECT h.Data, h.Valor, h.Investimento_ID, i.Ativo
-    FROM ${SupabaseHelper.tableHistoricoRendimentos} h
-    JOIN ${SupabaseHelper.tableInvestimentos} i ON h.Investimento_ID = i.ID
-    WHERE i.Status = 'Ativo' OR i.Status IS NULL
-    ORDER BY h.Data ASC
-  ''');
-  return result;
+  final supabase = SupabaseHelper.instance.client;
+  final result = await supabase
+      .from('historico_rendimentos')
+      .select('data, valor, investimento_id, investimentos(ativo, status)')
+      .or('status.eq.Ativo,status.is.null', referencedTable: 'investimentos')
+      .order('data', ascending: true);
+      
+  return result.map((r) => {
+    'Data': r['data'],
+    'Valor': r['valor'],
+    'Investimento_ID': r['investimento_id'],
+    'Ativo': r['investimentos']?['ativo'] ?? '',
+  }).toList();
 });

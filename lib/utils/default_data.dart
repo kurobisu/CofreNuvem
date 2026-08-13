@@ -3,18 +3,31 @@ import '../database/supabase_helper.dart';
 class DefaultData {
   static Future<void> seedDefaultCategories() async {
     final db = await SupabaseHelper.instance.database;
-    final countRes = await db.rawQuery('SELECT COUNT(*) as c FROM ${SupabaseHelper.tableCategorias} WHERE deleted_at IS NULL');
-    final count = countRes.first['c'] as int;
+    final supabase = SupabaseHelper.instance.client;
+    
+    final countRes = await supabase.from('categorias').select('id').filter('deleted_at', 'is', null);
+    final count = countRes.length;
 
     // A nossa lista padrão tem cerca de 45 itens. Se tiver menos que isso,
     // significa que não injetamos ainda (são apenas sobras/bagunças de testes antigos).
     if (count >= 40) return;
 
-    // Desvincula para não apagar transações por CASCADE
-    await db.rawQuery('UPDATE ${SupabaseHelper.tableTransacoes} SET categoria_id = NULL');
-    await db.rawQuery('UPDATE ${SupabaseHelper.tableProdutos} SET categoria_id = NULL');
+    // Desvincula para não apagar transações por CASCADE (agora online, vamos apenas dar update)
+    // No supabase o ideal seria um RPC, mas vamos fazer via select e update individual ou in
+    final transIds = await supabase.from('transacoes').select('id').not('categoria_id', 'is', null);
+    if (transIds.isNotEmpty) {
+        for (var t in transIds) {
+           await supabase.from('transacoes').update({'categoria_id': null}).eq('id', t['id']);
+        }
+    }
+    
     // Limpa a bagunça antiga
-    await db.rawQuery('DELETE FROM ${SupabaseHelper.tableCategorias}');
+    final catIds = await supabase.from('categorias').select('id');
+    if (catIds.isNotEmpty) {
+        for (var c in catIds) {
+            await supabase.from('categorias').update({'deleted_at': DateTime.now().toIso8601String()}).eq('id', c['id']);
+        }
+    }
 
     // --- ENTRADAS (Receitas) ---
     // Renda Principal

@@ -6,7 +6,6 @@ import 'investments_screen.dart';
 import 'settings_screen.dart';
 import 'onboarding_screen.dart';
 import '../database/supabase_helper.dart';
-import '../services/sync_manager.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -21,20 +20,12 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkOnboarding();
-      _startSync();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _checkOnboarding();
     });
   }
 
-  Future<void> _startSync() async {
-    // Sincroniza dados locais com nuvem (Pull/Push) ao abrir o app
-    await SyncManager.instance.sync();
-    // Liga o Listener para atualizar em tempo real quando outros usuários alterarem algo
-    SyncManager.instance.listenToRealtimeUpdates(() {
-      if (mounted) setState(() {});
-    });
-  }
+
 
   Future<void> _checkOnboarding() async {
     try {

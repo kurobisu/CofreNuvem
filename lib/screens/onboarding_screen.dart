@@ -123,7 +123,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bem-vindo ao CofreNuvem!')),
+      appBar: AppBar(
+        title: const Text('Bem-vindo ao CofreNuvem!'),
+        automaticallyImplyLeading: false,
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              try {
+                await Supabase.instance.client.auth.signOut();
+// Banco local removido
+                if (mounted) {
+                  Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                }
+              } catch (e) {
+                // ignore
+              }
+            },
+            icon: const Icon(Icons.logout),
+            label: const Text('Sair'),
+          ),
+        ],
+      ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
         : Stepper(
