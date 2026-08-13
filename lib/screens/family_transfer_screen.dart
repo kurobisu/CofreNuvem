@@ -48,7 +48,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
   @override
   void initState() {
     super.initState();
-    _descricaoController.text = 'Transferência Familiar';
+    _descricaoController.text = widget.initialValor != null ? 'Devolução de Transferência' : 'Transferência Familiar';
     _loadData();
   }
 

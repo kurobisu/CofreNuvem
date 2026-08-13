@@ -89,6 +89,8 @@ class OnlineProxy {
             q = q.eq('nome', firstArg);
           } else if (wLower.contains('id =') || wLower.contains('id=')) {
             q = q.eq('id', firstArg);
+          } else if (wLower.contains('transferencia_id =') || wLower.contains('transferencia_id=')) {
+            q = q.eq('transferencia_id', firstArg);
           } else if (wLower.contains('tipo !=') || wLower.contains('tipo!=')) {
             q = q.neq('tipo', firstArg);
           }

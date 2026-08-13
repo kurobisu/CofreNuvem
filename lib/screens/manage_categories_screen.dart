@@ -201,11 +201,11 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
   Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
     return AnimatedBuilder(
       animation: animation,
-      builder: (context, child) {
+      builder: (context, animatedChild) {
         final elevation = Tween<double>(begin: 0, end: 12).animate(animation).value;
         return Material(
           elevation: elevation,
-          color: Colors.transparent,
+          color: const Color(0xFF1E293B).withOpacity(0.95), // Cor escura sólida premium
           shadowColor: Colors.greenAccent.withOpacity(0.8),
           borderRadius: BorderRadius.circular(16),
           child: Container(
@@ -214,14 +214,9 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
               border: Border.all(color: Colors.greenAccent.withOpacity(0.9), width: 2),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.greenAccent.withOpacity(0.5),
-                  blurRadius: 20,
-                  spreadRadius: 2,
-                ),
-                BoxShadow(
-                  color: Colors.greenAccent.withOpacity(0.3),
-                  blurRadius: 40,
-                  spreadRadius: 4,
+                  color: Colors.greenAccent.withOpacity(0.4),
+                  blurRadius: 15,
+                  spreadRadius: 1,
                 ),
               ],
             ),
@@ -229,7 +224,6 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
           ),
         );
       },
-      child: child,
     );
   }
 
@@ -349,7 +343,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
 
     return ReorderableListView.builder(
       buildDefaultDragHandles: false,
-      padding: const EdgeInsets.all(16).copyWith(bottom: 80),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12).copyWith(bottom: 80),
       proxyDecorator: _proxyDecorator,
       onReorder: (oldIndex, newIndex) {
         if (oldIndex < newIndex) {
@@ -375,7 +369,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
 
         return Card(
           key: ValueKey(parentId),
-          margin: const EdgeInsets.only(bottom: 16),
+          margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Column(
             children: [
@@ -383,24 +377,37 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(
                   children: [
-                    ReorderableDelayedDragStartListener(
-                      index: index,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircleAvatar(backgroundColor: parentColor, radius: 14),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(parent['Nome'], style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15, decoration: isHidden ? TextDecoration.lineThrough : null)),
-                              Text(parent['Tipo'], style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                            ],
-                          ),
-                        ],
+                    Expanded(
+                      child: ReorderableDelayedDragStartListener(
+                        index: index,
+                        child: Row(
+                          children: [
+                            CircleAvatar(backgroundColor: parentColor, radius: 14),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    parent['Nome'], 
+                                    style: TextStyle(
+                                      color: Colors.white, 
+                                      fontWeight: FontWeight.bold, 
+                                      fontSize: 15, 
+                                      decoration: isHidden ? TextDecoration.lineThrough : null
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(parent['Tipo'], style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -440,6 +447,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                   physics: const NeverScrollableScrollPhysics(),
                   padding: const EdgeInsets.only(bottom: 8),
                   buildDefaultDragHandles: false,
+                  proxyDecorator: _proxyDecorator,
                   itemCount: children.length,
                   itemBuilder: (context, childIndex) {
                     final child = children[childIndex];

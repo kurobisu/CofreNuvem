@@ -384,8 +384,8 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               if (isTransfer)
                 ListTile(
-                  leading: const Icon(Icons.undo, color: Colors.orange),
-                  title: const Text('Devolver Valor (Estorno)'),
+                  leading: Icon((t['tipo'] ?? t['Tipo']) == 'Receita' ? Icons.undo : Icons.redo, color: Colors.orange),
+                  title: Text((t['tipo'] ?? t['Tipo']) == 'Receita' ? 'Devolver Valor' : 'Recuperar Valor'),
                   onTap: () async {
                     Navigator.pop(bottomSheetContext);
                     // Mostra um loading rápido enquanto busca a outra ponta
