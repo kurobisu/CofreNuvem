@@ -11,6 +11,7 @@ import 'invoices_screen.dart';
 import 'reports_screen.dart';
 import 'settings_screen.dart';
 import 'transaction_form_screen.dart';
+import 'family_transfer_screen.dart';
 import '../utils/transaction_helper.dart';
 import '../utils/app_version.dart';
 
@@ -545,8 +546,40 @@ class DashboardScreen extends ConsumerWidget {
                     decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text('Relatório de Pagamentos • $userName', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Relatório • $userName', 
+                            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.pop(context); // Fechar a modal atual de relatório
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FamilyTransferScreen(
+                                  targetUserId: userId,
+                                  targetUserName: userName,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.swap_horiz, color: Colors.greenAccent, size: 20),
+                          label: const Text('Transferir', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Colors.green.withOpacity(0.15),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const Divider(),
                   Expanded(

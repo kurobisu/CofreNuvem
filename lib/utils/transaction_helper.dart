@@ -92,7 +92,20 @@ class TransactionHelper {
         }
       }
 
-      await supabase.from('transacoes').update({'deleted_at': DateTime.now().toIso8601String()}).eq('id', transactionId);
+      final String? transferId = t['transferencia_id']?.toString() ?? t['Transferencia_ID']?.toString();
+      if (transferId != null && transferId.isNotEmpty && transferId != 'null') {
+        debugPrint('Excluindo transferência vinculada: $transferId');
+        await supabase
+            .from('transacoes')
+            .update({'deleted_at': DateTime.now().toIso8601String()})
+            .eq('transferencia_id', transferId);
+      } else {
+        await supabase
+            .from('transacoes')
+            .update({'deleted_at': DateTime.now().toIso8601String()})
+            .eq('id', transactionId);
+      }
+      
       if (context.mounted) {
         onSuccess();
       }
