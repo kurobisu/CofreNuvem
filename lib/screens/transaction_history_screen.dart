@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/transaction_helper.dart';
@@ -172,54 +173,104 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
                     
                     try {
                       final db = await SupabaseHelper.instance.database;
-                      // Buscar a transação irmã com o mesmo transferencia_id
-                      final irmaos = await db.query(
-                        SupabaseHelper.tableTransacoes,
-                        where: 'transferencia_id = ?',
-                        whereArgs: [transferId],
-                      );
+                      // Buscar a transação irmã com o mesmo transferencia_id diretamente pelo Supabase Client
+                      final supabase = Supabase.instance.client;
+                      final response = await supabase
+                          .from('transacoes')
+                          .select()
+                          .eq('transferencia_id', transferId)
+                          .filter('deleted_at', 'is', null);
+                      
+                      final irmaos = List<Map<String, dynamic>>.from(response as List);
                       
                       if (!context.mounted) return;
                       Navigator.pop(context); // Remove o loading dialog
                       
-                      if (irmaos.length < 2) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Erro: Não foi possível localizar a outra ponta da transferência.')),
-                        );
-                        return;
-                      }
-                      
-                      // Identificar quem enviou (Despesa) e quem recebeu (Receita) na transação original
-                      final despesaOrig = irmaos.firstWhere((x) => (x['tipo'] ?? x['Tipo']) == 'Despesa');
-                      final receitaOrig = irmaos.firstWhere((x) => (x['tipo'] ?? x['Tipo']) == 'Receita');
-                      
-                      // Para a DEVOLUÇÃO (fluxo inverso):
-                      // O novo remetente (origem) será quem recebeu originalmente (receitaOrig['usuario_id'])
-                      // O novo destinatário (destino) será quem enviou originalmente (despesaOrig['usuario_id'])
-                      final novoRemetenteId = receitaOrig['usuario_id'] ?? receitaOrig['Usuario_ID'];
-                      final novoDestinatarioId = despesaOrig['usuario_id'] ?? despesaOrig['Usuario_ID'];
-                      
-                      // E a conta de origem da devolução será a conta onde entrou o dinheiro originalmente (receitaOrig['conta_id'])
-                      final contaOrigemDevolucao = receitaOrig['conta_id'] ?? receitaOrig['Conta_ID'];
-                      final valorDevolucao = ((despesaOrig['valor'] ?? despesaOrig['Valor'] ?? 0) as num).toDouble();
-                      
-                      // Buscar o nome do novo destinatário
-                      final destUserList = await db.query(SupabaseHelper.tableUsuarios, where: 'id = ?', whereArgs: [novoDestinatarioId]);
-                      final destUserName = destUserList.isNotEmpty ? (destUserList.first['nome'] ?? destUserList.first['Nome'] ?? 'Usuário') : 'Usuário';
+                      if (irmaos.length >= 2) {
+                        // Identificar quem enviou (Despesa) e quem recebeu (Receita) na transação original
+                        final despesaOrig = irmaos.firstWhere((x) => (x['tipo'] ?? x['Tipo']) == 'Despesa');
+                        final receitaOrig = irmaos.firstWhere((x) => (x['tipo'] ?? x['Tipo']) == 'Receita');
+                        
+                        // Para a DEVOLUÇÃO (fluxo inverso):
+                        // O novo remetente (origem) será quem recebeu originalmente (receitaOrig['usuario_id'])
+                        // O novo destinatário (destino) será quem enviou originalmente (despesaOrig['usuario_id'])
+                        final novoDestinatarioId = despesaOrig['usuario_id'] ?? despesaOrig['Usuario_ID'];
+                        final contaOrigemDevolucao = receitaOrig['conta_id'] ?? receitaOrig['Conta_ID'];
+                        final valorDevolucao = ((despesaOrig['valor'] ?? despesaOrig['Valor'] ?? 0) as num).toDouble();
+                        
+                        // Buscar o nome do novo destinatário
+                        final destUserList = await db.query(SupabaseHelper.tableUsuarios, where: 'id = ?', whereArgs: [novoDestinatarioId]);
+                        final destUserName = destUserList.isNotEmpty ? (destUserList.first['nome'] ?? destUserList.first['Nome'] ?? 'Usuário') : 'Usuário';
 
-                      if (!context.mounted) return;
-                      
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => FamilyTransferScreen(
-                            targetUserId: novoDestinatarioId.toString(),
-                            targetUserName: destUserName.toString(),
-                            initialValor: valorDevolucao,
-                            initialContaOrigem: contaOrigemDevolucao?.toString(),
+                        if (!context.mounted) return;
+                        
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FamilyTransferScreen(
+                              targetUserId: novoDestinatarioId.toString(),
+                              targetUserName: destUserName.toString(),
+                              initialValor: valorDevolucao,
+                              initialContaOrigem: contaOrigemDevolucao?.toString(),
+                            ),
                           ),
-                        ),
-                      ).then((_) => _loadTransactions());
+                        ).then((_) => _loadTransactions());
+                      } else {
+                        // Heurística de Fallback caso RLS bloqueie a leitura da outra ponta ou o banco não retorne
+                        final singleTx = irmaos.isNotEmpty ? irmaos.first : t;
+                        final tipoTx = singleTx['tipo'] ?? singleTx['Tipo'];
+                        final desc = (singleTx['descricao'] ?? singleTx['Descricao'] ?? '').toString();
+                        final valorDevolucao = ((singleTx['valor'] ?? singleTx['Valor'] ?? 0) as num).toDouble();
+                        
+                        String targetName = '';
+                        if (tipoTx == 'Despesa') {
+                          // Descrição: "Transferência Familiar para Maria" -> extrair "Maria"
+                          if (desc.contains('para ')) {
+                            targetName = desc.split('para ').last.trim();
+                          }
+                        } else {
+                          // Descrição: "Transferência Familiar de Clovis" -> extrair "Clovis"
+                          if (desc.contains('de ')) {
+                            targetName = desc.split('de ').last.trim();
+                          }
+                        }
+                        
+                        // Buscar o usuário pelo nome extraído
+                        final db = await SupabaseHelper.instance.database;
+                        final matchUsers = await db.query(
+                          SupabaseHelper.tableUsuarios,
+                          where: 'nome = ?',
+                          whereArgs: [targetName],
+                        );
+                        
+                        if (matchUsers.isEmpty) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Erro: Não foi possível localizar o usuário de destino no banco.'), backgroundColor: Colors.orange),
+                          );
+                          return;
+                        }
+                        
+                        final targetUser = matchUsers.first;
+                        final targetUserId = targetUser['id'] ?? targetUser['ID'];
+                        final targetUserName = targetUser['nome'] ?? targetUser['Nome'];
+                        
+                        // Para devolução, a conta de origem local é onde o dinheiro está agora
+                        final contaOrigem = tipoTx == 'Receita' ? (singleTx['conta_id'] ?? singleTx['Conta_ID']) : null;
+                        
+                        if (!context.mounted) return;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FamilyTransferScreen(
+                              targetUserId: targetUserId.toString(),
+                              targetUserName: targetUserName.toString(),
+                              initialValor: valorDevolucao,
+                              initialContaOrigem: contaOrigem?.toString(),
+                            ),
+                          ),
+                        ).then((_) => _loadTransactions());
+                      }
                     } catch (e) {
                       if (context.mounted) {
                         Navigator.pop(context); // Garante fechar o loading em caso de erro
