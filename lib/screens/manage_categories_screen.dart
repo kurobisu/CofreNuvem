@@ -40,8 +40,6 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
     _categoriaSubscription = Supabase.instance.client
         .from(SupabaseHelper.tableCategorias)
         .stream(primaryKey: ['id'])
-        .order('ordem', ascending: true)
-        .order('nome', ascending: true)
         .listen((data) {
       if (mounted) {
         setState(() {
@@ -50,6 +48,16 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
               .map((e) => CaseInsensitiveMap(e))
               .cast<Map<String, dynamic>>()
               .toList();
+          
+          // Ordenação estável local por Ordem e depois por Nome
+          _categorias.sort((a, b) {
+            int oA = (a['ordem'] ?? a['Ordem'] ?? 0) as int;
+            int oB = (b['ordem'] ?? b['Ordem'] ?? 0) as int;
+            int cmp = oA.compareTo(oB);
+            if (cmp != 0) return cmp;
+            return (a['nome'] ?? a['Nome'] ?? '').toString().compareTo((b['nome'] ?? b['Nome'] ?? '').toString());
+          });
+
           _isLoading = false;
           // Reset local caches when remote data arrives (only if no pending changes)
           if (!_hasOrderChanges) {
@@ -89,6 +97,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
 
     try {
       final db = await SupabaseHelper.instance.database;
+      final List<Future> updates = [];
 
       // Save parent orders across all tabs
       for (final tabKey in _localParentsByTab.keys) {
@@ -96,9 +105,12 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
         debugPrint('Saving order for tab $tabKey with ${parentList.length} items');
         for (int i = 0; i < parentList.length; i++) {
           final id = parentList[i]['id'] ?? parentList[i]['ID'];
-          debugPrint('Updating parent category $id to order $i');
-          await db.update(SupabaseHelper.tableCategorias, {'Ordem': i},
-              where: 'id = ?', whereArgs: [id]);
+          updates.add(db.update(
+            SupabaseHelper.tableCategorias,
+            {'Ordem': i},
+            where: 'id = ?',
+            whereArgs: [id],
+          ));
         }
       }
 
@@ -108,11 +120,19 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
         debugPrint('Saving order for children under parent $parentId with ${childList.length} items');
         for (int i = 0; i < childList.length; i++) {
           final id = childList[i]['id'] ?? childList[i]['ID'];
-          debugPrint('Updating child category $id to order $i');
-          await db.update(SupabaseHelper.tableCategorias, {'Ordem': i},
-              where: 'id = ?', whereArgs: [id]);
+          updates.add(db.update(
+            SupabaseHelper.tableCategorias,
+            {'Ordem': i},
+            where: 'id = ?',
+            whereArgs: [id],
+          ));
         }
       }
+
+      await Future.wait(updates);
+      
+      // Pequeno atraso para o Supabase persistir e a stream notificar antes de apagarmos o cache local
+      await Future.delayed(const Duration(milliseconds: 600));
 
       if (mounted) {
         setState(() {
@@ -415,58 +435,73 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
               if (children.isNotEmpty)
                 const Divider(height: 1),
               if (children.isNotEmpty)
-                Column(
-                  children: children.asMap().entries.map((entry) {
-                    final childIndex = entry.key;
-                    final child = entry.value;
+                ReorderableListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 8),
+                  buildDefaultDragHandles: false,
+                  itemCount: children.length,
+                  itemBuilder: (context, childIndex) {
+                    final child = children[childIndex];
                     final childHidden = child['Oculta'] == 1;
-                    return Padding(
-                      key: ValueKey(child['ID'].toString()),
-                      padding: const EdgeInsets.only(left: 40.0, right: 12.0, top: 4, bottom: 4),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.subdirectory_arrow_right, color: Colors.grey, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(child['Nome'], style: TextStyle(color: Colors.white, fontSize: 15, decoration: childHidden ? TextDecoration.lineThrough : null)),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                                icon: const Icon(Icons.keyboard_arrow_up, color: Colors.grey, size: 20),
-                                onPressed: childIndex > 0 ? () => _moveChildUp(parentId, childIndex, children) : null,
-                              ),
-                              IconButton(
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-                                icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey, size: 20),
-                                onPressed: childIndex < children.length - 1 ? () => _moveChildDown(parentId, childIndex, children) : null,
-                              ),
-                              const SizedBox(width: 4),
-                              Transform.scale(
-                                scale: 0.8,
-                                child: Switch(
-                                  value: !childHidden,
-                                  onChanged: (val) => _toggleOculta(child['ID'].toString(), child['Oculta']),
-                                  activeColor: Colors.blue,
+                    final childId = child['id'] ?? child['ID'];
+
+                    return ReorderableDelayedDragStartListener(
+                      key: ValueKey(childId.toString()),
+                      index: childIndex,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 40.0, right: 12.0, top: 12, bottom: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.subdirectory_arrow_right, color: Colors.grey, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                child['Nome'],
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  decoration: childHidden ? TextDecoration.lineThrough : null,
                                 ),
                               ),
-                              const SizedBox(width: 4),
-                              IconButton(
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(),
-                                icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
-                                onPressed: () => _showCategoryDialog(child),
-                              ),
-                            ],
-                          ),
-                        ],
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Transform.scale(
+                                  scale: 0.8,
+                                  child: Switch(
+                                    value: !childHidden,
+                                    onChanged: (val) => _toggleOculta(childId.toString(), child['Oculta']),
+                                    activeColor: Colors.blue,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                  icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                  onPressed: () => _showCategoryDialog(child),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     );
-                  }).toList(),
+                  },
+                  onReorder: (oldIndex, newIndex) {
+                    if (oldIndex < newIndex) {
+                      newIndex -= 1;
+                    }
+                    setState(() {
+                      final cList = List<Map<String, dynamic>>.from(children);
+                      final item = cList.removeAt(oldIndex);
+                      cList.insert(newIndex, item);
+                      _localChildren[parentId] = cList;
+                      _hasOrderChanges = true;
+                    });
+                  },
                 ),
             ],
           ),

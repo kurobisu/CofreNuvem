@@ -74,22 +74,23 @@ class OnlineProxy {
         }
         
         if (whereArgs != null && whereArgs.isNotEmpty) {
+          final firstArg = whereArgs[0] ?? '';
           if (wLower.contains('usuario_id =') || wLower.contains('usuario_id=')) {
-            q = q.eq('usuario_id', whereArgs[0]!);
+            q = q.eq('usuario_id', firstArg);
           } else if (wLower.contains('transacao_id =') || wLower.contains('transacao_id=')) {
-            q = q.eq('transacao_id', whereArgs[0]!);
+            q = q.eq('transacao_id', firstArg);
           } else if (wLower.contains('investimento_id =') || wLower.contains('investimento_id=')) {
-            q = q.eq('investimento_id', whereArgs[0]!);
+            q = q.eq('investimento_id', firstArg);
           } else if (wLower.contains('categoria_id =') || wLower.contains('categoria_id=')) {
-            q = q.eq('categoria_id', whereArgs[0]!);
+            q = q.eq('categoria_id', firstArg);
           } else if (wLower.contains('parent_id =') || wLower.contains('parent_id=')) {
-            q = q.eq('parent_id', whereArgs[0]!);
+            q = q.eq('parent_id', firstArg);
           } else if (wLower.contains('nome =') || wLower.contains('nome=')) {
-            q = q.eq('nome', whereArgs[0]!);
+            q = q.eq('nome', firstArg);
           } else if (wLower.contains('id =') || wLower.contains('id=')) {
-            q = q.eq('id', whereArgs[0]!);
+            q = q.eq('id', firstArg);
           } else if (wLower.contains('tipo !=') || wLower.contains('tipo!=')) {
-            q = q.neq('tipo', whereArgs[0]!);
+            q = q.neq('tipo', firstArg);
           }
         }
 
