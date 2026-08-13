@@ -104,7 +104,7 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
         'Cor_Hexadecimal': catMap?['cor_hexadecimal'] ?? catMap?['Cor_Hexadecimal'] ?? '#9E9E9E',
         'Codigo_Banco': contaMap?['codigo_banco'] ?? contaMap?['Codigo_Banco'] ?? '',
         'ContaNome': contaMap?['nome'] ?? contaMap?['Nome'] ?? 'Sem Conta',
-        'MetodoNome': metMap?['nome'] ?? metMap?['Nome'] ?? 'N/A',
+        'MetodoNome': metMap?['nome'] ?? metMap?['Nome'] ?? ((t['transferencia_id'] ?? t['Transferencia_ID']) != null ? 'PIX' : 'N/A'),
         'HasItems': 0,
       });
     }

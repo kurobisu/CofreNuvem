@@ -12,11 +12,15 @@ import '../utils/currency_formatter.dart';
 class FamilyTransferScreen extends ConsumerStatefulWidget {
   final String targetUserId;
   final String targetUserName;
+  final double? initialValor;
+  final String? initialContaOrigem;
 
   const FamilyTransferScreen({
     super.key,
     required this.targetUserId,
     required this.targetUserName,
+    this.initialValor,
+    this.initialContaOrigem,
   });
 
   @override
@@ -113,12 +117,22 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
 
       if (mounted) {
         setState(() {
-          if (_contasOrigem.isNotEmpty) {
+          if (widget.initialContaOrigem != null) {
+            _selectedContaOrigem = widget.initialContaOrigem;
+          } else if (_contasOrigem.isNotEmpty) {
             _selectedContaOrigem = (_contasOrigem.first['id'] ?? _contasOrigem.first['ID'])?.toString();
+          }
+
+          if (_selectedContaOrigem != null) {
             _updateMetodosParaContaOrigem();
           }
+
           if (_contasDestino.isNotEmpty) {
             _selectedContaDestino = (_contasDestino.first['id'] ?? _contasDestino.first['ID'])?.toString();
+          }
+
+          if (widget.initialValor != null) {
+            _valorController.text = CurrencyFormatter.format(widget.initialValor!);
           }
           _isLoading = false;
         });
@@ -221,7 +235,28 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
         'transferencia_id': transferUuid,
       });
 
-      // 4. Criar a Receita (Entrada)
+      // 4. Buscar método de pagamento Pix do destinatário para a receita
+      String? metodoDestinoId;
+      try {
+        final metodosDest = await db.query(
+          SupabaseHelper.tableMetodosPagamento,
+          where: 'conta_id = ?',
+          whereArgs: [_selectedContaDestino],
+        );
+        final matchMet = metodosDest.where((m) {
+          final nome = (m['nome'] ?? m['Nome'] ?? '').toString().toLowerCase();
+          return nome.contains('pix');
+        }).toList();
+        if (matchMet.isNotEmpty) {
+          metodoDestinoId = (matchMet.first['id'] ?? matchMet.first['ID'])?.toString();
+        } else if (metodosDest.isNotEmpty) {
+          metodoDestinoId = (metodosDest.first['id'] ?? metodosDest.first['ID'])?.toString();
+        }
+      } catch (err) {
+        debugPrint('Erro ao buscar método de pagamento do destinatário: $err');
+      }
+
+      // 5. Criar a Receita (Entrada)
       final receitaFuture = db.insert(SupabaseHelper.tableTransacoes, {
         'Data': dateStr,
         'Descricao': '${_descricaoController.text} de ${_usuarioOrigem!['nome'] ?? _usuarioOrigem!['Nome']}',
@@ -229,7 +264,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
         'Tipo': 'Receita',
         'Usuario_ID': widget.targetUserId,
         'Conta_ID': _selectedContaDestino!,
-        'Metodo_ID': null, // Destinatário não precisa de método de pagamento
+        'Metodo_ID': metodoDestinoId,
         'Categoria_ID': categoriaId,
         'Paga': 1,
         'transferencia_id': transferUuid,
