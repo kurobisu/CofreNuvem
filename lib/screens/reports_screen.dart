@@ -273,21 +273,37 @@ class _ReportsScreenState extends State<ReportsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Despesas por Categoria', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Expanded(
+                  child: Text(
+                    'Despesas por Categoria',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ),
                 if (isSliceTouched)
-                  TextButton.icon(
-                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
-                    onPressed: () => setState(() => _touchedIndexPie = -1),
-                    icon: const Icon(Icons.clear, size: 14, color: Colors.grey),
-                    label: const Text('Limpar', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => setState(() => _touchedIndexPie = -1),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.close_rounded, size: 14, color: Colors.grey),
+                          SizedBox(width: 2),
+                          Text('Limpar', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ),
                   )
                 else
-                  const Text('Toque no gráfico', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const Text(
+                    'Toque para ver',
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             SizedBox(
               height: 240,
               child: Stack(
