@@ -112,7 +112,7 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   recentTransactions.sort((a, b) => (b['Data']?.toString() ?? '').compareTo(a['Data']?.toString() ?? ''));
   final recent5 = recentTransactions.take(5).toList();
 
-  // 5. Fetch Credit Cards with Bank and User Name
+  // 5. Fetch Credit Cards with Bank, User Name, and current unpaid/total usage
   final List<dynamic> creditCardsRaw = await supabase.from('metodos_pagamento')
     .select('*, contas_bancarias(*, usuarios(*))')
     .eq('tipo', 'Crédito')
@@ -122,6 +122,26 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
     final mp = CaseInsensitiveMap(mpRaw as Map<String, dynamic>);
     final conta = mp['contas_bancarias'] != null ? CaseInsensitiveMap(mp['contas_bancarias']) : null;
     final user = conta != null && conta['usuarios'] != null ? CaseInsensitiveMap(conta['usuarios']) : null;
+    final cardId = (mp['id'] ?? mp['ID']).toString();
+
+    // Calcular o valor usado no cartão (todas as despesas com esse cartão ainda abertas/não pagas)
+    double totalUsado = 0.0;
+    for (var t in transacoes) {
+      final mId = (t['metodo_id'] ?? t['Metodo_ID'])?.toString();
+      final paga = (t['paga'] ?? t['Paga']);
+      final tipo = t['tipo'] ?? t['Tipo'];
+      if (mId == cardId && tipo == 'Despesa' && (paga == 0 || paga == false || paga == null)) {
+        totalUsado += ((t['valor'] ?? t['Valor'] ?? 0) as num).toDouble();
+      }
+    }
+
+    final double? limite = mp['limite_credito'] != null 
+        ? ((mp['limite_credito'] ?? mp['Limite_Credito']) as num).toDouble() 
+        : null;
+
+    final double porcentagemUso = (limite != null && limite > 0) 
+        ? (totalUsado / limite).clamp(0.0, 1.0) 
+        : 0.0;
 
     return <String, dynamic>{
       ...mp,
@@ -131,6 +151,9 @@ final dashboardDataProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       'UsuarioNome': (user?['nome'] ?? user?['Nome'] ?? '').toString(),
       'Dia_Fechamento': mp['dia_fechamento'] ?? mp['Dia_Fechamento'] ?? 'N/A',
       'Dia_Vencimento': mp['dia_vencimento'] ?? mp['Dia_Vencimento'] ?? 'N/A',
+      'Limite_Credito': limite,
+      'Total_Usado': totalUsado,
+      'Porcentagem_Uso': porcentagemUso,
     };
   }).toList();
 

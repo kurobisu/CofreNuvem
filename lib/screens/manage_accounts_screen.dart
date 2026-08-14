@@ -88,17 +88,41 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     _loadData();
   }
 
-  Future<void> _addMetodo(String nome, String contaId, String tipo, String? fechamento, String? vencimento) async {
+  Future<void> _addMetodo(String nome, String contaId, String tipo, String? fechamento, String? vencimento, double? limite) async {
     final db = await SupabaseHelper.instance.database;
     final maxOrdem = _metodos.where((m) => m['Conta_ID'] == contaId).length;
-    await db.insert(SupabaseHelper.tableMetodosPagamento, {
+    final Map<String, Object?> data = {
       'Nome': nome,
       'Conta_ID': contaId,
       'Tipo': tipo,
       'Ordem': maxOrdem,
       'Dia_Fechamento': fechamento,
       'Dia_Vencimento': vencimento,
-    });
+      'limite_credito': limite,
+    };
+    try {
+      await db.insert(SupabaseHelper.tableMetodosPagamento, data);
+    } catch (e) {
+      data.remove('limite_credito');
+      await db.insert(SupabaseHelper.tableMetodosPagamento, data);
+    }
+    _loadData();
+  }
+
+  Future<void> _editMetodo(String metodoId, String nome, String? fechamento, String? vencimento, double? limite) async {
+    final db = await SupabaseHelper.instance.database;
+    final Map<String, Object?> data = {
+      'Nome': nome,
+      'Dia_Fechamento': fechamento,
+      'Dia_Vencimento': vencimento,
+      'limite_credito': limite,
+    };
+    try {
+      await db.update(SupabaseHelper.tableMetodosPagamento, data, where: 'ID = ?', whereArgs: [metodoId]);
+    } catch (e) {
+      data.remove('limite_credito');
+      await db.update(SupabaseHelper.tableMetodosPagamento, data, where: 'ID = ?', whereArgs: [metodoId]);
+    }
     _loadData();
   }
 
@@ -418,6 +442,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     final nomeController = TextEditingController(text: opcoesDisponiveis.first != 'Outros' ? opcoesDisponiveis.first : '');
     final fechamentoController = TextEditingController();
     final vencimentoController = TextEditingController();
+    final limiteController = TextEditingController();
     String tipoSelecionado = opcoesDisponiveis.first;
 
     showDialog(
@@ -426,14 +451,14 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              title: Text('Novo Método para ' + contaNome),
+              title: Text('Novo Método para $contaNome'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
                       controller: nomeController,
-                      decoration: const InputDecoration(labelText: 'Nome (Ex: Nubank, Vale Refeição)'),
+                      decoration: const InputDecoration(labelText: 'Nome (Ex: Nubank, Cartão Black)'),
                       textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
@@ -449,6 +474,16 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                       decoration: const InputDecoration(labelText: 'Tipo de Método'),
                     ),
                     if (tipoSelecionado == 'Crédito') ...[
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: limiteController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Limite Total do Cartão (R\$)',
+                          hintText: 'Ex: 5000.00',
+                          prefixText: 'R\$ ',
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       Row(
                         children: [
@@ -480,12 +515,102 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                     if (nomeController.text.trim().isNotEmpty) {
                       String? fechamento = tipoSelecionado == 'Crédito' ? (fechamentoController.text.isNotEmpty ? fechamentoController.text : null) : null;
                       String? vencimento = tipoSelecionado == 'Crédito' ? (vencimentoController.text.isNotEmpty ? vencimentoController.text : null) : null;
+                      double? limite = tipoSelecionado == 'Crédito' 
+                          ? double.tryParse(limiteController.text.replaceAll('R\$', '').replaceAll('.', '').replaceAll(',', '.').trim()) 
+                          : null;
                       
-                      _addMetodo(nomeController.text.trim(), contaId, tipoSelecionado, fechamento, vencimento);
+                      _addMetodo(nomeController.text.trim(), contaId, tipoSelecionado, fechamento, vencimento, limite);
                       Navigator.pop(context);
                     }
                   },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
                   child: const Text('Salvar'),
+                )
+              ],
+            );
+          }
+        );
+      }
+    );
+  }
+
+  void _showEditMetodoDialog(Map<String, dynamic> metodo) {
+    final nomeController = TextEditingController(text: (metodo['Nome'] ?? metodo['nome'] ?? '').toString());
+    final fechamentoController = TextEditingController(text: (metodo['Dia_Fechamento'] ?? metodo['dia_fechamento'] ?? '').toString());
+    final vencimentoController = TextEditingController(text: (metodo['Dia_Vencimento'] ?? metodo['dia_vencimento'] ?? '').toString());
+    final limiteRaw = metodo['limite_credito'] ?? metodo['Limite_Credito'];
+    final limiteController = TextEditingController(text: limiteRaw != null ? limiteRaw.toString() : '');
+    final isCredito = metodo['Tipo'] == 'Crédito' || metodo['tipo'] == 'Crédito';
+    final metodoId = (metodo['ID'] ?? metodo['id']).toString();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: Text('Editar ${metodo['Nome'] ?? metodo['nome']}'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nomeController,
+                      decoration: const InputDecoration(labelText: 'Nome do Método'),
+                      textCapitalization: TextCapitalization.words,
+                    ),
+                    if (isCredito) ...[
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: limiteController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Limite do Cartão (R\$)',
+                          hintText: 'Ex: 5000.00',
+                          prefixText: 'R\$ ',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: fechamentoController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Dia Fechamento'),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextField(
+                              controller: vencimentoController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Dia Vencimento'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+                ElevatedButton(
+                  onPressed: () {
+                    if (nomeController.text.trim().isNotEmpty) {
+                      String? fechamento = isCredito ? (fechamentoController.text.isNotEmpty ? fechamentoController.text : null) : null;
+                      String? vencimento = isCredito ? (vencimentoController.text.isNotEmpty ? vencimentoController.text : null) : null;
+                      double? limite = isCredito 
+                          ? double.tryParse(limiteController.text.replaceAll('R\$', '').replaceAll('.', '').replaceAll(',', '.').trim()) 
+                          : null;
+                      
+                      _editMetodo(metodoId, nomeController.text.trim(), fechamento, vencimento, limite);
+                      Navigator.pop(context);
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
+                  child: const Text('Salvar Alterações'),
                 )
               ],
             );
@@ -564,10 +689,13 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                         int index = entry.key;
                         var m = entry.value;
                         bool isCredito = m['Tipo'] == 'Crédito';
+                        final limite = m['limite_credito'] ?? m['Limite_Credito'];
+                        final limiteStr = limite != null ? ' • Limite: ${CurrencyFormatter.format((limite as num).toDouble())}' : '';
+
                         return ListTile(
                           title: Text(m['Nome']),
                           subtitle: isCredito 
-                            ? Text('Vencimento dia ${m['Dia_Vencimento']} (Fecha dia ${m['Dia_Fechamento']})', style: const TextStyle(fontSize: 12)) 
+                            ? Text('Vencimento dia ${m['Dia_Vencimento']} (Fecha dia ${m['Dia_Fechamento']})$limiteStr', style: const TextStyle(fontSize: 12)) 
                             : Text(m['Tipo'] ?? 'Outros', style: const TextStyle(fontSize: 12)),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -588,6 +716,11 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => InvoicesScreen(metodo: m))),
                                   tooltip: 'Ver Faturas',
                                 ),
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 20),
+                                onPressed: () => _showEditMetodoDialog(m),
+                                tooltip: 'Editar Método / Limite',
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
                                 onPressed: () => _deleteMetodo(m['ID']?.toString() ?? m['id']?.toString() ?? '', m['Nome']?.toString() ?? 'Sem Nome'),

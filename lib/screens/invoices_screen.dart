@@ -195,83 +195,179 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   @override
   Widget build(BuildContext context) {
     final nomeMetodo = widget.metodo['nome'] ?? widget.metodo['Nome'] ?? 'Cartão';
+    final double? limite = widget.metodo['limite_credito'] != null 
+        ? ((widget.metodo['limite_credito'] ?? widget.metodo['Limite_Credito']) as num).toDouble() 
+        : null;
+
+    // Calcular o total usado ainda em aberto
+    double totalUsadoAberto = 0;
+    for (var t in _transacoes) {
+      final paga = t['paga'] ?? t['Paga'];
+      final tipo = t['tipo'] ?? t['Tipo'];
+      if (tipo == 'Despesa' && (paga == 0 || paga == false || paga == null)) {
+        totalUsadoAberto += ((t['valor'] ?? t['Valor'] ?? 0) as num).toDouble();
+      }
+    }
+
+    final double pctUso = (limite != null && limite > 0) ? (totalUsadoAberto / limite).clamp(0.0, 1.0) : 0.0;
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Faturas: $nomeMetodo'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _faturas.isEmpty
-              ? const Center(child: Text('Nenhuma transação neste cartão.'))
-              : ListView.builder(
-                  itemCount: _faturas.keys.length,
-                  itemBuilder: (context, index) {
-                    String vencimento = _faturas.keys.elementAt(index);
-                    List<Map<String, dynamic>> txs = _faturas[vencimento]!;
-                    
-                    double totalFatura = 0;
-                    bool isTotalmentePaga = true;
-                    
-                    for (var t in txs) {
-                      final valor = ((t['valor'] ?? t['Valor'] ?? 0) as num).toDouble();
-                      final paga = t['paga'] ?? t['Paga'];
-                      totalFatura += valor;
-                      if (paga == 0 || paga == false) isTotalmentePaga = false;
-                    }
-
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: ExpansionTile(
-                        initiallyExpanded: index == 0,
-                        title: Text('Vencimento: $vencimento', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        subtitle: Text(
-                          'Total: ${CurrencyFormatter.format(totalFatura)} • ${isTotalmentePaga ? "Fatura Paga" : "Aberta"}', 
-                          style: TextStyle(color: isTotalmentePaga ? Colors.greenAccent : Colors.orangeAccent, fontWeight: FontWeight.w600)
+          : Column(
+              children: [
+                // Barra de Limite Superior com Progresso e Total Usado / Total Cartão
+                if (limite != null && limite > 0)
+                  Container(
+                    margin: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: pctUso > 0.8 ? Colors.redAccent.withOpacity(0.5) : Colors.grey.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Uso do Limite', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                            Text(
+                              '${(pctUso * 100).toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: pctUso > 0.8 ? Colors.redAccent : Colors.tealAccent,
+                              ),
+                            ),
+                          ],
                         ),
-                        children: [
-                          if (!isTotalmentePaga)
-                            Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: () => _pagarFatura(vencimento, txs),
-                                  icon: const Icon(Icons.check_circle),
-                                  label: const Text('Pagar Fatura Completa'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green, 
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                  ),
+                        const SizedBox(height: 10),
+                        // Barra com texto centralizado de valor usado / valor total
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: LinearProgressIndicator(
+                                value: pctUso,
+                                minHeight: 28,
+                                backgroundColor: Colors.grey.withOpacity(0.2),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  pctUso > 0.8 ? Colors.redAccent : (pctUso > 0.5 ? Colors.orangeAccent : Colors.teal),
                                 ),
                               ),
                             ),
-                          ...txs.map((t) {
-                            final paga = t['paga'] ?? t['Paga'];
-                            final isPaga = (paga == 1 || paga == true);
-                            final valor = ((t['valor'] ?? t['Valor'] ?? 0) as num).toDouble();
-                            final desc = (t['descricao'] ?? t['Descricao'] ?? '').toString();
-                            final dataStr = (t['data'] ?? t['Data'] ?? '').toString();
-                            final dt = DateTime.tryParse(dataStr);
-                            final dataFormatada = dt != null ? DateFormat('dd/MM/yyyy').format(dt) : dataStr;
-                            final id = (t['id'] ?? t['ID'])?.toString() ?? '';
+                            Text(
+                              '${CurrencyFormatter.format(totalUsadoAberto)} / ${CurrencyFormatter.format(limite)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                shadows: [Shadow(color: Colors.black80, blurRadius: 4)],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Disponível: ${CurrencyFormatter.format((limite - totalUsadoAberto).clamp(0.0, double.infinity))}',
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                            Text(
+                              'Limite Total: ${CurrencyFormatter.format(limite)}',
+                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
 
-                            return ListTile(
-                              leading: Icon(isPaga ? Icons.check_circle : Icons.pending, color: isPaga ? Colors.greenAccent : Colors.orangeAccent),
-                              title: Text(desc, style: const TextStyle(fontWeight: FontWeight.w500)),
-                              subtitle: Text(dataFormatada),
-                              trailing: Text(CurrencyFormatter.format(valor), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                              onTap: () => _verCupomFiscal(id),
+                Expanded(
+                  child: _faturas.isEmpty
+                      ? const Center(child: Text('Nenhuma transação neste cartão.'))
+                      : ListView.builder(
+                          itemCount: _faturas.keys.length,
+                          itemBuilder: (context, index) {
+                            String vencimento = _faturas.keys.elementAt(index);
+                            List<Map<String, dynamic>> txs = _faturas[vencimento]!;
+                            
+                            double totalFatura = 0;
+                            bool isTotalmentePaga = true;
+                            
+                            for (var t in txs) {
+                              final valor = ((t['valor'] ?? t['Valor'] ?? 0) as num).toDouble();
+                              final paga = t['paga'] ?? t['Paga'];
+                              totalFatura += valor;
+                              if (paga == 0 || paga == false) isTotalmentePaga = false;
+                            }
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              child: ExpansionTile(
+                                initiallyExpanded: index == 0,
+                                title: Text('Vencimento: $vencimento', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                subtitle: Text(
+                                  'Total: ${CurrencyFormatter.format(totalFatura)} • ${isTotalmentePaga ? "Fatura Paga" : "Aberta"}', 
+                                  style: TextStyle(color: isTotalmentePaga ? Colors.greenAccent : Colors.orangeAccent, fontWeight: FontWeight.w600)
+                                ),
+                                children: [
+                                  if (!isTotalmentePaga)
+                                    Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: () => _pagarFatura(vencimento, txs),
+                                          icon: const Icon(Icons.check_circle),
+                                          label: const Text('Pagar Fatura Completa'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green, 
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ...txs.map((t) {
+                                    final paga = t['paga'] ?? t['Paga'];
+                                    final isPaga = (paga == 1 || paga == true);
+                                    final valor = ((t['valor'] ?? t['Valor'] ?? 0) as num).toDouble();
+                                    final desc = (t['descricao'] ?? t['Descricao'] ?? '').toString();
+                                    final dataStr = (t['data'] ?? t['Data'] ?? '').toString();
+                                    final dt = DateTime.tryParse(dataStr);
+                                    final dataFormatada = dt != null ? DateFormat('dd/MM/yyyy').format(dt) : dataStr;
+                                    final id = (t['id'] ?? t['ID'])?.toString() ?? '';
+
+                                    return ListTile(
+                                      leading: Icon(isPaga ? Icons.check_circle : Icons.pending, color: isPaga ? Colors.greenAccent : Colors.orangeAccent),
+                                      title: Text(desc, style: const TextStyle(fontWeight: FontWeight.w500)),
+                                      subtitle: Text(dataFormatada),
+                                      trailing: Text(CurrencyFormatter.format(valor), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                                      onTap: () => _verCupomFiscal(id),
+                                    );
+                                  }).toList(),
+                                  const SizedBox(height: 8),
+                                ],
+                              ),
                             );
-                          }).toList(),
-                          const SizedBox(height: 8),
-                        ],
-                      ),
-                    );
-                  },
+                          },
+                        ),
                 ),
+              ],
+            ),
     );
   }
 }

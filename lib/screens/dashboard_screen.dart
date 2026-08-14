@@ -200,38 +200,120 @@ class DashboardScreen extends ConsumerWidget {
         const Text('Cartões & Faturas', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         SizedBox(
-          height: 100, // Increased height to prevent overflow and fit new info
+          height: 110,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: creditCards.length,
             itemBuilder: (context, index) {
               final card = creditCards[index];
+              final double pct = (card['Porcentagem_Uso'] as num?)?.toDouble() ?? 0.0;
+              final double totalUsado = (card['Total_Usado'] as num?)?.toDouble() ?? 0.0;
+              final double? limite = (card['Limite_Credito'] as num?)?.toDouble();
+
+              // Cor do progresso baseado no nível de uso
+              Color progressColor = Colors.tealAccent.withOpacity(0.35);
+              if (pct > 0.8) {
+                progressColor = Colors.redAccent.withOpacity(0.45);
+              } else if (pct > 0.5) {
+                progressColor = Colors.orangeAccent.withOpacity(0.4);
+              }
+
               return Container(
-                width: 140,
+                width: 155,
                 margin: const EdgeInsets.only(right: 12),
                 child: InkWell(
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => InvoicesScreen(metodo: card))),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   child: Container(
-                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: Theme.of(context).cardColor,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.accent.withOpacity(0.3)),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: pct > 0.8 ? Colors.redAccent.withOpacity(0.5) : AppTheme.accent.withOpacity(0.3),
+                        width: pct > 0.8 ? 1.5 : 1,
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.credit_card, color: AppTheme.accent, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(child: Text((card['BancoNome'] ?? card['bancoNome'] ?? 'Banco').toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                          ],
+                        // Barra/Preenchimento de fundo proporcional ao uso do limite
+                        if (limite != null && limite > 0)
+                          Positioned(
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: 155 * pct,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: progressColor,
+                                borderRadius: BorderRadius.horizontal(
+                                  left: const Radius.circular(14),
+                                  right: pct >= 0.98 ? const Radius.circular(14) : Radius.zero,
+                                ),
+                              ),
+                            ),
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.credit_card, 
+                                    color: pct > 0.8 ? Colors.redAccent : AppTheme.accent, 
+                                    size: 18
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      (card['BancoNome'] ?? card['bancoNome'] ?? 'Banco').toString(), 
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), 
+                                      maxLines: 1, 
+                                      overflow: TextOverflow.ellipsis
+                                    ),
+                                  ),
+                                  if (limite != null && limite > 0)
+                                    Text(
+                                      '${(pct * 100).toInt()}%',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: pct > 0.8 ? Colors.redAccent : Colors.tealAccent,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const Spacer(),
+                              Text(
+                                (card['Nome'] ?? card['nome'] ?? 'Cartão').toString(), 
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), 
+                                maxLines: 1, 
+                                overflow: TextOverflow.ellipsis
+                              ),
+                              const SizedBox(height: 2),
+                              if (limite != null && limite > 0)
+                                Text(
+                                  '${CurrencyFormatter.format(totalUsado)} / ${CurrencyFormatter.format(limite)}',
+                                  style: TextStyle(
+                                    fontSize: 9, 
+                                    fontWeight: FontWeight.w600,
+                                    color: pct > 0.8 ? Colors.redAccent : Colors.white70
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                )
+                              else
+                                Text(
+                                  '${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}', 
+                                  style: const TextStyle(fontSize: 10, color: Colors.grey), 
+                                  maxLines: 1, 
+                                  overflow: TextOverflow.ellipsis
+                                ),
+                            ],
+                          ),
                         ),
-                        const Spacer(),
-                        Text((card['Nome'] ?? card['nome'] ?? 'Cartão').toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text('${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}', style: const TextStyle(fontSize: 10, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
