@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../database/supabase_helper.dart';
 import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
+import '../utils/currency_formatter.dart';
 import 'invoices_screen.dart';
 
 class ManageAccountsScreen extends StatefulWidget {

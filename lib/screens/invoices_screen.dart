@@ -270,7 +270,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
-                                shadows: [Shadow(color: Colors.black80, blurRadius: 4)],
+                                shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
                               ),
                             ),
                           ],
