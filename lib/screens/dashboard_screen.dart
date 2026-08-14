@@ -273,7 +273,8 @@ class DashboardScreen extends ConsumerWidget {
                                       maxLines: 1, 
                                       overflow: TextOverflow.ellipsis
                                     ),
-                                         if (limite != null && limite > 0)
+                                  ),
+                                  if (limite != null && limite > 0)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                                       decoration: BoxDecoration(
