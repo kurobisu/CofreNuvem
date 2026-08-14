@@ -126,8 +126,15 @@ class OnlineProxy {
 
   Future<String> insert(String table, Map<String, Object?> values) async {
     final lowerValues = values.map((k, v) => MapEntry(k.toLowerCase(), v));
-    if (!lowerValues.containsKey('auth_id') || lowerValues['auth_id'] == null) {
-      lowerValues['auth_id'] = _client.auth.currentUser?.id ?? '00000000-0000-0000-0000-000000000000';
+    if (table == SupabaseHelper.tableUsuarios) {
+      // Usuários adicionais/fantasmas não devem herdar o auth_id do usuário logado se já existir constraint UNIQUE
+      if (!lowerValues.containsKey('auth_id') || lowerValues['auth_id'] == null) {
+        // Deixar nulo se a tabela permitir, ou omitir
+      }
+    } else {
+      if (!lowerValues.containsKey('auth_id') || lowerValues['auth_id'] == null) {
+        lowerValues['auth_id'] = _client.auth.currentUser?.id ?? '00000000-0000-0000-0000-000000000000';
+      }
     }
     final res = await _client.from(table).insert(lowerValues).select('id').single();
     return res['id'].toString();
