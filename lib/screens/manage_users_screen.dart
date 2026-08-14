@@ -53,60 +53,110 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: Text(user == null ? 'Novo Membro / Usuário' : 'Editar Usuário'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    TextField(
-                      controller: nomeController,
-                      decoration: const InputDecoration(
-                        labelText: 'Nome do Usuário',
-                        hintText: 'Ex: Filho, Casa de Praia, Reserva...',
-                      ),
-                      textCapitalization: TextCapitalization.words,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Icon(
+                    user == null ? Icons.person_add_rounded : Icons.edit_rounded,
+                    color: isFantasma ? Colors.purpleAccent : AppTheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      user == null ? 'Novo Usuário' : 'Editar Usuário',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                     ),
-                    const SizedBox(height: 16),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Row(
-                        children: [
-                          Icon(Icons.visibility_off, size: 20, color: Colors.purpleAccent),
-                          SizedBox(width: 8),
-                          Text('Usuário de Gestão', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      subtitle: const Text(
-                        'Usuário fantasma sem login/senha. Usado para gerenciar contas, gastos e cartões pela família.',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      value: isFantasma,
-                      onChanged: (val) {
-                        setDialogState(() {
-                          isFantasma = val;
-                        });
-                      },
-                    ),
-                    if (!isFantasma) ...[
-                      const SizedBox(height: 8),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: MediaQuery.of(context).size.width * 0.85,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
                       TextField(
-                        controller: pinController,
-                        decoration: const InputDecoration(
-                          labelText: 'PIN de Acesso (Opcional)',
-                          hintText: '4 a 6 dígitos',
+                        controller: nomeController,
+                        decoration: InputDecoration(
+                          labelText: 'Nome do Usuário',
+                          hintText: 'Ex: Maria, Gestão Casa...',
+                          prefixIcon: const Icon(Icons.badge_outlined),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
                         ),
-                        keyboardType: TextInputType.number,
-                        obscureText: true,
+                        textCapitalization: TextCapitalization.words,
                       ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isFantasma 
+                              ? Colors.purpleAccent.withOpacity(0.12)
+                              : Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isFantasma 
+                                ? Colors.purpleAccent.withOpacity(0.5) 
+                                : Colors.grey.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.visibility_off, size: 20, color: Colors.purpleAccent),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Usuário de Gestão',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                ),
+                                Switch(
+                                  value: isFantasma,
+                                  activeColor: Colors.purpleAccent,
+                                  onChanged: (val) {
+                                    setDialogState(() {
+                                      isFantasma = val;
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Usuário fantasma sem login/senha para gerenciar contas e cartões compartilhados.',
+                              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!isFantasma) ...[
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: pinController,
+                          decoration: InputDecoration(
+                            labelText: 'PIN de Acesso (Opcional)',
+                            hintText: '4 a 6 dígitos numéricos',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                          ),
+                          keyboardType: TextInputType.number,
+                          obscureText: true,
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
+              actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
+                  child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -141,8 +191,13 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     if (context.mounted) Navigator.pop(context);
                     _loadUsers();
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, foregroundColor: Colors.white),
-                  child: const Text('Salvar'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isFantasma ? Colors.purpleAccent : AppTheme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  ),
+                  child: const Text('Salvar', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             );
