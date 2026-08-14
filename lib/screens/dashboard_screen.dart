@@ -273,14 +273,20 @@ class DashboardScreen extends ConsumerWidget {
                                       maxLines: 1, 
                                       overflow: TextOverflow.ellipsis
                                     ),
-                                  ),
-                                  if (limite != null && limite > 0)
-                                    Text(
-                                      '${(pct * 100).toInt()}%',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: pct > 0.8 ? Colors.redAccent : Colors.tealAccent,
+                                         if (limite != null && limite > 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: (pct > 0.8 ? Colors.redAccent : Colors.tealAccent).withOpacity(0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '${(pct * 100).toInt()}%',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: pct > 0.8 ? Colors.redAccent : Colors.tealAccent,
+                                        ),
                                       ),
                                     ),
                                 ],
@@ -288,26 +294,34 @@ class DashboardScreen extends ConsumerWidget {
                               const Spacer(),
                               Text(
                                 (card['Nome'] ?? card['nome'] ?? 'Cartão').toString(), 
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), 
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white), 
                                 maxLines: 1, 
                                 overflow: TextOverflow.ellipsis
                               ),
                               const SizedBox(height: 2),
-                              if (limite != null && limite > 0)
+                              if (limite != null && limite > 0) ...[
                                 Text(
                                   '${CurrencyFormatter.format(totalUsado)} / ${CurrencyFormatter.format(limite)}',
                                   style: TextStyle(
-                                    fontSize: 9, 
-                                    fontWeight: FontWeight.w600,
-                                    color: pct > 0.8 ? Colors.redAccent : Colors.white70
+                                    fontSize: 10, 
+                                    fontWeight: FontWeight.w700,
+                                    color: pct > 0.8 ? Colors.redAccent : (pct > 0.5 ? Colors.orangeAccent : Colors.white),
+                                    shadows: const [Shadow(color: Colors.black, blurRadius: 2)],
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                )
-                              else
+                                ),
+                                const SizedBox(height: 1),
                                 Text(
                                   '${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}', 
-                                  style: const TextStyle(fontSize: 10, color: Colors.grey), 
+                                  style: TextStyle(fontSize: 9.5, color: Colors.grey.shade300, fontWeight: FontWeight.w500), 
+                                  maxLines: 1, 
+                                  overflow: TextOverflow.ellipsis
+                                ),
+                              ] else
+                                Text(
+                                  '${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}', 
+                                  style: TextStyle(fontSize: 10.5, color: Colors.grey.shade300, fontWeight: FontWeight.w500), 
                                   maxLines: 1, 
                                   overflow: TextOverflow.ellipsis
                                 ),

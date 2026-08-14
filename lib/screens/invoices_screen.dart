@@ -237,11 +237,11 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Uso do Limite', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
+                            const Text('Uso do Limite', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white70)),
                             Text(
                               '${(pctUso * 100).toStringAsFixed(1)}%',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w800,
                                 fontSize: 14,
                                 color: pctUso > 0.8 ? Colors.redAccent : Colors.tealAccent,
                               ),
@@ -257,8 +257,8 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                               borderRadius: BorderRadius.circular(12),
                               child: LinearProgressIndicator(
                                 value: pctUso,
-                                minHeight: 28,
-                                backgroundColor: Colors.grey.withOpacity(0.2),
+                                minHeight: 30,
+                                backgroundColor: Colors.grey.withOpacity(0.25),
                                 valueColor: AlwaysStoppedAnimation<Color>(
                                   pctUso > 0.8 ? Colors.redAccent : (pctUso > 0.5 ? Colors.orangeAccent : Colors.teal),
                                 ),
@@ -268,24 +268,24 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                               '${CurrencyFormatter.format(totalUsadoAberto)} / ${CurrencyFormatter.format(limite)}',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                shadows: [Shadow(color: Colors.black, blurRadius: 4)],
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               'Disponível: ${CurrencyFormatter.format((limite - totalUsadoAberto).clamp(0.0, double.infinity))}',
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600),
                             ),
                             Text(
                               'Limite Total: ${CurrencyFormatter.format(limite)}',
-                              style: const TextStyle(fontSize: 11, color: Colors.grey),
+                              style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
