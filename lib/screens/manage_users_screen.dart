@@ -157,39 +157,67 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-                ),
-                ElevatedButton(
+                            ElevatedButton(
                   onPressed: () async {
                     final nome = nomeController.text.trim();
-                    final pin = isFantasma ? '' : pinController.text.trim();
+                    final pin = isFantasma ? 'FANTASMA' : pinController.text.trim();
                     
                     if (nome.isEmpty) return;
                     
-                    final db = await SupabaseHelper.instance.database;
-                    
-                    if (user == null) {
-                      final maxOrdem = _users.isEmpty ? 0 : _users.length;
-                      await db.insert(SupabaseHelper.tableUsuarios, {
-                        'Nome': nome,
-                        'PIN_Acesso': pin,
-                        'Ordem': maxOrdem,
-                        'is_fantasma': isFantasma ? 1 : 0,
-                      });
-                    } else {
-                      await db.update(
-                        SupabaseHelper.tableUsuarios,
-                        {
+                    try {
+                      final db = await SupabaseHelper.instance.database;
+                      
+                      if (user == null) {
+                        final maxOrdem = _users.isEmpty ? 0 : _users.length;
+                        final Map<String, Object?> data = {
+                          'Nome': nome,
+                          'PIN_Acesso': pin,
+                          'Ordem': maxOrdem,
+                        };
+                        try {
+                          await db.insert(SupabaseHelper.tableUsuarios, {
+                            ...data,
+                            'is_fantasma': isFantasma ? 1 : 0,
+                          });
+                        } catch (e) {
+                          // Se a coluna is_fantasma não existir ainda no Supabase, salva normalmente
+                          await db.insert(SupabaseHelper.tableUsuarios, data);
+                        }
+                      } else {
+                        final Map<String, Object?> data = {
                           'Nome': nome, 
                           'PIN_Acesso': pin,
-                          'is_fantasma': isFantasma ? 1 : 0,
-                        },
-                        where: 'ID = ?',
-                        whereArgs: [user['id'] ?? user['ID']],
-                      );
+                        };
+                        try {
+                          await db.update(
+                            SupabaseHelper.tableUsuarios,
+                            {
+                              ...data,
+                              'is_fantasma': isFantasma ? 1 : 0,
+                            },
+                            where: 'ID = ?',
+                            whereArgs: [user['id'] ?? user['ID']],
+                          );
+                        } catch (e) {
+                          await db.update(
+                            SupabaseHelper.tableUsuarios,
+                            data,
+                            where: 'ID = ?',
+                            whereArgs: [user['id'] ?? user['ID']],
+                          );
+                        }
+                      }
+                      
+                      if (context.mounted) Navigator.pop(context);
+                      _loadUsers();
+                    } catch (e) {
+                      debugPrint('Erro ao salvar usuário: $e');
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Erro ao salvar: $e'), backgroundColor: Colors.red),
+                        );
+                      }
                     }
-                    
-                    if (context.mounted) Navigator.pop(context);
-                    _loadUsers();
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: isFantasma ? Colors.purpleAccent : AppTheme.primary,
@@ -239,7 +267,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               final user = _users[index];
               final nome = user['nome'] ?? user['Nome'] ?? '?';
               final pin = user['pin_acesso'] ?? user['PIN_Acesso'];
-              final isFantasma = (user['is_fantasma'] == 1 || user['is_fantasma'] == true || user['Is_Fantasma'] == 1 || user['Is_Fantasma'] == true);
+              final isFantasma = (user['is_fantasma'] == 1 || user['is_fantasma'] == true || user['Is_Fantasma'] == 1 || user['Is_Fantasma'] == true || pin == 'FANTASMA');
               final id = user['id'] ?? user['ID'];
               return ListTile(
                 key: ValueKey(id),
