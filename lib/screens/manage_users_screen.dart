@@ -157,7 +157,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-                            ElevatedButton(
+                ),
+                ElevatedButton(
                   onPressed: () async {
                     final nome = nomeController.text.trim();
                     final pin = isFantasma ? 'FANTASMA' : pinController.text.trim();
