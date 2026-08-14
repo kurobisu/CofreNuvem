@@ -91,3 +91,6 @@ app.*.map.json
 
 # Secrets
 .env
+*.env
+test_*.dart
+test_supabase.dart
