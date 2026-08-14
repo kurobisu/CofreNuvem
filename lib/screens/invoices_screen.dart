@@ -27,26 +27,43 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
   }
 
   Future<void> _loadFaturas() async {
-    final db = await SupabaseHelper.instance.database;
-    final res = await db.query(
-      SupabaseHelper.tableTransacoes,
-      where: 'Metodo_ID = ?',
-      whereArgs: [widget.metodo['ID']],
-      orderBy: 'Data DESC',
-    );
+    final metodoId = widget.metodo['id'] ?? widget.metodo['ID'];
+    final supabase = SupabaseHelper.instance.client;
+    
+    // Buscar diretamente do Supabase Client para garantir todos os campos
+    final resRaw = await supabase
+        .from('transacoes')
+        .select('*, categorias(*)')
+        .eq('metodo_id', metodoId)
+        .filter('deleted_at', 'is', null)
+        .order('data_fatura', ascending: false)
+        .order('data', ascending: false);
 
-    int diaFechamento = widget.metodo['Dia_Fechamento'] ?? 15;
-    int diaVencimento = widget.metodo['Dia_Vencimento'] ?? 25;
+    final List<Map<String, dynamic>> res = List<Map<String, dynamic>>.from(resRaw as List);
+
+    final dfRaw = widget.metodo['dia_fechamento'] ?? widget.metodo['Dia_Fechamento'];
+    final dvRaw = widget.metodo['dia_vencimento'] ?? widget.metodo['Dia_Vencimento'];
+    int diaFechamento = int.tryParse(dfRaw?.toString() ?? '15') ?? 15;
+    int diaVencimento = int.tryParse(dvRaw?.toString() ?? '25') ?? 25;
 
     Map<String, List<Map<String, dynamic>>> faturasTemp = {};
 
     for (var t in res) {
-      DateTime dtCompra = DateTime.parse(t['Data'] as String);
-      
-      // Lógica de fechamento: se comprou DEPOIS do fechamento, cai no próximo mês
-      DateTime faturaRef = dtCompra;
-      if (dtCompra.day > diaFechamento) {
-        faturaRef = DateTime(dtCompra.year, dtCompra.month + 1, 1);
+      String? dataFaturaStr = (t['data_fatura'] ?? t['Data_Fatura'])?.toString();
+      String? dataStr = (t['data'] ?? t['Data'])?.toString();
+      DateTime dtCompra = DateTime.tryParse(dataStr ?? '') ?? DateTime.now();
+
+      DateTime faturaRef;
+      if (dataFaturaStr != null && dataFaturaStr.isNotEmpty) {
+        faturaRef = DateTime.tryParse(dataFaturaStr) ?? dtCompra;
+      } else {
+        // Lógica de fechamento clássica se não houver data_fatura explícita
+        faturaRef = dtCompra;
+        if (dtCompra.day > diaFechamento) {
+          faturaRef = DateTime(dtCompra.year, dtCompra.month + 1, diaVencimento);
+        } else {
+          faturaRef = DateTime(dtCompra.year, dtCompra.month, diaVencimento);
+        }
       }
       
       String faturaKey = DateFormat('MM/yyyy').format(faturaRef);
@@ -69,8 +86,9 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
     final supabase = SupabaseHelper.instance.client;
 
     for (var t in transacoes) {
-      final id = t['ID'] ?? t['id'];
-      if (t['Paga'] == 0 || t['paga'] == 0) {
+      final id = t['id'] ?? t['ID'];
+      final paga = t['paga'] ?? t['Paga'];
+      if (paga == 0 || paga == false) {
         await supabase.from('transacoes').update({'paga': 1}).eq('id', id);
       }
     }
@@ -101,7 +119,9 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
       builder: (context) {
         double cupomTotal = 0;
         for (var i in itens) {
-          cupomTotal += (i['Preco'] as num) * (i['Quantidade'] as num);
+          final preco = ((i['preco'] ?? i['Preco'] ?? 0) as num).toDouble();
+          final qtd = ((i['quantidade'] ?? i['Quantidade'] ?? 1) as num).toDouble();
+          cupomTotal += preco * qtd;
         }
 
         return Container(
@@ -120,11 +140,14 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                   itemCount: itens.length,
                   itemBuilder: (context, index) {
                     final item = itens[index];
-                    final totalItem = (item['Preco'] as num) * (item['Quantidade'] as num);
+                    final nome = (item['nome'] ?? item['Nome'] ?? '').toString();
+                    final preco = ((item['preco'] ?? item['Preco'] ?? 0) as num).toDouble();
+                    final qtd = ((item['quantidade'] ?? item['Quantidade'] ?? 1) as num).toDouble();
+                    final totalItem = preco * qtd;
                     return ListTile(
-                      title: Text(item['Nome'].toString()),
-                      subtitle: Text('${item['Quantidade']}x ${CurrencyFormatter.format((item['Preco'] as num).toDouble())}'),
-                      trailing: Text(CurrencyFormatter.format(totalItem.toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(nome),
+                      subtitle: Text('${qtd}x ${CurrencyFormatter.format(preco)}'),
+                      trailing: Text(CurrencyFormatter.format(totalItem), style: const TextStyle(fontWeight: FontWeight.bold)),
                     );
                   },
                 ),
@@ -146,9 +169,10 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final nomeMetodo = widget.metodo['nome'] ?? widget.metodo['Nome'] ?? 'Cartão';
     return Scaffold(
       appBar: AppBar(
-        title: Text('Faturas: ${widget.metodo['Nome']}'),
+        title: Text('Faturas: $nomeMetodo'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -164,35 +188,62 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                     bool isTotalmentePaga = true;
                     
                     for (var t in txs) {
-                      totalFatura += (t['Valor'] as num).toDouble();
-                      if (t['Paga'] == 0) isTotalmentePaga = false;
+                      final valor = ((t['valor'] ?? t['Valor'] ?? 0) as num).toDouble();
+                      final paga = t['paga'] ?? t['Paga'];
+                      totalFatura += valor;
+                      if (paga == 0 || paga == false) isTotalmentePaga = false;
                     }
 
-                    return ExpansionTile(
-                      title: Text('Vencimento: $vencimento', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Total: ${CurrencyFormatter.format(totalFatura)}', style: TextStyle(color: isTotalmentePaga ? Colors.green : Colors.red)),
-                      children: [
-                        if (!isTotalmentePaga)
-                          Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: ElevatedButton.icon(
-                              onPressed: () => _pagarFatura(vencimento, txs),
-                              icon: const Icon(Icons.check_circle),
-                              label: const Text('Pagar Fatura Completa'),
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: ExpansionTile(
+                        initiallyExpanded: index == 0,
+                        title: Text('Vencimento: $vencimento', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        subtitle: Text(
+                          'Total: ${CurrencyFormatter.format(totalFatura)} • ${isTotalmentePaga ? "Fatura Paga" : "Aberta"}', 
+                          style: TextStyle(color: isTotalmentePaga ? Colors.greenAccent : Colors.orangeAccent, fontWeight: FontWeight.w600)
+                        ),
+                        children: [
+                          if (!isTotalmentePaga)
+                            Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _pagarFatura(vencimento, txs),
+                                  icon: const Icon(Icons.check_circle),
+                                  label: const Text('Pagar Fatura Completa'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green, 
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
-                        ...txs.map((t) {
-                          bool paga = t['Paga'] == 1;
-                          return ListTile(
-                            leading: Icon(paga ? Icons.check_circle : Icons.pending, color: paga ? Colors.green : Colors.orange),
-                            title: Text(t['Descricao']),
-                            subtitle: Text(DateFormat('dd/MM/yyyy').format(DateTime.parse(t['Data'].toString()))),
-                            trailing: Text(CurrencyFormatter.format((t['Valor'] as num).toDouble()), style: const TextStyle(fontWeight: FontWeight.bold)),
-                            onTap: () => _verCupomFiscal(t['ID'].toString()),
-                          );
-                        }).toList(),
-                      ],
+                          ...txs.map((t) {
+                            final paga = t['paga'] ?? t['Paga'];
+                            final isPaga = (paga == 1 || paga == true);
+                            final valor = ((t['valor'] ?? t['Valor'] ?? 0) as num).toDouble();
+                            final desc = (t['descricao'] ?? t['Descricao'] ?? '').toString();
+                            final dataStr = (t['data'] ?? t['Data'] ?? '').toString();
+                            final dt = DateTime.tryParse(dataStr);
+                            final dataFormatada = dt != null ? DateFormat('dd/MM/yyyy').format(dt) : dataStr;
+                            final id = (t['id'] ?? t['ID'])?.toString() ?? '';
+
+                            return ListTile(
+                              leading: Icon(isPaga ? Icons.check_circle : Icons.pending, color: isPaga ? Colors.greenAccent : Colors.orangeAccent),
+                              title: Text(desc, style: const TextStyle(fontWeight: FontWeight.w500)),
+                              subtitle: Text(dataFormatada),
+                              trailing: Text(CurrencyFormatter.format(valor), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                              onTap: () => _verCupomFiscal(id),
+                            );
+                          }).toList(),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
                     );
                   },
                 ),
