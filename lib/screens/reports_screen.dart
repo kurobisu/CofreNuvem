@@ -241,7 +241,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           value: entry.value,
           title: '',
           radius: radius,
-          borderSide: isTouched ? BorderSide(color: Colors.white.withOpacity(0.8), width: 3) : BorderSide.none,
+          borderSide: isTouched ? BorderSide(color: Colors.white.withOpacity(0.9), width: 3) : BorderSide.none,
           badgeWidget: isTouched
               ? Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -250,11 +250,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                 )
               : null,
-          badgePositionPercentageOffset: 1.1,
+          badgePositionPercentageOffset: 1.15,
         ),
       );
       idx++;
     }
+
+    final isSliceTouched = _touchedIndexPie >= 0 && _touchedIndexPie < sortedData.length;
+    final touchedEntry = isSliceTouched ? sortedData[_touchedIndexPie] : null;
+    final touchedColor = touchedEntry != null && _categoryColors.containsKey(touchedEntry.key)
+        ? Color(int.parse(_categoryColors[touchedEntry.key]!.replaceAll('#', '0xFF')))
+        : null;
 
     return Card(
       elevation: 4,
@@ -266,10 +272,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Despesas por Sub-categoria', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Despesas por Categoria', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                if (isSliceTouched)
+                  TextButton.icon(
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                    onPressed: () => setState(() => _touchedIndexPie = -1),
+                    icon: const Icon(Icons.clear, size: 14, color: Colors.grey),
+                    label: const Text('Limpar', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  )
+                else
+                  const Text('Toque no gráfico', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ],
+            ),
+            const SizedBox(height: 24),
             SizedBox(
-              height: 220,
+              height: 240,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -277,80 +297,67 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     PieChartData(
                       pieTouchData: PieTouchData(
                         touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                          if (!event.isInterestedForInteractions || pieTouchResponse == null || pieTouchResponse.touchedSection == null) {
+                            return;
+                          }
                           setState(() {
-                            if (!event.isInterestedForInteractions || pieTouchResponse == null || pieTouchResponse.touchedSection == null) {
-                              _touchedIndexPie = -1;
-                              return;
-                            }
                             _touchedIndexPie = pieTouchResponse.touchedSection!.touchedSectionIndex;
                           });
                         },
                       ),
                       sectionsSpace: 2,
-                      centerSpaceRadius: 70,
+                      centerSpaceRadius: 75,
                       sections: sections,
                     ),
-                    swapAnimationDuration: const Duration(milliseconds: 600),
-                    swapAnimationCurve: Curves.easeInOutBack,
+                    swapAnimationDuration: const Duration(milliseconds: 500),
+                    swapAnimationCurve: Curves.easeInOutCubic,
                   ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Total do Mês', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      const SizedBox(height: 4),
-                      TweenAnimationBuilder<double>(
-                        tween: Tween<double>(begin: 0, end: _totalExpenses),
-                        duration: const Duration(seconds: 1),
-                        builder: (context, value, child) {
-                          return Text(
-                            CurrencyFormatter.format(value),
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-                          );
-                        },
-                      ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSliceTouched && touchedEntry != null) ...[
+                          Text(
+                            touchedEntry.key,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: touchedColor ?? AppTheme.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            CurrencyFormatter.format(touchedEntry.value),
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            '${((touchedEntry.value / _totalExpenses) * 100).toStringAsFixed(1)}% do total',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.w600),
+                          ),
+                        ] else ...[
+                          const Text('Total do Mês', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          const SizedBox(height: 4),
+                          TweenAnimationBuilder<double>(
+                            tween: Tween<double>(begin: 0, end: _totalExpenses),
+                            duration: const Duration(seconds: 1),
+                            builder: (context, value, child) {
+                              return Text(
+                                CurrencyFormatter.format(value),
+                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                              );
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: sortedData.asMap().entries.map((e) {
-                int i = e.key;
-                String catName = e.value.key;
-                double val = e.value.value;
-                Color c = _categoryColors.containsKey(catName)
-                    ? Color(int.parse(_categoryColors[catName]!.replaceAll('#', '0xFF')))
-                    : Colors.grey;
-                bool isTouched = i == _touchedIndexPie;
-
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isTouched ? c.withOpacity(0.15) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isTouched ? c : Colors.transparent),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(width: 12, height: 12, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(catName, style: TextStyle(fontWeight: isTouched ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
-                          Text(CurrencyFormatter.format(val), style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
-                        ],
-                      )
-                    ],
-                  ),
-                );
-              }).toList(),
-            )
           ],
         ),
       ),

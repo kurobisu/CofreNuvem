@@ -91,8 +91,6 @@ class DashboardScreen extends ConsumerWidget {
                     _buildCreditCardsRow(context, creditCards),
                     const SizedBox(height: 24),
                   ],
-                  if (categoryExpenses.isNotEmpty) _buildExpensesChart(context, categoryExpenses),
-                  const SizedBox(height: 24),
                   _buildRecentTransactions(context, ref, recentTransactions),
                   const SizedBox(height: 120), // padding for FAB/BottomNav
                 ],
@@ -243,63 +241,6 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildExpensesChart(BuildContext context, List<Map<String, dynamic>> categoryExpenses) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Despesas por Categoria (Mês)', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 220,
-              child: PieChart(
-                PieChartData(
-                  sectionsSpace: 2,
-                  centerSpaceRadius: 50,
-                  sections: categoryExpenses.map((e) {
-                    final colorHex = e['Cor_Hexadecimal'].toString().replaceAll('#', '0xFF');
-                    return PieChartSectionData(
-                      color: Color(int.parse(colorHex)),
-                      value: e['total'],
-                      title: '', // Hiding titles on chart, will show in legend
-                      radius: 35,
-                    );
-                  }).toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: categoryExpenses.take(5).map((e) { // Top 5 in legend
-                final colorHex = e['Cor_Hexadecimal'].toString().replaceAll('#', '0xFF');
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: Color(int.parse(colorHex)),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text('${e['Nome']} (${CurrencyFormatter.format(e['total'])})', style: const TextStyle(fontSize: 12)),
-                  ],
-                );
-              }).toList(),
-            )
-          ],
-        ),
-      ),
     );
   }
 
