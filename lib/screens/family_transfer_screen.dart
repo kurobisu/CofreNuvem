@@ -40,7 +40,9 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
 
-  Map<String, dynamic>? _usuarioOrigem; // Usuário logado
+  Map<String, dynamic>? _usuarioOrigem; 
+  Map<String, dynamic>? _usuarioDestino;
+
   List<Map<String, dynamic>> _contasOrigem = [];
   List<Map<String, dynamic>> _contasDestino = [];
   List<Map<String, dynamic>> _metodosOrigem = [];
@@ -74,9 +76,20 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
       final supabase = SupabaseHelper.instance.client;
       final currentUserAuthId = supabase.auth.currentUser?.id;
 
-      // 1. Carregar usuário de origem (logado ou explicitamente passado por parâmetro de estorno)
       final allUsers = await db.query(SupabaseHelper.tableUsuarios);
       
+      // Destinatário
+      final matchDestino = allUsers.where((u) => (u['id'] ?? u['ID'])?.toString() == widget.targetUserId).toList();
+      if (matchDestino.isNotEmpty) {
+        _usuarioDestino = matchDestino.first;
+      } else {
+        _usuarioDestino = {
+          'id': widget.targetUserId,
+          'nome': widget.targetUserName,
+        };
+      }
+
+      // Remetente / Origem
       if (widget.sourceUserId != null) {
         final matchSource = allUsers.where((u) => (u['id'] ?? u['ID'])?.toString() == widget.sourceUserId).toList();
         if (matchSource.isNotEmpty) {
@@ -85,8 +98,6 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
       }
 
       if (_usuarioOrigem == null) {
-        final supabase = SupabaseHelper.instance.client;
-        final currentUserAuthId = supabase.auth.currentUser?.id;
         final currentUserName = supabase.auth.currentUser?.userMetadata?['nome']?.toString().toLowerCase();
         final match = allUsers.where((u) {
           final uAuth = u['auth_id'] ?? u['Auth_ID'];
@@ -96,7 +107,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
         }).toList();
 
         if (match.isEmpty && allUsers.isNotEmpty) {
-          _usuarioOrigem = match.isEmpty ? allUsers.first : match.first;
+          _usuarioOrigem = allUsers.first;
         } else if (match.isNotEmpty) {
           _usuarioOrigem = match.first;
         }
@@ -106,58 +117,10 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
         throw Exception('Usuário de origem não encontrado no sistema.');
       }
 
-      final origemId = _usuarioOrigem!['id'] ?? _usuarioOrigem!['ID'];
-
-      // 2. Carregar contas de origem
-      _contasOrigem = await db.query(
-        SupabaseHelper.tableContasBancarias,
-        where: 'usuario_id = ?',
-        whereArgs: [origemId],
-        orderBy: 'ordem ASC'
-      );
-
-      // 3. Carregar contas de destino (usuário selecionado)
-      _contasDestino = await db.query(
-        SupabaseHelper.tableContasBancarias,
-        where: 'usuario_id = ?',
-        whereArgs: [widget.targetUserId],
-        orderBy: 'ordem ASC'
-      );
-
-      // 4. Carregar métodos de pagamento globais
-      _metodosOrigem = await db.query(
-        SupabaseHelper.tableMetodosPagamento,
-        orderBy: 'ordem ASC'
-      );
+      await _loadContasEMetodos();
 
       if (mounted) {
         setState(() {
-          if (widget.initialContaOrigem != null) {
-            final exists = _contasOrigem.any((c) => (c['id'] ?? c['ID'])?.toString() == widget.initialContaOrigem);
-            if (exists) {
-              _selectedContaOrigem = widget.initialContaOrigem;
-            } else if (_contasOrigem.isNotEmpty) {
-              _selectedContaOrigem = (_contasOrigem.first['id'] ?? _contasOrigem.first['ID'])?.toString();
-            }
-          } else if (_contasOrigem.isNotEmpty) {
-            _selectedContaOrigem = (_contasOrigem.first['id'] ?? _contasOrigem.first['ID'])?.toString();
-          }
-
-          if (_selectedContaOrigem != null) {
-            _updateMetodosParaContaOrigem();
-          }
-
-          if (widget.initialContaDestino != null) {
-            final exists = _contasDestino.any((c) => (c['id'] ?? c['ID'])?.toString() == widget.initialContaDestino);
-            if (exists) {
-              _selectedContaDestino = widget.initialContaDestino;
-            } else if (_contasDestino.isNotEmpty) {
-              _selectedContaDestino = (_contasDestino.first['id'] ?? _contasDestino.first['ID'])?.toString();
-            }
-          } else if (_contasDestino.isNotEmpty) {
-            _selectedContaDestino = (_contasDestino.first['id'] ?? _contasDestino.first['ID'])?.toString();
-          }
-
           if (widget.initialValor != null) {
             _valorController.text = CurrencyFormatter.format(widget.initialValor!);
           }
@@ -175,16 +138,79 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
     }
   }
 
+  Future<void> _loadContasEMetodos() async {
+    final db = await SupabaseHelper.instance.database;
+    final origemId = _usuarioOrigem!['id'] ?? _usuarioOrigem!['ID'];
+    final destinoId = _usuarioDestino!['id'] ?? _usuarioDestino!['ID'];
+
+    // 1. Carregar contas de origem
+    _contasOrigem = await db.query(
+      SupabaseHelper.tableContasBancarias,
+      where: 'usuario_id = ?',
+      whereArgs: [origemId],
+      orderBy: 'ordem ASC'
+    );
+
+    // 2. Carregar contas de destino
+    _contasDestino = await db.query(
+      SupabaseHelper.tableContasBancarias,
+      where: 'usuario_id = ?',
+      whereArgs: [destinoId],
+      orderBy: 'ordem ASC'
+    );
+
+    // 3. Carregar métodos de pagamento globais
+    _metodosOrigem = await db.query(
+      SupabaseHelper.tableMetodosPagamento,
+      orderBy: 'ordem ASC'
+    );
+
+    if (_contasOrigem.isNotEmpty) {
+      _selectedContaOrigem = (_contasOrigem.first['id'] ?? _contasOrigem.first['ID'])?.toString();
+      _updateMetodosParaContaOrigem();
+    } else {
+      _selectedContaOrigem = null;
+      _selectedMetodoOrigem = null;
+    }
+
+    if (_contasDestino.isNotEmpty) {
+      _selectedContaDestino = (_contasDestino.first['id'] ?? _contasDestino.first['ID'])?.toString();
+    } else {
+      _selectedContaDestino = null;
+    }
+  }
+
+  void _swapUsers() async {
+    if (_usuarioOrigem == null || _usuarioDestino == null) return;
+    setState(() => _isLoading = true);
+
+    final temp = _usuarioOrigem;
+    _usuarioOrigem = _usuarioDestino;
+    _usuarioDestino = temp;
+
+    await _loadContasEMetodos();
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+      HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Invertido: ${_usuarioOrigem!['nome'] ?? _usuarioOrigem!['Nome']} agora transfere para ${_usuarioDestino!['nome'] ?? _usuarioDestino!['Nome']}'),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _updateMetodosParaContaOrigem() {
     if (_selectedContaOrigem == null) return;
     
-    // Filtrar métodos vinculados à conta de origem selecionada ou que sejam gerais/Pix
     final cId = _selectedContaOrigem!.toLowerCase();
     
     final match = _metodosOrigem.where((m) {
       final contaId = (m['conta_id'] ?? m['Conta_ID'])?.toString().toLowerCase();
       final nome = (m['nome'] ?? m['Nome'] ?? '').toString().toLowerCase();
-      // Inclui Pix de forma facilitada
       return contaId == cId || nome.contains('pix');
     }).toList();
 
@@ -233,34 +259,35 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
       if (matchCat.isNotEmpty) {
         categoriaId = (matchCat.first['id'] ?? matchCat.first['ID']).toString();
       } else {
-        // Criar categoria automática
         categoriaId = await db.insert(SupabaseHelper.tableCategorias, {
           'Nome': 'Transferência',
-          'Cor_Hexadecimal': '#9E9E9E', // Cinza neutro
+          'Cor_Hexadecimal': '#9E9E9E',
           'Tipo': 'Ambas',
           'Oculta': 0,
           'Ordem': 99,
         });
       }
 
-      // 2. Gerar transferencia_id (UUID comum) e obter os auth_ids correspondentes
       final String transferUuid = const Uuid().v4();
       final dateStr = _selectedDate.toIso8601String();
-      final origemId = _usuarioOrigem!['id'] ?? _usuarioOrigem!['ID'];
+      final origemId = (_usuarioOrigem!['id'] ?? _usuarioOrigem!['ID']).toString();
+      final destinoId = (_usuarioDestino!['id'] ?? _usuarioDestino!['ID']).toString();
+      final origemNome = _usuarioOrigem!['nome'] ?? _usuarioOrigem!['Nome'] ?? 'Remetente';
+      final destinoNome = _usuarioDestino!['nome'] ?? _usuarioDestino!['Nome'] ?? 'Destinatário';
 
       final List<Map<String, dynamic>> users = await db.query(SupabaseHelper.tableUsuarios);
-      final origemUser = users.firstWhere((u) => (u['id'] ?? u['ID']).toString() == origemId.toString());
-      final destinoUser = users.firstWhere((u) => (u['id'] ?? u['ID']).toString() == widget.targetUserId);
+      final origemUser = users.firstWhere((u) => (u['id'] ?? u['ID']).toString() == origemId, orElse: () => _usuarioOrigem!);
+      final destinoUser = users.firstWhere((u) => (u['id'] ?? u['ID']).toString() == destinoId, orElse: () => _usuarioDestino!);
       final String? authIdOrigem = (origemUser['auth_id'] ?? origemUser['Auth_ID'])?.toString();
       final String? authIdDestino = (destinoUser['auth_id'] ?? destinoUser['Auth_ID'])?.toString();
 
       // 3. Criar a Despesa (Saída)
       final despesaFuture = db.insert(SupabaseHelper.tableTransacoes, {
         'Data': dateStr,
-        'Descricao': '${_descricaoController.text} para ${widget.targetUserName}',
+        'Descricao': '${_descricaoController.text} para $destinoNome',
         'Valor': valor,
         'Tipo': 'Despesa',
-        'Usuario_ID': origemId.toString(),
+        'Usuario_ID': origemId,
         'Conta_ID': _selectedContaOrigem!,
         'Metodo_ID': _selectedMetodoOrigem,
         'Categoria_ID': categoriaId,
@@ -293,10 +320,10 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
       // 5. Criar a Receita (Entrada)
       final receitaFuture = db.insert(SupabaseHelper.tableTransacoes, {
         'Data': dateStr,
-        'Descricao': '${_descricaoController.text} de ${_usuarioOrigem!['nome'] ?? _usuarioOrigem!['Nome']}',
+        'Descricao': '${_descricaoController.text} de $origemNome',
         'Valor': valor,
         'Tipo': 'Receita',
-        'Usuario_ID': widget.targetUserId,
+        'Usuario_ID': destinoId,
         'Conta_ID': _selectedContaDestino!,
         'Metodo_ID': metodoDestinoId,
         'Categoria_ID': categoriaId,
@@ -305,10 +332,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
         'auth_id': authIdDestino,
       });
 
-      // Executar inserções no Supabase em paralelo
       await Future.wait([despesaFuture, receitaFuture]);
-
-      // Atualizar provedor de dados e dashboard
       ref.refresh(dashboardDataProvider);
 
       if (mounted) {
@@ -328,16 +352,91 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
     }
   }
 
+  Widget _buildUserAvatarCard({
+    required String title,
+    required String name,
+    required Color color,
+    required bool isSender,
+  }) {
+    final initial = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : '?';
+
+    return Draggable<String>(
+      data: isSender ? 'SENDER' : 'RECEIVER',
+      feedback: Material(
+        color: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 12)],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(backgroundColor: Colors.white, radius: 14, child: Text(initial, style: TextStyle(color: color, fontWeight: FontWeight.bold))),
+              const SizedBox(width: 8),
+              Text(name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+            ],
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(
+        opacity: 0.3,
+        child: _buildAvatarColumn(title, initial, name, color),
+      ),
+      child: DragTarget<String>(
+        onWillAcceptWithDetails: (details) => (details.data == 'SENDER' && !isSender) || (details.data == 'RECEIVER' && isSender),
+        onAcceptWithDetails: (details) => _swapUsers(),
+        builder: (context, candidateData, rejectedData) {
+          final isHovering = candidateData.isNotEmpty;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+            decoration: BoxDecoration(
+              color: isHovering ? color.withOpacity(0.2) : Colors.transparent,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isHovering ? color : Colors.transparent, width: 2),
+            ),
+            child: _buildAvatarColumn(title, initial, name, color),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildAvatarColumn(String title, String initial, String name, Color color) {
+    return Column(
+      children: [
+        Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
+        const SizedBox(height: 8),
+        CircleAvatar(
+          radius: 24,
+          backgroundColor: color.withOpacity(0.2),
+          child: Text(initial, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Nova Transferência')),
+        appBar: AppBar(title: const Text('Transferir Valor entre Contas')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    final origemNome = _usuarioOrigem!['nome'] ?? _usuarioOrigem!['Nome'] ?? 'Origem';
+    final origemNome = _usuarioOrigem!['nome'] ?? _usuarioOrigem!['Nome'] ?? 'Remetente';
+    final destinoNome = _usuarioDestino!['nome'] ?? _usuarioDestino!['Nome'] ?? 'Destinatário';
 
     return Scaffold(
       appBar: AppBar(
@@ -345,22 +444,22 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(20.0),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Cards de Origem -> Destino com gradiente e visual premium
+                // Cards de Origem <-> Destino com Drag and Drop e Botão Swap
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [Colors.blueGrey.shade900, Colors.blueGrey.shade800],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.3),
@@ -369,55 +468,65 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                       ),
                     ],
                   ),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            const Text('REMETENTE', style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
-                            const SizedBox(height: 8),
-                            CircleAvatar(
-                              backgroundColor: Colors.blueAccent.withOpacity(0.2),
-                              child: Text(origemNome.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildUserAvatarCard(
+                              title: 'REMETENTE',
+                              name: origemNome,
+                              color: Colors.blueAccent,
+                              isSender: true,
                             ),
-                            const SizedBox(height: 8),
-                            Text(origemNome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                          ],
-                        ),
+                          ),
+                          // Botão central de inverter com clique ou arrasto
+                          InkWell(
+                            onTap: _swapUsers,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.black26,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: const Icon(Icons.swap_horiz_rounded, color: Colors.greenAccent, size: 26),
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildUserAvatarCard(
+                              title: 'DESTINATÁRIO',
+                              name: destinoNome,
+                              color: Colors.tealAccent,
+                              isSender: false,
+                            ),
+                          ),
+                        ],
                       ),
-                      const Icon(Icons.arrow_forward, color: Colors.white60, size: 28),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            const Text('DESTINATÁRIO', style: TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
-                            const SizedBox(height: 8),
-                            CircleAvatar(
-                              backgroundColor: Colors.tealAccent.withOpacity(0.2),
-                              child: Text(widget.targetUserName.substring(0, 1).toUpperCase(), style: const TextStyle(color: Colors.tealAccent, fontWeight: FontWeight.bold)),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(widget.targetUserName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                          ],
-                        ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Toque ou arraste para inverter',
+                        style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 24),
 
-                // Valor com muito destaque
+                // Valor da Transferência
                 TextFormField(
                   controller: _valorController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent),
                   textAlign: TextAlign.center,
                   decoration: InputDecoration(
                     labelText: 'Valor da Transferência',
-                    labelStyle: const TextStyle(fontSize: 16, color: Colors.white70),
+                    labelStyle: const TextStyle(fontSize: 15, color: Colors.white70),
                     prefixText: 'R\$ ',
-                    prefixStyle: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                    prefixStyle: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                   ),
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
@@ -428,7 +537,9 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                     return null;
                   },
                 ),
-                              // Conta Origem
+                const SizedBox(height: 20),
+
+                // Conta Origem
                 DropdownButtonFormField<String>(
                   isExpanded: true,
                   menuMaxHeight: 280,
@@ -438,6 +549,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                   decoration: InputDecoration(
                     labelText: 'Sair da Conta (Origem)',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                   ),
                   items: _contasOrigem.map((c) => DropdownMenuItem<String>(
                     value: (c['id'] ?? c['ID'])?.toString(),
@@ -450,7 +562,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                     });
                   },
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
                 // Método Origem
                 DropdownButtonFormField<String>(
@@ -469,9 +581,9 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                   decoration: InputDecoration(
                     labelText: 'Método Utilizado',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                   ),
                   items: _metodosOrigem.where((m) {
-                    // Filtrar apenas o método Pix ou os vinculados a essa conta
                     final contaId = (m['conta_id'] ?? m['Conta_ID'])?.toString().toLowerCase();
                     final nome = (m['nome'] ?? m['Nome'] ?? '').toString().toLowerCase();
                     return _selectedContaOrigem == null || 
@@ -483,7 +595,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                   )).toList(),
                   onChanged: (val) => setState(() => _selectedMetodoOrigem = val),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
 
                 // Conta Destino
                 DropdownButtonFormField<String>(
@@ -495,6 +607,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                   decoration: InputDecoration(
                     labelText: 'Entrar na Conta (Destino)',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                   ),
                   items: _contasDestino.map((c) => DropdownMenuItem<String>(
                     value: (c['id'] ?? c['ID'])?.toString(),
@@ -502,7 +615,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                   )).toList(),
                   onChanged: (val) => setState(() => _selectedContaDestino = val),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
                 // Descrição
                 TextFormField(
@@ -510,6 +623,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                   decoration: InputDecoration(
                     labelText: 'Observação (Opcional)',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                   ),
                 ),
                 const SizedBox(height: 32),
