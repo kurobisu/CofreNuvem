@@ -558,10 +558,12 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
           Map<String, double> assetAllocation = {};
 
           for (var item in data) {
-            double atualizado = item['Valor_Atualizado'];
-            totalInvestido += item['Valor_Investido'];
+            double atualizado = ((item['Valor_Atualizado'] ?? item['valor_atualizado'] ?? item['Valor_Investido'] ?? item['valor_investido'] ?? 0) as num).toDouble();
+            double investido = ((item['Valor_Investido'] ?? item['valor_investido'] ?? 0) as num).toDouble();
+            totalInvestido += investido;
             patrimonioAtualizado += atualizado;
-            assetAllocation[item['Ativo']] = (assetAllocation[item['Ativo']] ?? 0) + atualizado;
+            final String nomeAtivo = (item['Ativo'] ?? item['ativo'] ?? 'Outros').toString();
+            assetAllocation[nomeAtivo] = (assetAllocation[nomeAtivo] ?? 0) + atualizado;
           }
 
           final double rendimento = patrimonioAtualizado - totalInvestido;
@@ -744,8 +746,8 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final item = data[index];
-                      final double valInv = item['Valor_Investido'];
-                      final double valAtu = item['Valor_Atualizado'];
+                      final double valInv = ((item['Valor_Investido'] ?? item['valor_investido'] ?? 0) as num).toDouble();
+                      final double valAtu = ((item['Valor_Atualizado'] ?? item['valor_atualizado'] ?? valInv) as num).toDouble();
                       final double lucro = valAtu - valInv;
                       
                       return Container(
