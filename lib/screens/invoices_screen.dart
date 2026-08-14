@@ -75,9 +75,34 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
       faturasTemp[vencimentoStr]!.add(t);
     }
 
+    // Ordenar as faturas: a mais próxima do vencimento (menor data) acima
+    final sortedKeys = faturasTemp.keys.toList()
+      ..sort((a, b) {
+        try {
+          final partsA = a.split('/');
+          final partsB = b.split('/');
+          final dtA = DateTime(int.parse(partsA[2]), int.parse(partsA[1]), int.parse(partsA[0]));
+          final dtB = DateTime(int.parse(partsB[2]), int.parse(partsB[1]), int.parse(partsB[0]));
+          return dtA.compareTo(dtB);
+        } catch (_) {
+          return a.compareTo(b);
+        }
+      });
+
+    final Map<String, List<Map<String, dynamic>>> sortedFaturas = {};
+    for (var k in sortedKeys) {
+      final list = faturasTemp[k]!;
+      list.sort((a, b) {
+        final dtA = (a['data'] ?? a['Data'] ?? '').toString();
+        final dtB = (b['data'] ?? b['Data'] ?? '').toString();
+        return dtB.compareTo(dtA);
+      });
+      sortedFaturas[k] = list;
+    }
+
     setState(() {
       _transacoes = res;
-      _faturas = faturasTemp;
+      _faturas = sortedFaturas;
       _isLoading = false;
     });
   }
