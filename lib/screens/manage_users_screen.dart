@@ -258,23 +258,168 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     );
   }
 
-  void _deleteUser(String id) async {
+  void _deleteUser(String id, String nomeUser) async {
     final db = await SupabaseHelper.instance.database;
     
-    // Validate if the user can be deleted (maybe they have accounts or transactions)
-    final accounts = await db.query(SupabaseHelper.tableContasBancarias, where: 'Usuario_ID = ?', whereArgs: [id]);
-    final trans = await db.query(SupabaseHelper.tableTransacoes, where: 'Usuario_ID = ?', whereArgs: [id]);
+    // ETAPA 1 DE 3: Alerta inicial e verificação de dados vinculados
+    final accounts = await db.query(SupabaseHelper.tableContasBancarias, where: 'usuario_id = ?', whereArgs: [id]);
+    final trans = await db.query(SupabaseHelper.tableTransacoes, where: 'usuario_id = ?', whereArgs: [id]);
     
     if (accounts.isNotEmpty || trans.isNotEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Este usuário possui contas ou transações vinculadas e não pode ser apagado.')),
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.block, color: Colors.red, size: 28),
+              SizedBox(width: 8),
+              Text('Exclusão Bloqueada'),
+            ],
+          ),
+          content: Text(
+            'O usuário "$nomeUser" possui ${accounts.length} conta(s) e ${trans.length} transação(ões) vinculadas no sistema.\n\nPara segurança do histórico financeiro familiar, você deve transferir ou apagar as transações e contas antes de excluir este usuário.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendido'),
+            )
+          ],
+        ),
       );
       return;
     }
 
+    // TELA 1 DE CONFIRMAÇÃO (Grave):
+    final etapa1 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Excluir Usuário "$nomeUser"? (1/3)', style: const TextStyle(fontWeight: FontWeight.bold))),
+          ],
+        ),
+        content: Text('Você iniciou o processo de exclusão do usuário "$nomeUser".\n\nEste procedimento requer 3 etapas de segurança.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Avançar (Etapa 2)'),
+          ),
+        ],
+      ),
+    );
+
+    if (etapa1 != true) return;
+
+    // TELA 2 DE CONFIRMAÇÃO (Crítica):
+    final etapa2 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.redAccent, width: 2)),
+        title: const Row(
+          children: [
+            Icon(Icons.report_problem, color: Colors.redAccent, size: 30),
+            SizedBox(width: 8),
+            Expanded(child: Text('CONFIRMAÇÃO CRÍTICA (2/3)', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16))),
+          ],
+        ),
+        content: Text(
+          'ATENÇÃO: A exclusão de um usuário apagará definitivamente o perfil de "$nomeUser" e qualquer permissão familiar associada.\n\nEsta operação é 100% permanente e não pode ser desfeita.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR', style: TextStyle(color: Colors.white))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('CONTINUAR PARA ETAPA FINAL'),
+          ),
+        ],
+      ),
+    );
+
+    if (etapa2 != true) return;
+
+    // TELA 3 DE CONFIRMAÇÃO (Digitação do Nome para confirmação final e definitiva):
+    final digitacaoController = TextEditingController();
+    final etapa3 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            final isMatch = digitacaoController.text.trim().toLowerCase() == nomeUser.trim().toLowerCase();
+            return AlertDialog(
+              backgroundColor: const Color(0xFF130909),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.red, width: 2.5)),
+              title: const Row(
+                children: [
+                  Icon(Icons.dangerous, color: Colors.red, size: 32),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('AUTORIZAÇÃO DEFINITIVA (3/3)', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16))),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Para confirmar a destruição permanente do usuário "$nomeUser", digite o nome exatamente como exibido abaixo:',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(color: Colors.red.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                    child: Text(nomeUser, style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: digitacaoController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Digite o nome aqui',
+                      hintStyle: TextStyle(color: Colors.grey.shade600),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.red)),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.redAccent, width: 2)),
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR', style: TextStyle(color: Colors.white))),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isMatch ? Colors.red : Colors.grey.shade800,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: isMatch ? () => Navigator.pop(ctx, true) : null,
+                  child: const Text('EXCLUIR PERMANENTEMENTE', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (etapa3 != true) return;
+
     await db.delete(SupabaseHelper.tableUsuarios, where: 'ID = ?', whereArgs: [id]);
     _loadUsers();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Usuário "$nomeUser" foi excluído com sucesso.'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -327,7 +472,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteUser(id),
+                      onPressed: () => _deleteUser(id.toString(), nome.toString()),
                     ),
                     const Icon(Icons.drag_handle, color: Colors.grey),
                   ],

@@ -133,16 +133,136 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
     // Compartilhamento agora é global
   }
 
-  Future<void> _deleteConta(String id) async {
+  Future<void> _deleteConta(String id, String nomeConta) async {
+    // Confirmação 1: Alerta Crítico
+    final confirm1 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+            SizedBox(width: 8),
+            Text('Excluir Conta?', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text('Você tem certeza que deseja excluir a conta "$nomeConta"? Todos os métodos vinculados a ela serão afetados.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sim, continuar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm1 != true) return;
+
+    // Confirmação 2: Confirmação definitiva com digitação do nome ou aviso severo
+    final confirm2 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.red, width: 2)),
+        title: const Row(
+          children: [
+            Icon(Icons.dangerous, color: Colors.red, size: 30),
+            SizedBox(width: 8),
+            Expanded(child: Text('ATENÇÃO: AÇÃO IRREVERSÍVEL', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16))),
+          ],
+        ),
+        content: Text(
+          'Esta ação removerá permanentemente a conta "$nomeConta" e seus métodos de pagamento do banco de dados na nuvem.\n\nTem absoluta certeza de que deseja apagar?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR', style: TextStyle(color: Colors.white))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('CONFIRMAR EXCLUSÃO', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm2 != true) return;
+
     final db = await SupabaseHelper.instance.database;
     await db.delete(SupabaseHelper.tableContasBancarias, where: 'ID = ?', whereArgs: [id]);
     _loadData();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Conta "$nomeConta" excluída com sucesso.')),
+      );
+    }
   }
 
-  Future<void> _deleteMetodo(String id) async {
+  Future<void> _deleteMetodo(String id, String nomeMetodo) async {
+    final confirm1 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 8),
+            Text('Excluir Método?', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text('Deseja excluir o método de pagamento "$nomeMetodo"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm1 != true) return;
+
+    final confirm2 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2C),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: Colors.red, width: 2)),
+        title: const Row(
+          children: [
+            Icon(Icons.dangerous, color: Colors.red, size: 30),
+            SizedBox(width: 8),
+            Text('Confirmar Exclusão', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'O método "$nomeMetodo" não estará mais disponível para novas transações.\n\nDeseja realmente apagá-lo?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar', style: TextStyle(color: Colors.white))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('EXCLUIR MÉTODO', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm2 != true) return;
+
     final db = await SupabaseHelper.instance.database;
     await db.delete(SupabaseHelper.tableMetodosPagamento, where: 'ID = ?', whereArgs: [id]);
     _loadData();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Método "$nomeMetodo" excluído.')),
+      );
+    }
   }
 
   void _showAddContaDialog() {
@@ -424,7 +544,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                     subtitle: Text('Dono: ' + ownerName),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteConta(contaId),
+                      onPressed: () => _deleteConta(contaId, conta['Nome']?.toString() ?? 'Sem Nome'),
                     ),
                     children: [
                       const Divider(height: 1),
@@ -454,7 +574,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                             children: [
                               if (index > 0)
                                 IconButton(
-                                  icon: const Icon(Icons.arrow_upward, color: Colors.grey, size: 20),
+                                   icon: const Icon(Icons.arrow_upward, color: Colors.grey, size: 20),
                                   onPressed: () => _moveMetodo(contaId, index, index - 1),
                                 ),
                               if (index < metodosDaConta.length - 1)
@@ -470,7 +590,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                                 ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                                onPressed: () => _deleteMetodo(m['ID']),
+                                onPressed: () => _deleteMetodo(m['ID']?.toString() ?? m['id']?.toString() ?? '', m['Nome']?.toString() ?? 'Sem Nome'),
                               ),
                             ],
                           ),
