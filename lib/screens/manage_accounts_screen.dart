@@ -90,39 +90,61 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
   }
 
   Future<void> _addMetodo(String nome, String contaId, String tipo, String? fechamento, String? vencimento, double? limite) async {
-    final db = await SupabaseHelper.instance.database;
-    final maxOrdem = _metodos.where((m) => m['Conta_ID'] == contaId).length;
-    final Map<String, Object?> data = {
-      'Nome': nome,
-      'Conta_ID': contaId,
-      'Tipo': tipo,
-      'Ordem': maxOrdem,
-      'Dia_Fechamento': fechamento,
-      'Dia_Vencimento': vencimento,
+    final supabase = SupabaseHelper.instance.client;
+    final maxOrdem = _metodos.where((m) => (m['conta_id'] ?? m['Conta_ID'])?.toString() == contaId).length;
+    final Map<String, dynamic> data = {
+      'nome': nome,
+      'conta_id': contaId,
+      'tipo': tipo,
+      'ordem': maxOrdem,
+      'dia_fechamento': fechamento,
+      'dia_vencimento': vencimento,
       'limite_credito': limite,
+      'auth_id': supabase.auth.currentUser?.id,
     };
     try {
-      await db.insert(SupabaseHelper.tableMetodosPagamento, data);
+      await supabase.from('metodos_pagamento').insert(data);
     } catch (e) {
+      debugPrint('Erro ao inserir com limite_credito: $e, tentando sem o campo');
       data.remove('limite_credito');
-      await db.insert(SupabaseHelper.tableMetodosPagamento, data);
+      await supabase.from('metodos_pagamento').insert(data);
     }
     _loadData();
   }
 
   Future<void> _editMetodo(String metodoId, String nome, String? fechamento, String? vencimento, double? limite) async {
-    final db = await SupabaseHelper.instance.database;
-    final Map<String, Object?> data = {
-      'Nome': nome,
-      'Dia_Fechamento': fechamento,
-      'Dia_Vencimento': vencimento,
+    final supabase = SupabaseHelper.instance.client;
+    final Map<String, dynamic> data = {
+      'nome': nome,
+      'dia_fechamento': fechamento,
+      'dia_vencimento': vencimento,
       'limite_credito': limite,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
     try {
-      await db.update(SupabaseHelper.tableMetodosPagamento, data, where: 'ID = ?', whereArgs: [metodoId]);
+      await supabase.from('metodos_pagamento').update(data).eq('id', metodoId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Método e limite atualizados com sucesso!'), backgroundColor: Colors.green),
+        );
+      }
     } catch (e) {
+      debugPrint('Erro ao atualizar limite_credito no Supabase: $e');
       data.remove('limite_credito');
-      await db.update(SupabaseHelper.tableMetodosPagamento, data, where: 'ID = ?', whereArgs: [metodoId]);
+      try {
+        await supabase.from('metodos_pagamento').update(data).eq('id', metodoId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Aviso: Coluna limite_credito ainda não existe no banco Supabase remoto. Dados básicos salvos.'), backgroundColor: Colors.orange),
+          );
+        }
+      } catch (err) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erro ao salvar: $err'), backgroundColor: Colors.red),
+          );
+        }
+      }
     }
     _loadData();
   }
