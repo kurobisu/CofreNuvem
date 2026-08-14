@@ -175,14 +175,36 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                           'PIN_Acesso': pin,
                           'Ordem': maxOrdem,
                         };
+                        dynamic newUserId;
                         try {
-                          await db.insert(SupabaseHelper.tableUsuarios, {
+                          newUserId = await db.insert(SupabaseHelper.tableUsuarios, {
                             ...data,
                             'is_fantasma': isFantasma ? 1 : 0,
                           });
                         } catch (e) {
                           // Se a coluna is_fantasma não existir ainda no Supabase, salva normalmente
-                          await db.insert(SupabaseHelper.tableUsuarios, data);
+                          newUserId = await db.insert(SupabaseHelper.tableUsuarios, data);
+                        }
+
+                        // Criar automaticamente a Conta 'Dinheiro' com método 'Dinheiro' para o novo usuário
+                        if (newUserId != null) {
+                          try {
+                            final allContas = await db.query(SupabaseHelper.tableContasBancarias);
+                            final contaId = await db.insert(SupabaseHelper.tableContasBancarias, {
+                              'Nome': 'Dinheiro',
+                              'Codigo_Banco': '100', // Dinheiro Físico/Caixa
+                              'Usuario_ID': newUserId.toString(),
+                              'Ordem': allContas.length,
+                            });
+                            await db.insert(SupabaseHelper.tableMetodosPagamento, {
+                              'Conta_ID': contaId.toString(),
+                              'Nome': 'Dinheiro',
+                              'Tipo': 'Dinheiro',
+                              'Ordem': 0,
+                            });
+                          } catch (err) {
+                            debugPrint('Erro ao criar conta Dinheiro automática: $err');
+                          }
                         }
                       } else {
                         final Map<String, Object?> data = {

@@ -147,7 +147,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
 
   void _showAddContaDialog() {
     final nomeController = TextEditingController();
-    BancoLogo selectedBanco = BancosBrasil.bancos.first;
+    BancoLogo? selectedBanco;
     String? selectedDono = _usuarios.isNotEmpty ? _usuarios.first['ID'].toString() : null;
 
     showDialog(
@@ -163,15 +163,18 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                   children: [
                     TextField(
                       controller: nomeController,
-                      decoration: const InputDecoration(labelText: 'Nome ou Apelido da Conta'),
+                      decoration: const InputDecoration(
+                        labelText: 'Nome ou Apelido da Conta',
+                        hintText: 'Ex: Nubank, Carteira, Dinheiro',
+                      ),
                       textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
                     Autocomplete<BancoLogo>(
-                      displayStringForOption: (banco) => banco.codigo + ' - ' + banco.nome,
+                      displayStringForOption: (banco) => '${banco.codigo} - ${banco.nome}',
                       optionsBuilder: (TextEditingValue textEditingValue) {
                         if (textEditingValue.text.isEmpty) {
-                          return BancosBrasil.bancos.take(10);
+                          return BancosBrasil.bancos;
                         }
                         return BancosBrasil.bancos.where((BancoLogo banco) {
                           return banco.nome.toLowerCase().contains(textEditingValue.text.toLowerCase()) || 
@@ -179,15 +182,23 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                         });
                       },
                       onSelected: (BancoLogo selection) {
-                        setStateDialog(() => selectedBanco = selection);
+                        setStateDialog(() {
+                          selectedBanco = selection;
+                          if (nomeController.text.isEmpty) {
+                            nomeController.text = selection.codigo == '100' ? 'Dinheiro' : selection.nome;
+                          }
+                        });
                       },
                       fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
                         return TextField(
                           controller: textEditingController,
                           focusNode: focusNode,
-                          decoration: const InputDecoration(
-                            labelText: 'Buscar Banco',
-                            hintText: 'Ex: Nubank, 001',
+                          decoration: InputDecoration(
+                            labelText: 'Instituição / Tipo',
+                            hintText: 'Selecione o banco ou Dinheiro Físico',
+                            suffixIcon: selectedBanco != null 
+                                ? Icon(selectedBanco!.iconData ?? Icons.account_balance, color: AppTheme.primary)
+                                : null,
                           ),
                         );
                       },
@@ -209,8 +220,13 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
                 ElevatedButton(
                   onPressed: () {
-                    if (nomeController.text.trim().isNotEmpty && selectedDono != null) {
-                      _addConta(nomeController.text.trim(), selectedBanco.codigo, selectedDono!);
+                    final nome = nomeController.text.trim();
+                    if (nome.isNotEmpty && selectedDono != null) {
+                      String codigo = selectedBanco?.codigo ?? '999';
+                      if (nome.toLowerCase().contains('dinheiro') || nome.toLowerCase().contains('carteira') || nome.toLowerCase().contains('espécie')) {
+                        codigo = '100';
+                      }
+                      _addConta(nome, codigo, selectedDono!);
                       Navigator.pop(context);
                     }
                   },
