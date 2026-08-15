@@ -518,6 +518,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
   Widget build(BuildContext context) {
     final investmentsAsync = ref.watch(investmentsProvider);
     final historyAsync = ref.watch(investmentHistoryProvider);
+    final isBalanceHidden = ref.watch(hideBalanceProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -525,6 +526,11 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
         title: const Text('Meus Investimentos', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: Icon(isBalanceHidden ? Icons.visibility_off : Icons.visibility),
+            tooltip: isBalanceHidden ? 'Mostrar Saldos' : 'Ocultar Saldos',
+            onPressed: () => ref.read(hideBalanceProvider.notifier).toggle(),
+          ),
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             tooltip: 'Novo Investimento',
@@ -601,7 +607,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                             Text('Patrimônio Atualizado', style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8))),
                             const SizedBox(height: 8),
                             Text(
-                              CurrencyFormatter.format(patrimonioAtualizado),
+                              isBalanceHidden ? 'R\$ ••••••' : CurrencyFormatter.format(patrimonioAtualizado),
                               style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.white),
                             ),
                             const SizedBox(height: 24),
@@ -612,7 +618,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text('Total Investido', style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
-                                    Text(CurrencyFormatter.format(totalInvestido), style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 16)),
+                                    Text(isBalanceHidden ? 'R\$ ••••••' : CurrencyFormatter.format(totalInvestido), style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 16)),
                                   ],
                                 ),
                                 Column(
@@ -626,7 +632,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        '${rendimento >= 0 ? '+' : ''}${CurrencyFormatter.format(rendimento)} (${rendimentoPct.toStringAsFixed(2)}%)',
+                                        isBalanceHidden ? '••••••' : '${rendimento >= 0 ? '+' : ''}${CurrencyFormatter.format(rendimento)} (${rendimentoPct.toStringAsFixed(2)}%)',
                                         style: TextStyle(
                                           color: rendimento >= 0 ? Colors.greenAccent : Colors.redAccent,
                                           fontWeight: FontWeight.bold,
@@ -788,10 +794,10 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      Text(CurrencyFormatter.format(valAtu), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                      Text(isBalanceHidden ? 'R\$ ••••••' : CurrencyFormatter.format(valAtu), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                       const SizedBox(height: 4),
                                       Text(
-                                        '${lucro >= 0 ? '+' : ''}${CurrencyFormatter.format(lucro)}',
+                                        isBalanceHidden ? '••••••' : '${lucro >= 0 ? '+' : ''}${CurrencyFormatter.format(lucro)}',
                                         style: TextStyle(
                                           color: lucro >= 0 ? Colors.green : Colors.red,
                                           fontWeight: FontWeight.bold,
@@ -800,12 +806,12 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                                       ),
                                     ],
                                   ),
-                                ],
-                              ),
+                              ],
                             ),
                           ),
                         ),
-                      );
+                      ),
+                    );
                     },
                     childCount: data.length,
                   ),

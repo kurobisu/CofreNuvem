@@ -1,0 +1,94 @@
+name: Build Windows Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: 'stable'
+          cache: true
+
+      - name: Create .env from secrets
+        shell: pwsh
+        run: |
+          @"
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          UPDATE_CHECK_URL=https://raw.githubusercontent.com/kurobisu/CofreNuvem/main/latest.json
+          "@ | Out-File -FilePath .env -Encoding utf8
+
+      - name: Install Inno Setup 7
+        shell: pwsh
+        run: |
+          $url = "https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe"
+          $installer = "$env:TEMP\innosetup-7-x64.exe"
+          Invoke-WebRequest -Uri $url -OutFile $installer -UseBasicParsing
+          & $installer /VERYSILENT /NORESTART /SUPPRESSMSGBOXES
+          Start-Sleep -Seconds 15
+          $iscc = "${env:ProgramFiles}\Inno Setup 7\ISCC.exe"
+          if (Test-Path $iscc) {
+            Write-Output "ISCC installed at $iscc"
+          } else {
+            throw "Inno Setup installation failed"
+          }
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          .\installer\build_installer.ps1
+
+      - name: Extract version
+        id: version
+        shell: pwsh
+        run: |
+          $versionFile = "lib\utils\app_version.dart"
+          $match = Select-String -Path $versionFile -Pattern "appVersion\s*=\s*'v?\.?([^']+)'"
+          $version = $match.Matches[0].Groups[1].Value
+          Write-Output "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: CofreNuvem ${{ github.ref_name }}
+          files: build/windows/x64/installer/CofreNuvem-Setup-*.exe
+          generate_release_notes: true
+
+      - name: Update latest.json
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $tag = "${{ github.ref_name }}"
+          $json = @{
+            version = $version
+            download_url = "https://github.com/kurobisu/CofreNuvem/releases/download/$tag/CofreNuvem-Setup-$version.exe"
+            release_notes = "Nova versão $version"
+            sha256 = ""
+          } | ConvertTo-Json -Depth 3
+          $json | Out-File -FilePath latest.json -Encoding utf8
+
+      - name: Commit and push latest.json
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add latest.json
+          if (git diff --cached --quiet) {
+            Write-Output "No changes to commit"
+          } else {
+            git commit -m "chore: update latest.json to ${{ steps.version.outputs.version }}"
+            git push
+          }
