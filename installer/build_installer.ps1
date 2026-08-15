@@ -75,11 +75,21 @@ if (-not $IsccPath) {
     throw "Inno Setup compiler (ISCC.exe) not found. Install Inno Setup 6 or 7."
 }
 
-# Package with Inno Setup, overriding the version define.
+# Package with Inno Setup, injecting the extracted version into the script.
 Write-Host "Packaging installer with Inno Setup..." -ForegroundColor Cyan
-& $IsccPath /DMyAppVersion=$version "$IssPath"
-if ($LASTEXITCODE -ne 0) {
-    throw "Inno Setup build failed with exit code $LASTEXITCODE"
+$issContent = Get-Content -Path $IssPath -Raw
+$issContent = $issContent -replace '#define MyAppVersion "[^"]*"', "#define MyAppVersion `"$version`""
+$issDir = Split-Path -Path $IssPath -Parent
+$tempIssPath = Join-Path $issDir "cofrenuvem-$version.iss"
+$issContent | Out-File -FilePath $tempIssPath -Encoding utf8
+
+try {
+    & $IsccPath "$tempIssPath"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inno Setup build failed with exit code $LASTEXITCODE"
+    }
+} finally {
+    Remove-Item -Path $tempIssPath -ErrorAction SilentlyContinue
 }
 
 $installer = Join-Path $projectRoot "build\windows\x64\installer\CofreNuvem-Setup-$version.exe"
