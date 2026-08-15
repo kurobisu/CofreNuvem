@@ -21,6 +21,19 @@ ALTER TABLE public.familias FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.familia_membros FORCE ROW LEVEL SECURITY;
 
 -- ------------------------------------------------------------
+-- 1.1 RLS Enabled No Policy (INFO)
+--      Cria politicas que negam acesso direto. As funcoes RPC
+--      SECURITY DEFINER continuam funcionando normalmente.
+-- ------------------------------------------------------------
+DROP POLICY IF EXISTS "deny_all_direct_access" ON public.familias;
+CREATE POLICY "deny_all_direct_access" ON public.familias
+  FOR ALL TO authenticated USING (false) WITH CHECK (false);
+
+DROP POLICY IF EXISTS "deny_all_direct_access" ON public.familia_membros;
+CREATE POLICY "deny_all_direct_access" ON public.familia_membros
+  FOR ALL TO authenticated USING (false) WITH CHECK (false);
+
+-- ------------------------------------------------------------
 -- 2. Function Search Path Mutable (WARN)
 --    Define search_path vazio nas funcoes expostas para evitar
 --    ataques de search_path hijacking.
@@ -43,6 +56,15 @@ REVOKE EXECUTE ON FUNCTION public.get_my_family_auth_ids() FROM anon;
 REVOKE EXECUTE ON FUNCTION public.get_pending_invites() FROM anon;
 REVOKE EXECUTE ON FUNCTION public.accept_family_invite(uuid) FROM anon;
 REVOKE EXECUTE ON FUNCTION public.reject_family_invite(uuid) FROM anon;
+
+-- Garante que funcoes futuras no schema public nao sejam
+-- executaveis por anon por padrao.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE EXECUTE ON FUNCTIONS FROM anon;
+
+-- Se o warning persistir, descomente a linha abaixo no SQL Editor
+-- para garantir que anon nao execute nenhuma funcao em public.
+-- ATENCAO: apenas se nao houver funcoes publicas legitimas para anon.
+-- REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA public FROM anon;
 
 -- ------------------------------------------------------------
 -- 4. Garantir EXECUTE para usuarios autenticados
