@@ -175,6 +175,37 @@ class _LoginScreenState extends State<LoginScreen> {
     _authenticate();
   }
 
+  Future<void> _resetPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Digite um e-mail válido no campo acima')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('E-mail de recuperação enviado. Verifique sua caixa de entrada.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on AuthException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Erro ao enviar e-mail de recuperação')));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Widget _buildSavedAccounts() {
     if (_savedAccounts.isEmpty) return const SizedBox.shrink();
 
@@ -301,6 +332,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 obscureText: true,
               ),
+              if (_isLogin)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _isLoading ? null : _resetPassword,
+                    child: const Text('Esqueci minha senha'),
+                  ),
+                ),
               const SizedBox(height: 8),
               if (_isLogin)
                 Row(

@@ -6,8 +6,6 @@ import 'investments_screen.dart';
 import 'settings_screen.dart';
 import 'onboarding_screen.dart';
 import '../database/supabase_helper.dart';
-import '../services/update_service.dart';
-import '../widgets/update_dialog.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -24,11 +22,8 @@ class _MainScreenState extends State<MainScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _checkOnboarding();
-      if (mounted) await _checkForUpdates();
     });
   }
-
-
 
   Future<void> _checkOnboarding() async {
     try {
@@ -39,13 +34,6 @@ class _MainScreenState extends State<MainScreen> {
       }
     } catch (e) {
       debugPrint('Erro onboarding: $e');
-    }
-  }
-
-  Future<void> _checkForUpdates() async {
-    final info = await UpdateService().checkForUpdate();
-    if (info != null && mounted) {
-      await showUpdateDialog(context, info);
     }
   }
 
