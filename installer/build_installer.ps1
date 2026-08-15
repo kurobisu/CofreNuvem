@@ -36,6 +36,15 @@ if (-not $FlutterPath -or -not (Test-Path $FlutterPath)) {
 # Resolve project root (parent of installer directory).
 $projectRoot = Resolve-Path "$PSScriptRoot\.." | Select-Object -ExpandProperty Path
 
+# Ensure Visual C++ Redistributable is available for the installer.
+$redistDir = Join-Path $PSScriptRoot "redist"
+$redistFile = Join-Path $redistDir "vc_redist.x64.exe"
+if (-not (Test-Path $redistFile)) {
+    New-Item -ItemType Directory -Path $redistDir -Force | Out-Null
+    Write-Host "Downloading Visual C++ Redistributable..." -ForegroundColor Cyan
+    Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile $redistFile -UseBasicParsing
+}
+
 # Read version from the Dart source of truth.
 $versionFile = Join-Path $projectRoot "lib\utils\app_version.dart"
 $versionMatch = Select-String -Path $versionFile -Pattern "appVersion\s*=\s*'v?\.?([^']+)'"

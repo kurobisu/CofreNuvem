@@ -94,3 +94,6 @@ app.*.map.json
 *.env
 test_*.dart
 test_supabase.dart
+
+# Installer redistributables (downloaded automatically during build)
+installer/redist/*.exe
