@@ -44,6 +44,10 @@ class _FamilyScreenState extends State<FamilyScreen> {
   Future<void> _acceptInvite(String id) async {
     setState(() => _isLoading = true);
     try {
+      await Supabase.instance.client.rpc(
+        'accept_family_invite',
+        params: {'invite_id': id},
+      );
       await _loadAllData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Convite aceito com sucesso!'), backgroundColor: Colors.green));
