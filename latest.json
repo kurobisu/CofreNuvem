@@ -1,6 +1,6 @@
 {
-  "version": "0.0.30",
-  "download_url": "https://github.com/kurobisu/CofreNuvem/releases/download/v0.0.30/CofreNuvem-Setup-0.0.30.exe",
-  "release_notes": "Versão inicial com auto-updater.",
-  "sha256": ""
+  "version": "0.0.32",
+  "sha256": "",
+  "download_url": "https://github.com/kurobisu/CofreNuvem/releases/download/v0.0.32/CofreNuvem-Setup-0.0.32.exe",
+  "release_notes": "Nova versão 0.0.32"
 }
