@@ -8,6 +8,7 @@ import '../database/supabase_helper.dart';
 import '../providers/settings_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'family_screen.dart';
+import '../utils/app_version.dart';
 
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -108,7 +109,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurações')),
+      appBar: AppBar(title: const Text('Configurações $appVersion')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
