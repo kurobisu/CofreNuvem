@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/supabase_helper.dart';
+import '../utils/app_colors.dart';
 
 
 class FamilyScreen extends StatefulWidget {
@@ -204,7 +205,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                                     Expanded(
                                       child: Text(
                                         'Você foi convidado para: ${invite['familia_nome']}',
-                                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                                        style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.onSurface(context)),
                                       ),
                                     ),
                                   ],
@@ -242,17 +243,17 @@ class _FamilyScreenState extends State<FamilyScreen> {
                     ],
 
                     // Sessão de Enviar Convite
-                    const Text(
+                    Text(
                       'Convidar Novo Membro',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.onSurface(context)),
                     ),
                     const SizedBox(height: 16),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade900,
+                        color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade800),
+                        border: Border.all(color: AppColors.divider(context)),
                       ),
                       child: Column(
                         children: [
@@ -268,7 +269,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                                 borderSide: BorderSide.none,
                               ),
                               filled: true,
-                              fillColor: Colors.black12,
+                              fillColor: Theme.of(context).colorScheme.surfaceContainerHighest?.withOpacity(0.5) ?? Colors.grey.withOpacity(0.1),
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -291,7 +292,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                           const SizedBox(height: 12),
                           Text(
                             'O convidado precisa ter uma conta no CofreNuvem criada com este e-mail.',
-                            style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                            style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12),
                             textAlign: TextAlign.center,
                           ),
                         ],
@@ -300,20 +301,20 @@ class _FamilyScreenState extends State<FamilyScreen> {
                     const SizedBox(height: 32),
 
                     // Lista de Membros (Usuarios locais que subiram no Sync)
-                    const Text(
+                    Text(
                       'Membros Identificados',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.onSurface(context)),
                     ),
                     const SizedBox(height: 16),
                     if (_membros.isEmpty)
-                      const Text('Nenhum membro encontrado.', style: TextStyle(color: Colors.grey))
+                      Text('Nenhum membro encontrado.', style: TextStyle(color: AppColors.secondaryText(context)))
                     else
                       ..._membros.map((m) => Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade900,
+                          color: Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.shade800),
+                          border: Border.all(color: AppColors.divider(context)),
                         ),
                         child: ListTile(
                           leading: CircleAvatar(
@@ -321,7 +322,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                             child: const Icon(Icons.person, color: Colors.blue),
                           ),
                           title: Text(m['nome'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(m['id'].toString().split('-').first, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                          subtitle: Text(m['id'].toString().split('-').first, style: TextStyle(color: AppColors.mutedText(context), fontSize: 12)),
                           trailing: const Icon(Icons.check_circle, color: Colors.green, size: 20),
                         ),
                       )).toList(),

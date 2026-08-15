@@ -7,6 +7,7 @@ import '../database/supabase_helper.dart';
 import '../providers/dashboard_provider.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/app_colors.dart';
 
 class TransactionFormScreen extends ConsumerStatefulWidget {
   final String? transactionId;
@@ -554,7 +555,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                     child: Row(
                       children: [
                         if (isChild) const SizedBox(width: 16),
-                        if (isChild) const Icon(Icons.subdirectory_arrow_right, size: 16, color: Colors.grey),
+                        if (isChild) Icon(Icons.subdirectory_arrow_right, size: 16, color: AppColors.iconMuted(context)),
                         if (isChild) const SizedBox(width: 8),
                         Container(
                           width: 12, height: 12,
@@ -701,7 +702,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                             final double portion = totalValue / numInstallments;
                             return Text(
                               'O valor de ${CurrencyFormatter.format(totalValue)} será dividido em $numInstallments parcelas de ${CurrencyFormatter.format(portion)}.',
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                              style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context)),
                             );
                           }
                         ),

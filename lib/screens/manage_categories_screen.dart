@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/supabase_helper.dart';
 import '../utils/default_data.dart';
+import '../utils/app_colors.dart';
 
 class ManageCategoriesScreen extends StatefulWidget {
   const ManageCategoriesScreen({super.key});
@@ -431,7 +432,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                         IconButton(
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
-                          icon: const Icon(Icons.edit, color: Colors.grey),
+                          icon: Icon(Icons.edit, color: AppColors.iconMuted(context)),
                           onPressed: () => _showCategoryDialog(parent),
                         ),
                       ],
@@ -461,7 +462,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                         padding: const EdgeInsets.only(left: 40.0, right: 12.0, top: 12, bottom: 12),
                         child: Row(
                           children: [
-                            const Icon(Icons.subdirectory_arrow_right, color: Colors.grey, size: 20),
+                            Icon(Icons.subdirectory_arrow_right, color: AppColors.iconMuted(context), size: 20),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -488,7 +489,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
                                 IconButton(
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
-                                  icon: const Icon(Icons.edit, color: Colors.grey, size: 20),
+                                  icon: Icon(Icons.edit, color: AppColors.iconMuted(context), size: 20),
                                   onPressed: () => _showCategoryDialog(child),
                                 ),
                               ],

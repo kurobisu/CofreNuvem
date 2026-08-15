@@ -3,6 +3,7 @@ import '../database/supabase_helper.dart';
 import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/app_colors.dart';
 import 'invoices_screen.dart';
 
 class ManageAccountsScreen extends StatefulWidget {
@@ -679,7 +680,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                     leading: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.drag_handle, color: Colors.grey),
+                        Icon(Icons.drag_handle, color: AppColors.iconMuted(context)),
                         const SizedBox(width: 8),
                         Container(
                           width: 40, height: 40,
@@ -725,12 +726,12 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                             children: [
                               if (index > 0)
                                 IconButton(
-                                   icon: const Icon(Icons.arrow_upward, color: Colors.grey, size: 20),
+                                   icon: Icon(Icons.arrow_upward, color: AppColors.iconMuted(context), size: 20),
                                   onPressed: () => _moveMetodo(contaId, index, index - 1),
                                 ),
                               if (index < metodosDaConta.length - 1)
                                 IconButton(
-                                  icon: const Icon(Icons.arrow_downward, color: Colors.grey, size: 20),
+                                  icon: Icon(Icons.arrow_downward, color: AppColors.iconMuted(context), size: 20),
                                   onPressed: () => _moveMetodo(contaId, index, index + 1),
                                 ),
                               if (isCredito)

@@ -6,6 +6,7 @@ import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/transaction_helper.dart';
 import '../utils/bancos_brasil.dart';
+import '../utils/app_colors.dart';
 import 'transaction_form_screen.dart';
 import 'family_transfer_screen.dart';
 import '../providers/dashboard_provider.dart';
@@ -147,7 +148,7 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
             children: [
               const SizedBox(height: 16),
               Text(t['Descricao'] ?? t['descricao'] ?? 'Sem Descrição', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const Text('Opções da Transação', style: TextStyle(color: Colors.grey)),
+              Text('Opções da Transação', style: TextStyle(color: AppColors.secondaryText(context))),
               const Divider(),
               if ((t['HasItems'] ?? 0) > 0)
                 ListTile(
@@ -461,7 +462,7 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
                 const Icon(Icons.receipt_long, size: 48, color: Colors.green),
                 const SizedBox(height: 8),
                 Text('Cupom Fiscal', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                Text(transacaoTitle, style: const TextStyle(color: Colors.grey)),
+                Text(transacaoTitle, style: TextStyle(color: AppColors.secondaryText(context))),
                 const Divider(),
                 Expanded(
                   child: ListView.separated(
@@ -576,8 +577,8 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
                                     children: [
                                       Text(t['Descricao'] ?? t['descricao'] ?? 'Sem Descrição', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, decoration: isPaga ? null : TextDecoration.lineThrough)),
                                       const SizedBox(height: 4),
-                                      Text(t['CategoriaNome'].toString() + ' • ' + t['UsuarioNome'].toString(), style: TextStyle(color: Colors.grey[400], fontSize: 12)),
-                                      Text(banco.nome + ' (' + t['MetodoNome'].toString() + ')', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+                                      Text(t['CategoriaNome'].toString() + ' • ' + t['UsuarioNome'].toString(), style: TextStyle(color: AppColors.mutedText(context), fontSize: 12)),
+                                      Text(banco.nome + ' (' + t['MetodoNome'].toString() + ')', style: TextStyle(color: AppColors.mutedText(context), fontSize: 11)),
                                     ],
                                   ),
                                 ),

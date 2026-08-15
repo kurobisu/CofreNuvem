@@ -4,7 +4,8 @@ import 'package:intl/intl.dart';
 import '../database/supabase_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency_formatter.dart';
-import '../utils/app_version.dart';
+import '../utils/app_colors.dart';
+
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -288,18 +289,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          Icon(Icons.close_rounded, size: 14, color: Colors.grey),
-                          SizedBox(width: 2),
-                          Text('Limpar', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        children: [
+                          Icon(Icons.close_rounded, size: 14, color: AppColors.iconMuted(context)),
+                          const SizedBox(width: 2),
+                          Text('Limpar', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                         ],
                       ),
                     ),
                   )
                 else
-                  const Text(
+                  Text(
                     'Toque para ver',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(fontSize: 11, color: AppColors.mutedText(context)),
                   ),
               ],
             ),
@@ -352,10 +353,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                           ),
                           Text(
                             '${((touchedEntry.value / _totalExpenses) * 100).toStringAsFixed(1)}% do total',
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.w600),
+                            style: TextStyle(fontSize: 11, color: AppColors.mutedText(context), fontWeight: FontWeight.w600),
                           ),
                         ] else ...[
-                          const Text('Total do Mês', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text('Total do Mês', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                           const SizedBox(height: 4),
                           TweenAnimationBuilder<double>(
                             tween: Tween<double>(begin: 0, end: _totalExpenses),
@@ -416,11 +417,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
               children: [
                 Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.green.shade400, borderRadius: BorderRadius.circular(3))),
                 const SizedBox(width: 6),
-                const Text('Receita', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Text('Receita', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                 const SizedBox(width: 16),
                 Container(width: 12, height: 12, decoration: BoxDecoration(color: Colors.red.shade400, borderRadius: BorderRadius.circular(3))),
                 const SizedBox(width: 6),
-                const Text('Despesa', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Text('Despesa', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
               ],
             ),
             const SizedBox(height: 24),
@@ -467,7 +468,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                                     Text(parts[0].length > 8 ? '${parts[0].substring(0, 8)}.' : parts[0],
                                         style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600)),
                                     Text(parts.length > 1 ? (parts[1].length > 8 ? '${parts[1].substring(0, 8)}.' : parts[1]) : '',
-                                        style: TextStyle(fontSize: 8, color: Colors.grey.shade500)),
+                                        style: TextStyle(fontSize: 8, color: AppColors.mutedText(context))),
                                   ],
                                 ),
                               );
@@ -490,7 +491,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
-                    getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.1), strokeWidth: 1),
+                    getDrawingHorizontalLine: (value) => FlLine(color: AppColors.divider(context), strokeWidth: 1),
                   ),
                   borderData: FlBorderData(show: false),
                   barGroups: entries.asMap().entries.map((entry) {
@@ -566,7 +567,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           end: Alignment.centerRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: AppColors.divider(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -580,29 +581,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   children: [
                     Icon(Icons.arrow_downward, color: Colors.green.shade400, size: 20),
                     const SizedBox(height: 4),
-                    Text('Entrada', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text('Entrada', style: TextStyle(fontSize: 11, color: AppColors.secondaryText(context))),
                     const SizedBox(height: 2),
                     Text(CurrencyFormatter.format(rec),
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade400)),
-                    Text('${recPct.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text('${recPct.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: AppColors.secondaryText(context))),
                   ],
                 ),
               ),
               Container(
                 width: 1,
                 height: 60,
-                color: Colors.grey.withOpacity(0.3),
+                color: AppColors.divider(context),
               ),
               Expanded(
                 child: Column(
                   children: [
                     Icon(Icons.arrow_upward, color: Colors.red.shade400, size: 20),
                     const SizedBox(height: 4),
-                    Text('Saída', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text('Saída', style: TextStyle(fontSize: 11, color: AppColors.secondaryText(context))),
                     const SizedBox(height: 2),
                     Text(CurrencyFormatter.format(desp),
                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade400)),
-                    Text('${despPct.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text('${despPct.toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: AppColors.secondaryText(context))),
                   ],
                 ),
               ),
@@ -614,7 +615,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Saldo: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+              Text('Saldo: ', style: TextStyle(fontSize: 13, color: AppColors.secondaryText(context))),
               Text(
                 CurrencyFormatter.format(saldo),
                 style: TextStyle(
@@ -634,7 +635,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Relatórios $appVersion', style: TextStyle(fontSize: 16)),
+        title: const Text('Relatórios', style: TextStyle(fontSize: 16)),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),

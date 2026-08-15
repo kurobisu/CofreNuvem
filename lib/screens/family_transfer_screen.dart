@@ -8,6 +8,7 @@ import '../database/supabase_helper.dart';
 import '../providers/dashboard_provider.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/app_colors.dart';
 
 class FamilyTransferScreen extends ConsumerStatefulWidget {
   final String targetUserId;
@@ -518,13 +519,13 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                 TextFormField(
                   controller: _valorController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
                   textAlign: TextAlign.center,
                   decoration: InputDecoration(
                     labelText: 'Valor da Transferência',
-                    labelStyle: const TextStyle(fontSize: 15, color: Colors.white70),
+                    labelStyle: TextStyle(fontSize: 15, color: AppColors.secondaryText(context)),
                     prefixText: 'R\$ ',
-                    prefixStyle: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.greenAccent),
+                    prefixStyle: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                     contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                   ),

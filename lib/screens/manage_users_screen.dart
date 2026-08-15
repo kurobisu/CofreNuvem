@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database/supabase_helper.dart';
 import '../theme/app_theme.dart';
+import '../utils/app_colors.dart';
 
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
@@ -96,9 +97,9 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                               : Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
-                            color: isFantasma 
-                                ? Colors.purpleAccent.withOpacity(0.5) 
-                                : Colors.grey.withOpacity(0.2),
+                            color: isFantasma
+                                ? Colors.purpleAccent.withOpacity(0.5)
+                                : AppColors.divider(context),
                           ),
                         ),
                         child: Column(
@@ -128,7 +129,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                             const SizedBox(height: 4),
                             Text(
                               'Usuário fantasma sem login/senha para gerenciar contas e cartões compartilhados.',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                              style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context)),
                             ),
                           ],
                         ),
@@ -156,7 +157,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                  child: Text('Cancelar', style: TextStyle(color: AppColors.secondaryText(context))),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -383,10 +384,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: digitacaoController,
-                    style: const TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppColors.onSurface(context)),
                     decoration: InputDecoration(
                       hintText: 'Digite o nome aqui',
-                      hintStyle: TextStyle(color: Colors.grey.shade600),
+                      hintStyle: TextStyle(color: AppColors.mutedText(context)),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.red)),
                       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Colors.redAccent, width: 2)),
                     ),
@@ -395,10 +396,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCELAR', style: TextStyle(color: Colors.white))),
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('CANCELAR', style: TextStyle(color: AppColors.onSurface(context)))),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isMatch ? Colors.red : Colors.grey.shade800,
+                    backgroundColor: isMatch ? Colors.red : AppColors.mutedText(context),
                     foregroundColor: Colors.white,
                   ),
                   onPressed: isMatch ? () => Navigator.pop(ctx, true) : null,
@@ -474,7 +475,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                       icon: const Icon(Icons.delete, color: Colors.red),
                       onPressed: () => _deleteUser(id.toString(), nome.toString()),
                     ),
-                    const Icon(Icons.drag_handle, color: Colors.grey),
+                    Icon(Icons.drag_handle, color: AppColors.iconMuted(context)),
                   ],
                 ),
               );

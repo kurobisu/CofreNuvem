@@ -9,6 +9,7 @@ import '../providers/dashboard_provider.dart';
 import '../providers/investments_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
+import '../utils/app_colors.dart';
 import '../database/supabase_helper.dart';
 
 class InvestmentDetailsScreen extends ConsumerStatefulWidget {
@@ -61,7 +62,10 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                   children: [
                     Text('Resgatar ${item['Ativo']}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
-                    Text('Saldo Atual: ${CurrencyFormatter.format(item['Valor_Atualizado'])}', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                    Text(
+                      'Saldo Atual: ${ref.watch(hideBalanceProvider) ? 'R\$ ••••••' : CurrencyFormatter.format(item['Valor_Atualizado'])}',
+                      style: TextStyle(fontSize: 14, color: AppColors.secondaryText(context)),
+                    ),
                     const SizedBox(height: 24),
                     DropdownButtonFormField<String>(
                       isExpanded: true,
@@ -243,7 +247,7 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+        border: Border.all(color: AppColors.divider(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,7 +278,7 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                         String text = '${dt.day}/${dt.month}';
                         return Padding(
                           padding: const EdgeInsets.only(top: 8.0),
-                          child: Text(text, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                          child: Text(text, style: TextStyle(fontSize: 10, color: AppColors.mutedText(context))),
                         );
                       }
                     ),
@@ -293,6 +297,7 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
   Widget build(BuildContext context) {
     final asyncData = ref.watch(investmentDetailsProvider(widget.investmentId));
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isBalanceHidden = ref.watch(hideBalanceProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -301,6 +306,14 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(isBalanceHidden ? Icons.visibility_off : Icons.visibility),
+            tooltip: isBalanceHidden ? 'Mostrar Saldos' : 'Ocultar Saldos',
+            onPressed: () => ref.read(hideBalanceProvider.notifier).toggle(),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: asyncData.when(
         data: (data) {
@@ -346,9 +359,9 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                           borderRadius: BorderRadius.circular(16)
                         ),
                         child: Text(
-                          investment['Status'], 
+                          investment['Status'],
                           style: TextStyle(
-                            color: investment['Status'] == 'Resgatado' ? Colors.grey : Colors.greenAccent, 
+                            color: investment['Status'] == 'Resgatado' ? AppColors.secondaryText(context) : Colors.green.shade700,
                             fontWeight: FontWeight.bold
                           )
                         ),
@@ -362,14 +375,14 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                               decoration: BoxDecoration(
                                 color: Theme.of(context).cardColor,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                                border: Border.all(color: AppColors.divider(context)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Saldo Atual', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text('Saldo Atual', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                                   const SizedBox(height: 8),
-                                  Text(CurrencyFormatter.format(valAtu), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                  Text(isBalanceHidden ? 'R\$ ••••••' : CurrencyFormatter.format(valAtu), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ),
@@ -381,15 +394,15 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                               decoration: BoxDecoration(
                                 color: Theme.of(context).cardColor,
                                 borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: Colors.grey.withOpacity(0.1)),
+                                border: Border.all(color: AppColors.divider(context)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Rendimento Líquido', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text('Rendimento Líquido', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                                   const SizedBox(height: 8),
                                   Text(
-                                    '${lucro >= 0 ? '+' : ''}${CurrencyFormatter.format(lucro)}', 
+                                    isBalanceHidden ? '••••••' : '${lucro >= 0 ? '+' : ''}${CurrencyFormatter.format(lucro)}',
                                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: lucro >= 0 ? Colors.green : Colors.red)
                                   ),
                                 ],
@@ -404,7 +417,10 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                         children: [
                           Expanded(child: Text('Histórico de Movimentações', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
                           const SizedBox(width: 8),
-                          Text('Total Aportado: ${CurrencyFormatter.format(totalAportado)}', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text(
+                            'Total Aportado: ${isBalanceHidden ? 'R\$ ••••••' : CurrencyFormatter.format(totalAportado)}',
+                            style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context)),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -416,10 +432,10 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
               ),
               
               if (transactions.isEmpty)
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.all(32.0),
-                    child: Center(child: Text('Nenhuma movimentação associada', style: TextStyle(color: Colors.grey))),
+                    padding: const EdgeInsets.all(32.0),
+                    child: Center(child: Text('Nenhuma movimentação associada', style: TextStyle(color: AppColors.secondaryText(context)))),
                   ),
                 )
               else
@@ -444,7 +460,7 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
                           title: Text(isAporte ? 'Aporte' : 'Resgate', style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text('${t['ContaNome']} • $dateStr', style: const TextStyle(fontSize: 12)),
                           trailing: Text(
-                            '${isAporte ? '+' : '-'}${CurrencyFormatter.format(t['Valor'])}', 
+                            isBalanceHidden ? 'R\$ ••••••' : '${isAporte ? '+' : '-'}${CurrencyFormatter.format(t['Valor'])}',
                             style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)
                           ),
                         );

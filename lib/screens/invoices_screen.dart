@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
+import '../utils/app_colors.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/dashboard_provider.dart';
@@ -228,7 +229,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                       color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: pctUso > 0.8 ? Colors.redAccent.withOpacity(0.5) : Colors.grey.withOpacity(0.2),
+                        color: pctUso > 0.8 ? Colors.redAccent.withOpacity(0.5) : AppColors.divider(context),
                       ),
                     ),
                     child: Column(
@@ -237,13 +238,13 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Uso do Limite', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white70)),
+                            Text('Uso do Limite', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.onSurface(context))),
                             Text(
                               '${(pctUso * 100).toStringAsFixed(1)}%',
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14,
-                                color: pctUso > 0.8 ? Colors.redAccent : Colors.tealAccent,
+                                color: pctUso > 0.8 ? Colors.redAccent : Colors.teal,
                               ),
                             ),
                           ],
@@ -258,19 +259,18 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                               child: LinearProgressIndicator(
                                 value: pctUso,
                                 minHeight: 30,
-                                backgroundColor: Colors.grey.withOpacity(0.25),
+                                backgroundColor: AppColors.divider(context),
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  pctUso > 0.8 ? Colors.redAccent : (pctUso > 0.5 ? Colors.orangeAccent : Colors.teal),
+                                  pctUso > 0.8 ? Colors.redAccent : (pctUso > 0.5 ? Colors.orange : Colors.teal),
                                 ),
                               ),
                             ),
                             Text(
                               '${CurrencyFormatter.format(totalUsadoAberto)} / ${CurrencyFormatter.format(limite)}',
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: TextStyle(
+                                color: AppColors.onSurface(context),
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13,
-                                shadows: [Shadow(color: Colors.black, blurRadius: 4)],
                               ),
                             ),
                           ],
@@ -281,11 +281,11 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
                           children: [
                             Text(
                               'Disponível: ${CurrencyFormatter.format((limite - totalUsadoAberto).clamp(0.0, double.infinity))}',
-                              style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600),
+                              style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context), fontWeight: FontWeight.w600),
                             ),
                             Text(
                               'Limite Total: ${CurrencyFormatter.format(limite)}',
-                              style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w600),
+                              style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context), fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),

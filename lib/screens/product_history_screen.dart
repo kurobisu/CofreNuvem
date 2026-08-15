@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
+import '../utils/app_colors.dart';
 import '../theme/app_theme.dart';
 
 class ProductHistoryScreen extends StatefulWidget {
@@ -339,7 +340,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                       child: Row(
                         children: [
                           if (isChild) const SizedBox(width: 12),
-                          if (isChild) const Icon(Icons.subdirectory_arrow_right, size: 14, color: Colors.grey),
+                          if (isChild) Icon(Icons.subdirectory_arrow_right, size: 14, color: AppColors.iconMuted(context)),
                           if (isChild) const SizedBox(width: 4),
                           Container(
                             width: 10, height: 10,
@@ -415,7 +416,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      const Text('Unidade: ', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      Text('Unidade: ', style: TextStyle(fontSize: 11, color: AppColors.secondaryText(context))),
                       Expanded(
                         child: SegmentedButton<String>(
                           segments: const [
@@ -425,7 +426,16 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                           selected: {unidadePeso},
                           onSelectionChanged: (Set<String> sel) {
                             setStateDialog(() {
-                              unidadePeso = sel.first;
+                              final novaUnidade = sel.first;
+                              final rawWeight = double.tryParse(pesoOuQtdeController.text.replaceAll(',', '.')) ?? 0.0;
+                              if (rawWeight > 0) {
+                                if (unidadePeso == 'g' && novaUnidade == 'kg') {
+                                  pesoOuQtdeController.text = (rawWeight / 1000.0).toString().replaceAll('.0', '');
+                                } else if (unidadePeso == 'kg' && novaUnidade == 'g') {
+                                  pesoOuQtdeController.text = (rawWeight * 1000.0).round().toString();
+                                }
+                              }
+                              unidadePeso = novaUnidade;
                             });
                           },
                         ),
@@ -652,7 +662,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                   final pct = (diff / previousPrice) * 100;
                   variationWidget = Text('-${pct.toStringAsFixed(1)}%', style: const TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold));
                 } else if (stat['HistoryCount'] > 1) {
-                  variationWidget = const Text('Estável', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold));
+                  variationWidget = Text('Estável', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12, fontWeight: FontWeight.bold));
                 }
 
                 Color catColor = Colors.grey;
@@ -672,7 +682,7 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           if (stat['HistoryCount'] > 0) Text(CurrencyFormatter.format(currentPrice), style: const TextStyle(fontWeight: FontWeight.bold)),
-                          if (stat['HistoryCount'] == 0) const Text('S/ Histórico', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          if (stat['HistoryCount'] == 0) Text('S/ Histórico', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
                           variationWidget,
                         ],
                       ),
@@ -684,13 +694,13 @@ class _ProductHistoryScreenState extends State<ProductHistoryScreen> {
                             children: [
                               Column(
                                 children: [
-                                  const Text('Menor Preço', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text('Menor Preço', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                                   Text(stat['HistoryCount'] > 0 ? CurrencyFormatter.format(stat['MinPrice'] as double) : '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
                                 ],
                               ),
                               Column(
                                 children: [
-                                  const Text('Maior Preço', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  Text('Maior Preço', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                                   Text(stat['HistoryCount'] > 0 ? CurrencyFormatter.format(stat['MaxPrice'] as double) : '-', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
                                 ],
                               ),

@@ -28,11 +28,11 @@ class AppTheme {
         iconTheme: IconThemeData(color: textLight),
         titleTextStyle: TextStyle(color: textLight, fontSize: 22, fontWeight: FontWeight.bold, fontFamily: 'Inter'),
       ),
-      textTheme: const TextTheme(
-        headlineMedium: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: textLight),
-        titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: textLight),
-        bodyLarge: TextStyle(fontSize: 16, color: textLight),
-        bodyMedium: TextStyle(fontSize: 14, color: Colors.grey),
+      textTheme: TextTheme(
+        headlineMedium: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: textLight),
+        titleLarge: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: textLight),
+        bodyLarge: const TextStyle(fontSize: 16, color: textLight),
+        bodyMedium: TextStyle(fontSize: 14, color: Colors.grey.shade700),
       ),
     );
   }
@@ -55,11 +55,11 @@ class AppTheme {
         iconTheme: IconThemeData(color: textDark),
         titleTextStyle: TextStyle(color: textDark, fontSize: 22, fontWeight: FontWeight.bold, fontFamily: 'Inter'),
       ),
-      textTheme: const TextTheme(
-        headlineMedium: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: textDark),
-        titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: textDark),
-        bodyLarge: TextStyle(fontSize: 16, color: textDark),
-        bodyMedium: TextStyle(fontSize: 14, color: Colors.grey),
+      textTheme: TextTheme(
+        headlineMedium: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: textDark),
+        titleLarge: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: textDark),
+        bodyLarge: const TextStyle(fontSize: 16, color: textDark),
+        bodyMedium: TextStyle(fontSize: 14, color: Colors.grey.shade400),
       ),
     );
   }

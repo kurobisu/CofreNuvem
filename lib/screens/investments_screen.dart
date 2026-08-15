@@ -7,6 +7,7 @@ import '../providers/investments_provider.dart';
 import '../providers/dashboard_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
+import '../utils/app_colors.dart';
 import '../database/supabase_helper.dart';
 import 'package:flutter/services.dart';
 import 'investment_details_screen.dart';
@@ -122,7 +123,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                         textCapitalization: TextCapitalization.words,
                       ),
                       const SizedBox(height: 16),
-                      const Text('Ícone do Ativo', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text('Ícone do Ativo', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 12,
@@ -135,10 +136,10 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
                                 color: isSelected ? Theme.of(context).colorScheme.primary.withOpacity(0.2) : Colors.transparent,
-                                border: Border.all(color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.withOpacity(0.3)),
+                                border: Border.all(color: isSelected ? Theme.of(context).colorScheme.primary : AppColors.divider(context)),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: Icon(e.value, color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey),
+                              child: Icon(e.value, color: isSelected ? Theme.of(context).colorScheme.primary : AppColors.iconMuted(context)),
                             ),
                           );
                         }).toList(),
@@ -481,7 +482,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                       }
                       return Padding(
                         padding: const EdgeInsets.only(top: 8.0),
-                        child: Text(text, style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                        child: Text(text, style: TextStyle(fontSize: 10, color: AppColors.mutedText(context))),
                       );
                     }
                   ),
@@ -545,7 +546,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.savings_outlined, size: 80, color: Colors.grey[400]),
+                  Icon(Icons.savings_outlined, size: 80, color: AppColors.iconMuted(context)),
                   const SizedBox(height: 16),
                   const Text('Nenhum investimento registrado.'),
                   const SizedBox(height: 24),
@@ -680,7 +681,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24),
-                            side: BorderSide(color: isDark ? Colors.grey[800]! : Colors.grey[200]!),
+                            side: BorderSide(color: AppColors.divider(context)),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(16.0),
@@ -727,7 +728,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                                                   Container(width: 12, height: 12, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
                                                   const SizedBox(width: 8),
                                                   Expanded(child: Text(e.key, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-                                                  Text('${pct.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                                  Text('${pct.toStringAsFixed(1)}%', style: TextStyle(fontSize: 12, color: AppColors.mutedText(context))),
                                                 ],
                                               ),
                                             );
@@ -760,7 +761,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: isDark ? Colors.grey[800]! : Colors.grey[200]!),
+                          border: Border.all(color: AppColors.divider(context)),
                         ),
                         child: Material(
                           color: Colors.transparent,
@@ -786,8 +787,8 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                                       children: [
                                         Text(item['Ativo'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                         const SizedBox(height: 4),
-                                        Text('Titular: ${item['UsuarioNome']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                        Text('Liq: ${item['Liquidez']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                        Text('Titular: ${item['UsuarioNome']}', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
+                                        Text('Liq: ${item['Liquidez']}', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
                                       ],
                                     ),
                                   ),

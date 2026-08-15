@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'main_screen.dart';
+import '../utils/app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -180,7 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Contas Salvas', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+        Text('Contas Salvas', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.secondaryText(context))),
         const SizedBox(height: 12),
         SizedBox(
           height: 100,

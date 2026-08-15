@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/dashboard_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/bancos_brasil.dart';
+import '../utils/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../database/supabase_helper.dart';
 import 'invoices_screen.dart';
@@ -13,7 +14,7 @@ import 'settings_screen.dart';
 import 'transaction_form_screen.dart';
 import 'family_transfer_screen.dart';
 import '../utils/transaction_helper.dart';
-import '../utils/app_version.dart';
+
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -25,7 +26,7 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Visão Geral $appVersion', style: TextStyle(fontSize: 18)),
+        title: const Text('Visão Geral', style: TextStyle(fontSize: 18)),
         actions: [
           IconButton(
             icon: Icon(isBalanceHidden ? Icons.visibility_off : Icons.visibility),
@@ -88,10 +89,10 @@ class DashboardScreen extends ConsumerWidget {
                   _buildUserBalancesList(userBalances, isBalanceHidden),
                   const SizedBox(height: 24),
                   if (creditCards.isNotEmpty) ...[
-                    _buildCreditCardsRow(context, creditCards),
+                  _buildCreditCardsRow(context, creditCards, isBalanceHidden),
                     const SizedBox(height: 24),
                   ],
-                  _buildRecentTransactions(context, ref, recentTransactions),
+                  _buildRecentTransactions(context, ref, recentTransactions, isBalanceHidden),
                   const SizedBox(height: 120), // padding for FAB/BottomNav
                 ],
               ),
@@ -183,7 +184,7 @@ class DashboardScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                  Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.iconMuted(context)),
                 ],
               ),
             ),
@@ -193,7 +194,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCreditCardsRow(BuildContext context, List<Map<String, dynamic>> creditCards) {
+  Widget _buildCreditCardsRow(BuildContext context, List<Map<String, dynamic>> creditCards, bool isHidden) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -294,38 +295,44 @@ class DashboardScreen extends ConsumerWidget {
                               ),
                               const Spacer(),
                               Text(
-                                (card['Nome'] ?? card['nome'] ?? 'Cartão').toString(), 
-                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: Colors.white), 
-                                maxLines: 1, 
+                                (card['Nome'] ?? card['nome'] ?? 'Cartão').toString(),
+                                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.onSurface(context)),
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis
                               ),
                               const SizedBox(height: 2),
-                              if (limite != null && limite > 0) ...[
-                                Text(
-                                  '${CurrencyFormatter.format(totalUsado)} / ${CurrencyFormatter.format(limite)}',
-                                  style: TextStyle(
-                                    fontSize: 10, 
-                                    fontWeight: FontWeight.w700,
-                                    color: pct > 0.8 ? Colors.redAccent : (pct > 0.5 ? Colors.orangeAccent : Colors.white),
-                                    shadows: const [Shadow(color: Colors.black, blurRadius: 2)],
+                                if (!isHidden && limite != null && limite > 0) ...[
+                                  Text(
+                                    '${CurrencyFormatter.format(totalUsado)} / ${CurrencyFormatter.format(limite)}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: pct > 0.8 ? Colors.redAccent : (pct > 0.5 ? Colors.orangeAccent : AppColors.onSurface(context)),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 1),
-                                Text(
-                                  '${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}', 
-                                  style: TextStyle(fontSize: 9.5, color: Colors.grey.shade300, fontWeight: FontWeight.w500), 
-                                  maxLines: 1, 
-                                  overflow: TextOverflow.ellipsis
-                                ),
-                              ] else
-                                Text(
-                                  '${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}', 
-                                  style: TextStyle(fontSize: 10.5, color: Colors.grey.shade300, fontWeight: FontWeight.w500), 
-                                  maxLines: 1, 
-                                  overflow: TextOverflow.ellipsis
-                                ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    '${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}',
+                                    style: TextStyle(fontSize: 9.5, color: AppColors.secondaryText(context), fontWeight: FontWeight.w500),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis
+                                  ),
+                                ] else if (!isHidden)
+                                  Text(
+                                    '${card['UsuarioNome'] ?? ''} • Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}',
+                                    style: TextStyle(fontSize: 10.5, color: AppColors.secondaryText(context), fontWeight: FontWeight.w500),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis
+                                  )
+                                else
+                                  Text(
+                                    'Fecha dia ${card['Dia_Fechamento'] ?? card['dia_fechamento'] ?? 'N/A'}',
+                                    style: TextStyle(fontSize: 10.5, color: AppColors.secondaryText(context), fontWeight: FontWeight.w500),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis
+                                  ),
                             ],
                           ),
                         ),
@@ -367,7 +374,7 @@ class DashboardScreen extends ConsumerWidget {
                 const Icon(Icons.receipt_long, size: 48, color: Colors.green),
                 const SizedBox(height: 8),
                 Text('Cupom Fiscal', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                Text(transacaoTitle, style: const TextStyle(color: Colors.grey)),
+                Text(transacaoTitle, style: TextStyle(color: AppColors.secondaryText(context))),
                 const Divider(),
                 Expanded(
                   child: ListView.separated(
@@ -409,7 +416,7 @@ class DashboardScreen extends ConsumerWidget {
             children: [
               const SizedBox(height: 16),
               Text(t['Descricao'] ?? t['descricao'] ?? 'Sem Descrição', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              const Text('Opções da Transação', style: TextStyle(color: Colors.grey)),
+              Text('Opções da Transação', style: TextStyle(color: AppColors.secondaryText(context))),
               const Divider(),
               if ((t['HasItems'] ?? 0) > 0)
                 ListTile(
@@ -615,7 +622,7 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRecentTransactions(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> transactions) {
+  Widget _buildRecentTransactions(BuildContext context, WidgetRef ref, List<Map<String, dynamic>> transactions, bool isHidden) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -692,7 +699,7 @@ class DashboardScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            '${isReceita ? '+' : '-'} ${CurrencyFormatter.format(t['Valor'])}',
+                            isHidden ? 'R\$ ••••••' : '${isReceita ? '+' : '-'} ${CurrencyFormatter.format(t['Valor'])}',
                             style: TextStyle(
                               color: isReceita ? Colors.green : Colors.red,
                               fontWeight: FontWeight.bold,
@@ -733,7 +740,7 @@ class DashboardScreen extends ConsumerWidget {
                   Container(
                     margin: const EdgeInsets.symmetric(vertical: 12),
                     width: 40, height: 4,
-                    decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(2)),
+                    decoration: BoxDecoration(color: AppColors.divider(context), borderRadius: BorderRadius.circular(2)),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

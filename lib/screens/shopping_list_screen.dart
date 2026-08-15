@@ -5,7 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
-import '../utils/app_version.dart';
+import '../utils/app_colors.dart';
+
 import 'transaction_form_screen.dart';
 import 'product_history_screen.dart';
 
@@ -322,11 +323,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                               } else {
                                 qtdeController.text = unidadePeso == 'g' ? '1000' : '1.0';
                               }
-                              
-                              final histPrice = _productHistory[selection];
-                              if (histPrice != null && precoUnitarioController.text.isEmpty) {
-                                precoUnitarioController.text = CurrencyFormatter.format(histPrice);
-                              }
+
+                              // Não preenchemos o preço automaticamente: cada compra tem preço diferente
+                              // e o usuário deve informar o valor atual.
+                              precoUnitarioController.text = '';
+                              precoController.text = '';
                               recalculatePrice();
                             }
                             
@@ -398,7 +399,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          const Text('Unidade de Peso: ', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                          Text('Unidade de Peso: ', style: TextStyle(fontSize: 11, color: AppColors.secondaryText(context))),
                           SegmentedButton<String>(
                             segments: const [
                               ButtonSegment(value: 'g', label: Text('Gramas (g)', style: TextStyle(fontSize: 10))),
@@ -407,7 +408,16 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                             selected: {unidadePeso},
                             onSelectionChanged: (Set<String> sel) {
                               setModalState(() {
-                                unidadePeso = sel.first;
+                                final novaUnidade = sel.first;
+                                final rawWeight = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 0.0;
+                                if (rawWeight > 0) {
+                                  if (unidadePeso == 'g' && novaUnidade == 'kg') {
+                                    qtdeController.text = (rawWeight / 1000.0).toString().replaceAll('.0', '');
+                                  } else if (unidadePeso == 'kg' && novaUnidade == 'g') {
+                                    qtdeController.text = (rawWeight * 1000.0).round().toString();
+                                  }
+                                }
+                                unidadePeso = novaUnidade;
                                 recalculatePrice();
                               });
                             },
@@ -552,7 +562,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Lista de Compras $appVersion', style: TextStyle(fontSize: 16)),
+        title: const Text('Lista de Compras', style: TextStyle(fontSize: 16)),
         actions: [
           IconButton(
             icon: const Icon(Icons.history),
@@ -584,14 +594,14 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Previsto', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('Previsto', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
                           Text(CurrencyFormatter.format(totalPrevisto), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         ],
                       ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Text('No Carrinho', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                          Text('No Carrinho', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
                           Text(CurrencyFormatter.format(totalCarrinho), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green)),
                         ],
                       ),
@@ -720,7 +730,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    const Icon(Icons.edit, size: 16, color: Colors.grey),
+                                    Icon(Icons.edit, size: 16, color: AppColors.iconMuted(context)),
                                   ],
                                 ),
                                 onTap: () => _showItemModal(itemToEdit: item),
