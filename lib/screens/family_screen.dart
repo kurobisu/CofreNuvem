@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/supabase_helper.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
 
 
 class FamilyScreen extends StatefulWidget {
@@ -253,6 +254,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                     ),
                     const SizedBox(height: 16),
                     Container(
+                      key: TutorialKeys.familyInviteCard,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Theme.of(context).cardColor,

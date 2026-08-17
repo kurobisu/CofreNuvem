@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dashboard_screen.dart';
 import 'transaction_form_screen.dart';
 import 'shopping_list_screen.dart';
@@ -6,17 +7,17 @@ import 'investments_screen.dart';
 import 'settings_screen.dart';
 import 'onboarding_screen.dart';
 import '../database/supabase_helper.dart';
+import '../providers/tutorial_provider.dart';
+import '../utils/tutorial_keys.dart';
 
-class MainScreen extends StatefulWidget {
+class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  ConsumerState<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
-
+class _MainScreenState extends ConsumerState<MainScreen> {
   @override
   void initState() {
     super.initState();
@@ -31,25 +32,34 @@ class _MainScreenState extends State<MainScreen> {
       final countRes = await db.query(SupabaseHelper.tableUsuarios, limit: 1);
       if (countRes.isEmpty && mounted) {
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const OnboardingScreen()));
+        return;
       }
     } catch (e) {
       debugPrint('Erro onboarding: $e');
     }
+
+    final shouldStartTutorial = await consumeTutorialPendingStart();
+    if (shouldStartTutorial && mounted) {
+      ref.read(tutorialProvider.notifier).start();
+    }
   }
 
-  final List<Widget> _pages = [
-    const DashboardScreen(),
-    const ShoppingListScreen(),
-    const InvestmentsScreen(),
-    const SettingsScreen(),
+  final List<Widget> _pages = const [
+    DashboardScreen(),
+    ShoppingListScreen(),
+    InvestmentsScreen(),
+    SettingsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = ref.watch(currentTabProvider);
+
     return Scaffold(
-      body: _pages[_currentIndex],
-      floatingActionButton: _currentIndex == 0 
+      body: _pages[currentIndex],
+      floatingActionButton: currentIndex == 0
           ? FloatingActionButton(
+              key: TutorialKeys.dashboardFab,
               onPressed: () {
                 Navigator.push(
                   context,
@@ -60,11 +70,9 @@ class _MainScreenState extends State<MainScreen> {
             )
           : null,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
+        selectedIndex: currentIndex,
         onDestinationSelected: (int index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          ref.read(currentTabProvider.notifier).state = index;
         },
         destinations: const [
           NavigationDestination(

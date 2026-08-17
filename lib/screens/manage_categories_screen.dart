@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/supabase_helper.dart';
 import '../utils/default_data.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
 
 class ManageCategoriesScreen extends StatefulWidget {
   const ManageCategoriesScreen({super.key});
@@ -583,6 +584,7 @@ class _ManageCategoriesScreenState extends State<ManageCategoriesScreen> {
           ],
         ),
         floatingActionButton: FloatingActionButton.extended(
+          key: TutorialKeys.categoriesAddFab,
           onPressed: () => _showCategoryDialog(),
           icon: const Icon(Icons.add),
           label: const Text('Nova Categoria Padrão'),

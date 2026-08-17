@@ -4,6 +4,7 @@ import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
 import 'invoices_screen.dart';
 
 class ManageAccountsScreen extends StatefulWidget {
@@ -764,6 +765,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
               },
             ),
       floatingActionButton: FloatingActionButton.extended(
+        key: TutorialKeys.accountsAddFab,
         onPressed: _showAddContaDialog,
         backgroundColor: AppTheme.primary,
         icon: const Icon(Icons.add, color: Colors.white),

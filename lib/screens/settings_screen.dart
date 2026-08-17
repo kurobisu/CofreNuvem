@@ -6,6 +6,8 @@ import 'package:share_plus/share_plus.dart';
 import '../services/sync_service.dart';
 import '../database/supabase_helper.dart';
 import '../providers/settings_provider.dart';
+import '../providers/tutorial_provider.dart';
+import '../utils/tutorial_keys.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'family_screen.dart';
 import '../utils/app_version.dart';
@@ -120,6 +122,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               children: [
                 ListTile(
+                  key: TutorialKeys.settingsCategorias,
                   leading: const Icon(Icons.category, color: Colors.orange),
                   title: const Text('Gerenciar Categorias'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -129,6 +132,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const Divider(height: 1, indent: 56),
                 ListTile(
+                  key: TutorialKeys.settingsContas,
                   leading: const Icon(Icons.account_balance_wallet, color: Colors.purple),
                   title: const Text('Contas & Métodos'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -154,12 +158,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: ListTile(
+              key: TutorialKeys.settingsFamilia,
               leading: const Icon(Icons.family_restroom, color: Colors.indigo),
               title: const Text('Membros da Família'),
               subtitle: const Text('Convide e gerencie membros da sua casa'),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const FamilyScreen()));
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text('Ajuda', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 8),
+          Card(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Consumer(
+              builder: (context, ref, child) {
+                return ListTile(
+                  leading: const Icon(Icons.school, color: Colors.teal),
+                  title: const Text('Tutorial Guiado'),
+                  subtitle: const Text('Reveja como configurar e usar o app'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  onTap: () => ref.read(tutorialProvider.notifier).start(),
+                );
               },
             ),
           ),

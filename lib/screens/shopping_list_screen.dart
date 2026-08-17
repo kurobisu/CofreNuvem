@@ -6,6 +6,7 @@ import '../database/supabase_helper.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
 
 import 'transaction_form_screen.dart';
 import 'product_history_screen.dart';
@@ -565,6 +566,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
         title: const Text('Lista de Compras', style: TextStyle(fontSize: 16)),
         actions: [
           IconButton(
+            key: TutorialKeys.shoppingHistoryButton,
             icon: const Icon(Icons.history),
             tooltip: 'Biblioteca de Produtos',
             onPressed: () {
@@ -742,6 +744,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
               ],
             ),
       floatingActionButton: FloatingActionButton(
+        key: TutorialKeys.shoppingAddFab,
         onPressed: _showItemModal,
         child: const Icon(Icons.add_shopping_cart),
       ),

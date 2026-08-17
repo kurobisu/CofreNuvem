@@ -18,6 +18,8 @@ import 'providers/dashboard_provider.dart';
 import 'providers/investments_provider.dart';
 import 'providers/investment_details_provider.dart';
 import 'providers/goals_provider.dart';
+import 'providers/tutorial_provider.dart';
+import 'widgets/tutorial_overlay.dart';
 
 // Builds de web (ex: deploy no GitHub Pages) passam essas chaves via
 // `--dart-define` em tempo de compilação, para não precisar embutir o
@@ -56,6 +58,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'CofreNuvem',
+      navigatorKey: tutorialNavigatorKey,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
@@ -66,6 +69,12 @@ class MyApp extends StatelessWidget {
         '/manage_users': (context) => const ManageUsersScreen(),
         '/history': (context) => const TransactionHistoryScreen(),
       },
+      builder: (context, child) => Stack(
+        children: [
+          if (child != null) child,
+          const TutorialOverlay(),
+        ],
+      ),
       debugShowCheckedModeBanner: false,
     );
   }
