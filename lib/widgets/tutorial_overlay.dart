@@ -12,10 +12,23 @@ class TutorialOverlay extends ConsumerStatefulWidget {
   ConsumerState<TutorialOverlay> createState() => _TutorialOverlayState();
 }
 
-class _TutorialOverlayState extends ConsumerState<TutorialOverlay> {
+class _TutorialOverlayState extends ConsumerState<TutorialOverlay> with SingleTickerProviderStateMixin {
   Rect? _targetRect;
   int? _measuredForStep;
   bool _measuring = false;
+  late final AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   Future<void> _measure(int stepIndex) async {
     if (_measuring) return;
@@ -67,6 +80,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay> {
     final rect = _targetRect!;
     final screenSize = MediaQuery.of(context).size;
     final isLastStep = tutorial.stepIndex == tutorialSteps.length - 1;
+    final accentColor = Theme.of(context).colorScheme.primary;
 
     return Stack(
       children: [
@@ -74,7 +88,12 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: () {}, // absorve toques fora do fluxo do tour
-            child: CustomPaint(painter: _SpotlightPainter(rect)),
+            child: AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, _) => CustomPaint(
+                painter: _SpotlightPainter(target: rect, pulse: _pulseController.value, accentColor: accentColor),
+              ),
+            ),
           ),
         ),
         _TutorialBubble(
@@ -94,29 +113,47 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay> {
 
 class _SpotlightPainter extends CustomPainter {
   final Rect target;
-  _SpotlightPainter(this.target);
+  final double pulse; // 0.0 -> 1.0 -> 0.0
+  final Color accentColor;
+
+  _SpotlightPainter({required this.target, required this.pulse, required this.accentColor});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final holeRect = target.inflate(8);
-    final holeRRect = RRect.fromRectAndRadius(holeRect, const Radius.circular(14));
+    final holeRect = target.inflate(10);
+    final holeRRect = RRect.fromRectAndRadius(holeRect, const Radius.circular(16));
 
+    // Escurece tudo, exceto a área do alvo (que fica 100% original/clara).
     final screenPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     final holePath = Path()..addRRect(holeRRect);
     final scrimPath = Path.combine(PathOperation.difference, screenPath, holePath);
+    canvas.drawPath(scrimPath, Paint()..color = Colors.black.withOpacity(0.8));
 
-    canvas.drawPath(scrimPath, Paint()..color = Colors.black.withOpacity(0.75));
+    // Brilho externo (glow) atrás da borda, pra reforçar o contorno mesmo
+    // quando o conteúdo por trás já é escuro.
+    final glowRRect = RRect.fromRectAndRadius(holeRect.inflate(2 + pulse * 4), const Radius.circular(18));
+    canvas.drawRRect(
+      glowRRect,
+      Paint()
+        ..color = accentColor.withOpacity(0.35 + pulse * 0.25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
+
+    // Borda nítida, "pulsando" de espessura/brilho.
     canvas.drawRRect(
       holeRRect,
       Paint()
-        ..color = Colors.white
+        ..color = Color.lerp(Colors.white, accentColor, 0.3)!
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 2.5 + pulse * 1.5,
     );
   }
 
   @override
-  bool shouldRepaint(covariant _SpotlightPainter oldDelegate) => oldDelegate.target != target;
+  bool shouldRepaint(covariant _SpotlightPainter oldDelegate) =>
+      oldDelegate.target != target || oldDelegate.pulse != pulse || oldDelegate.accentColor != accentColor;
 }
 
 class _TutorialBubble extends StatelessWidget {
@@ -168,6 +205,7 @@ class _TutorialBubble extends StatelessWidget {
   }
 
   Widget _bubbleCard(BuildContext context, double width) {
+    final accentColor = Theme.of(context).colorScheme.primary;
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -176,29 +214,53 @@ class _TutorialBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 16, offset: Offset(0, 6))],
+          border: Border.all(color: accentColor.withOpacity(0.4), width: 1.5),
+          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, 8))],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '$stepNumber de $totalSteps',
-              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
+              '$stepNumber DE $totalSteps',
+              style: TextStyle(fontSize: 12, color: accentColor, fontWeight: FontWeight.w800, letterSpacing: 0.5),
             ),
             const SizedBox(height: 6),
-            Text(step.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+            Text(
+              step.title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+            ),
             const SizedBox(height: 8),
-            Text(step.description, style: const TextStyle(fontSize: 14, height: 1.4)),
-            const SizedBox(height: 16),
+            Text(
+              step.description,
+              style: const TextStyle(fontSize: 14.5, height: 1.45, color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TextButton(onPressed: onSkip, child: const Text('Pular')),
-                ElevatedButton(
+                TextButton(
+                  onPressed: onSkip,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  child: const Text('Pular', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                ),
+                ElevatedButton.icon(
                   onPressed: onNext,
-                  style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                  child: Text(isLastStep ? 'Concluir' : step.nextLabel),
+                  icon: Icon(isLastStep ? Icons.check_circle : Icons.arrow_forward, size: 18),
+                  label: Text(
+                    isLastStep ? 'Concluir' : step.nextLabel,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accentColor,
+                    foregroundColor: Colors.white,
+                    elevation: 4,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
                 ),
               ],
             ),

@@ -14,12 +14,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart';
 import 'services/update_service.dart';
 import 'widgets/update_dialog.dart';
-import 'providers/dashboard_provider.dart';
-import 'providers/investments_provider.dart';
-import 'providers/investment_details_provider.dart';
-import 'providers/goals_provider.dart';
 import 'providers/tutorial_provider.dart';
 import 'widgets/tutorial_overlay.dart';
+import 'utils/data_refresh.dart';
 
 // Builds de web (ex: deploy no GitHub Pages) passam essas chaves via
 // `--dart-define` em tempo de compilação, para não precisar embutir o
@@ -131,14 +128,7 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
     }
   }
 
-  void _invalidateUserScopedProviders() {
-    ref.invalidate(dashboardDataProvider);
-    ref.invalidate(investmentsProvider);
-    ref.invalidate(investmentHistoryProvider);
-    ref.invalidate(investmentDetailsProvider);
-    ref.invalidate(goalsProvider);
-    ref.invalidate(netWorthProvider);
-  }
+  void _invalidateUserScopedProviders() => invalidateAllDataProviders(ref);
 
   @override
   Widget build(BuildContext context) {

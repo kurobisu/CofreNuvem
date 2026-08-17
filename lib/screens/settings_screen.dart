@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/sync_service.dart';
 import '../database/supabase_helper.dart';
 import '../providers/settings_provider.dart';
 import '../providers/tutorial_provider.dart';
 import '../utils/tutorial_keys.dart';
+import '../utils/data_refresh.dart';
+import '../utils/csv_export.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'family_screen.dart';
 import '../utils/app_version.dart';
@@ -26,11 +27,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _forceSync() async {
     setState(() => _isSyncing = true);
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Descarta o cache de todos os providers de dados e busca tudo de novo
+    // do Supabase -- útil se alguma tela ficou com estado visual "preso"
+    // depois de uma edição feita em outro dispositivo/aba.
+    invalidateAllDataProviders(ref);
+    await Future.delayed(const Duration(milliseconds: 400));
     if (mounted) {
       setState(() => _isSyncing = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Dados 100% atualizados na nuvem!')),
+        const SnackBar(content: Text('Dados recarregados da nuvem!')),
       );
     }
   }
@@ -63,20 +68,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ]);
       }
 
-      String csvData = rows.map((row) => row.map((e) => '"\$e"').join(',')).join('\n');
-      
-      final directory = await getApplicationDocumentsDirectory();
-      final path = '${directory.path}/cofrenuvem_export.csv';
-      final file = File(path);
-      await file.writeAsString(csvData);
+      String csvData = rows.map((row) => row.map((e) => '"$e"').join(',')).join('\n');
+
+      final path = await saveCsv(csvData, 'cofrenuvem_export.csv');
 
       if (mounted) {
-        if (Platform.isWindows) {
+        if (path == null) {
+          // Web: o download já foi disparado pelo navegador.
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Exportação concluída! Veja os downloads do navegador.')),
+          );
+        } else if (Platform.isWindows) {
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
               title: const Text('Exportação Concluída'),
-              content: Text('Seu arquivo foi salvo com sucesso em:\n\n\$path'),
+              content: Text('Seu arquivo foi salvo com sucesso em:\n\n$path'),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -100,7 +107,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao exportar: \$e')),
+          SnackBar(content: Text('Erro ao exportar: $e')),
         );
       }
     } finally {

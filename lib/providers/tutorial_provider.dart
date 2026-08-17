@@ -53,7 +53,7 @@ final List<TutorialStep> tutorialSteps = [
   TutorialStep(
     targetKey: TutorialKeys.categoriesAddFab,
     title: 'Nova Categoria',
-    description: 'Toque aqui pra criar categorias e subcategorias personalizadas, do seu jeito.',
+    description: 'Você pode usar as categorias que já vêm prontas no app, ou tocar aqui pra criar categorias e subcategorias totalmente suas.',
   ),
   TutorialStep(
     targetKey: TutorialKeys.settingsFamilia,
