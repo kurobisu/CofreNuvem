@@ -144,23 +144,13 @@ class _SpotlightPainter extends CustomPainter {
     final holeRect = target.inflate(10);
     final holeRRect = RRect.fromRectAndRadius(holeRect, const Radius.circular(16));
 
-    // Escurece tudo, exceto a área do alvo (que fica 100% original/clara).
+    // Escurece tudo, exceto a área do alvo -- que fica exatamente como
+    // está na tela, sem nenhum tratamento por cima (nem escurecer, nem
+    // clarear artificialmente).
     final screenPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
     final holePath = Path()..addRRect(holeRRect);
     final scrimPath = Path.combine(PathOperation.difference, screenPath, holePath);
     canvas.drawPath(scrimPath, Paint()..color = Colors.black.withOpacity(0.8));
-
-    // Como o tema do app é escuro, só "não escurecer" o alvo não é
-    // suficiente pra ele se destacar de verdade -- soma um clarão radial
-    // suave por cima do conteúdo real, mais forte no centro.
-    canvas.drawRRect(
-      holeRRect,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [Colors.white.withOpacity(0.28), Colors.white.withOpacity(0.0)],
-          stops: const [0.0, 1.0],
-        ).createShader(holeRect),
-    );
 
     // Brilho externo (glow) atrás da borda, pra reforçar o contorno mesmo
     // quando o conteúdo por trás já é escuro.
