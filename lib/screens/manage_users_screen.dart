@@ -81,7 +81,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         controller: nomeController,
                         decoration: InputDecoration(
                           labelText: 'Nome do Usuário',
-                          hintText: 'Ex: Maria, Gestão Casa...',
+                          hintText: 'Ex: João Silva',
                           prefixIcon: const Icon(Icons.badge_outlined),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                           filled: true,
@@ -128,7 +128,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Usuário fantasma sem login/senha para gerenciar contas e cartões compartilhados.',
+                              'Use para representar um membro da família que não vai fazer login sozinho (ex: filho, dependente ou um cofre conjunto). As transações e contas dele ficam visíveis para toda a família, mas ele não tem conta própria no app.',
                               style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context)),
                             ),
                           ],
@@ -180,7 +180,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                         try {
                           newUserId = await db.insert(SupabaseHelper.tableUsuarios, {
                             ...data,
-                            'is_fantasma': isFantasma ? 1 : 0,
+                            'is_fantasma': isFantasma,
                           });
                         } catch (e) {
                           // Se a coluna is_fantasma não existir ainda no Supabase, salva normalmente
@@ -217,7 +217,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                             SupabaseHelper.tableUsuarios,
                             {
                               ...data,
-                              'is_fantasma': isFantasma ? 1 : 0,
+                              'is_fantasma': isFantasma,
                             },
                             where: 'ID = ?',
                             whereArgs: [user['id'] ?? user['ID']],

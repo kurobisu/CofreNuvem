@@ -11,6 +11,7 @@ import '../utils/app_colors.dart';
 import '../database/supabase_helper.dart';
 import 'package:flutter/services.dart';
 import 'investment_details_screen.dart';
+import '../widgets/goals_section.dart';
 
 class InvestmentsScreen extends ConsumerStatefulWidget {
   const InvestmentsScreen({super.key});
@@ -539,23 +540,30 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
           )
         ],
       ),
-      body: investmentsAsync.when(
+      body: CustomScrollView(
+        slivers: [
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+          const SliverToBoxAdapter(child: GoalsSection()),
+          investmentsAsync.when(
         data: (data) {
           if (data.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.savings_outlined, size: 80, color: AppColors.iconMuted(context)),
-                  const SizedBox(height: 16),
-                  const Text('Nenhum investimento registrado.'),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: _showAddInvestmentDialog,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Começar a Investir'),
-                  )
-                ],
+            return SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.savings_outlined, size: 80, color: AppColors.iconMuted(context)),
+                    const SizedBox(height: 16),
+                    const Text('Nenhum investimento registrado.'),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: _showAddInvestmentDialog,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Começar a Investir'),
+                    )
+                  ],
+                ),
               ),
             );
           }
@@ -579,7 +587,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
           final List<Color> colors = [Colors.blue, Colors.purple, Colors.orange, Colors.teal, Colors.pink, Colors.amber];
           int colorIdx = 0;
 
-          return CustomScrollView(
+          return SliverMainAxisGroup(
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
@@ -822,8 +830,14 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Erro: $err')),
+        loading: () => const SliverToBoxAdapter(
+          child: Padding(padding: EdgeInsets.symmetric(vertical: 48.0), child: Center(child: CircularProgressIndicator())),
+        ),
+        error: (err, stack) => SliverToBoxAdapter(
+          child: Padding(padding: const EdgeInsets.symmetric(vertical: 48.0), child: Center(child: Text('Erro: $err'))),
+        ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {

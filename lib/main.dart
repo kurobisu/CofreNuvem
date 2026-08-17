@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
@@ -12,6 +13,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart';
 import 'services/update_service.dart';
 import 'widgets/update_dialog.dart';
+import 'providers/dashboard_provider.dart';
+import 'providers/investments_provider.dart';
+import 'providers/investment_details_provider.dart';
+import 'providers/goals_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,20 +57,44 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatefulWidget {
+class AuthWrapper extends ConsumerStatefulWidget {
   const AuthWrapper({super.key});
 
   @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
+  ConsumerState<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
+class _AuthWrapperState extends ConsumerState<AuthWrapper> {
+  String? _lastUserId;
+  StreamSubscription<AuthState>? _authSub;
+
   @override
   void initState() {
     super.initState();
+    _lastUserId = Supabase.instance.client.auth.currentUser?.id;
+
+    // Os providers de dados (dashboard, investimentos, metas...) vivem no
+    // ProviderScope raiz e não são .autoDispose, então continuam com o
+    // resultado em cache de quem estava logado antes. Sem isso, trocar de
+    // conta (logout -> criar conta nova -> login) mostra os dados da conta
+    // anterior até alguma tela forçar um refresh manual.
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((state) {
+      final currentUserId = state.session?.user.id;
+      if (currentUserId != _lastUserId) {
+        _lastUserId = currentUserId;
+        _invalidateUserScopedProviders();
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _checkForUpdates();
     });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkForUpdates() async {
@@ -73,6 +102,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
     if (info != null && mounted) {
       await showUpdateDialog(context, info);
     }
+  }
+
+  void _invalidateUserScopedProviders() {
+    ref.invalidate(dashboardDataProvider);
+    ref.invalidate(investmentsProvider);
+    ref.invalidate(investmentHistoryProvider);
+    ref.invalidate(investmentDetailsProvider);
+    ref.invalidate(goalsProvider);
+    ref.invalidate(netWorthProvider);
   }
 
   @override
