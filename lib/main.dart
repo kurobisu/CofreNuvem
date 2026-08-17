@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
@@ -18,16 +19,29 @@ import 'providers/investments_provider.dart';
 import 'providers/investment_details_provider.dart';
 import 'providers/goals_provider.dart';
 
+// Builds de web (ex: deploy no GitHub Pages) passam essas chaves via
+// `--dart-define` em tempo de compilação, para não precisar embutir o
+// arquivo .env como asset publicamente acessível. Desktop/mobile continuam
+// usando o .env normalmente (fallback abaixo) quando o dart-define não é
+// informado.
+const String _supabaseUrlDefine = String.fromEnvironment('SUPABASE_URL');
+const String _supabaseAnonKeyDefine = String.fromEnvironment('SUPABASE_ANON_KEY');
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('pt_BR', null);
-  
+
   try {
-    await dotenv.load(fileName: ".env");
-    await Supabase.initialize(
-      url: dotenv.env['SUPABASE_URL'] ?? 'COLE_SUA_URL_AQUI',
-      anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? 'COLE_SUA_CHAVE_AQUI',
-    );
+    String supabaseUrl = _supabaseUrlDefine;
+    String supabaseAnonKey = _supabaseAnonKeyDefine;
+
+    if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+      await dotenv.load(fileName: ".env");
+      supabaseUrl = dotenv.env['SUPABASE_URL'] ?? 'COLE_SUA_URL_AQUI';
+      supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? 'COLE_SUA_CHAVE_AQUI';
+    }
+
+    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
   } catch (e) {
     debugPrint('Erro ao inicializar Supabase/Dotenv: $e');
   }
@@ -98,6 +112,10 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
   }
 
   Future<void> _checkForUpdates() async {
+    // O auto-update via instalador só existe no Windows (showUpdateDialog já
+    // se auto-restringe a isso); evita a chamada de rede à toa nas outras
+    // plataformas, como a versão web.
+    if (!Platform.isWindows) return;
     final info = await UpdateService().checkForUpdate();
     if (info != null && mounted) {
       await showUpdateDialog(context, info);

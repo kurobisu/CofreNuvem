@@ -114,6 +114,16 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
               _selectedDate = DateTime.tryParse(transactionToEdit['data'] ?? transactionToEdit['Data']) ?? DateTime.now();
             }
             _selectedUsuario = transactionToEdit['usuario_id'] ?? transactionToEdit['Usuario_ID'];
+            // Se o usuário original da transação foi excluído (ou está fora de alcance),
+            // ele não aparece em `_usuarios` e o DropdownButtonFormField quebraria por não
+            // achar o item correspondente ao value selecionado. Injeta um item placeholder
+            // só para exibição, preservando o valor original até o usuário escolher outro.
+            if (_selectedUsuario != null && !_usuarios.any((u) => (u['id'] ?? u['ID'])?.toString() == _selectedUsuario.toString())) {
+              _usuarios = [
+                ..._usuarios,
+                {'id': _selectedUsuario, 'nome': 'Usuário removido'},
+              ];
+            }
             _selectedConta = transactionToEdit['conta_id'] ?? transactionToEdit['Conta_ID'];
             _selectedMetodo = transactionToEdit['metodo_id'] ?? transactionToEdit['Metodo_ID'];
             _selectedCategoria = transactionToEdit['categoria_id'] ?? transactionToEdit['Categoria_ID'];

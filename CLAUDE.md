@@ -24,7 +24,7 @@ SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
 UPDATE_CHECK_URL=https://raw.githubusercontent.com/kurobisu/CofreNuvem/main/latest.json
 ```
-`.env` is bundled as a Flutter asset (see `pubspec.yaml` → `flutter.assets`) and loaded by `flutter_dotenv` in `main()`.
+`.env` is bundled as a Flutter asset (see `pubspec.yaml` → `flutter.assets`) and loaded by `flutter_dotenv` in `main()` — **except** on the web build, where `main()` prefers `SUPABASE_URL`/`SUPABASE_ANON_KEY` passed via `--dart-define` (see below) and never calls `dotenv.load()` if those are present, so the raw `.env` file is never fetched as a public static asset.
 
 ### Windows installer / release build
 
@@ -32,6 +32,10 @@ UPDATE_CHECK_URL=https://raw.githubusercontent.com/kurobisu/CofreNuvem/main/late
 .\installer\build_installer.ps1
 ```
 Produces `build\windows\x64\installer\CofreNuvem-Setup-<version>.exe` via Inno Setup. Full release process (version bump, tagging, CI, update-cycle validation) is documented in [installer/UPDATE_CYCLE.md](installer/UPDATE_CYCLE.md) — read it before cutting a release. In short: bump `appVersion` in [lib/utils/app_version.dart](lib/utils/app_version.dart), commit, then push a `vX.Y.Z` tag; [.github/workflows/release_windows.yml](.github/workflows/release_windows.yml) builds the installer, creates the GitHub Release, and updates `latest.json` on `main` (which the running app polls on launch to offer a self-update via `UpdateService`).
+
+### Web deployment (GitHub Pages)
+
+`flutter build web` works and is deployed automatically: [.github/workflows/deploy_web.yml](.github/workflows/deploy_web.yml) runs on every push to `main`, builds with `--base-href "/CofreNuvem/"` and `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...` (reusing the same repo secrets as the Windows workflow), and deploys `build/web` to GitHub Pages via `actions/deploy-pages`. It writes an empty placeholder `.env` before building purely to satisfy the asset declared in `pubspec.yaml` — the real values come from the dart-define, never from that placeholder. Requires the one-time repo setting **Settings → Pages → Source = GitHub Actions**. The Windows self-updater (`UpdateService`) and Google Drive sync stub are both already gated to their intended platforms and are silent no-ops on web.
 
 ## Git workflow
 

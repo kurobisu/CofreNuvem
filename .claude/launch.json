@@ -12,6 +12,12 @@
       "runtimeExecutable": "powershell.exe",
       "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-File", "scripts/serve_web.ps1", "-Port", "8766"],
       "port": 8766
+    },
+    {
+      "name": "cofrenuvem-web-pages-preview",
+      "runtimeExecutable": "powershell.exe",
+      "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-File", "scripts/serve_web.ps1", "-Port", "8767", "-Root", "build/web-root"],
+      "port": 8767
     }
   ]
 }
