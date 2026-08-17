@@ -34,7 +34,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay> with SingleTi
     if (_measuring) return;
     _measuring = true;
 
-    RenderBox? box;
+    BuildContext? targetContext;
     for (int i = 0; i < 40; i++) {
       await Future.delayed(const Duration(milliseconds: 80));
       if (!mounted) {
@@ -44,21 +44,42 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay> with SingleTi
       final ctx = tutorialSteps[stepIndex].targetKey.currentContext;
       final rb = ctx?.findRenderObject();
       if (rb is RenderBox && rb.attached && rb.hasSize) {
-        box = rb;
+        targetContext = ctx;
         break;
       }
     }
 
-    if (!mounted) {
+    if (!mounted || targetContext == null || !targetContext.mounted) {
       _measuring = false;
       return;
     }
-    _measuring = false;
-    if (box == null) return; // alvo ainda não montado nessa passada; tenta de novo no próximo build
 
-    final topLeft = box.localToGlobal(Offset.zero);
+    // As telas do app ficam vivas em memória (MainScreen mantém as páginas
+    // fixas entre trocas de aba), então o scroll de uma tela pode continuar
+    // de onde parou numa visita anterior. Sem isso, o alvo pode estar
+    // scrollado pra fora da tela quando o tutorial tenta destacá-lo.
+    try {
+      await Scrollable.ensureVisible(
+        targetContext,
+        alignment: 0.3,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    } catch (_) {}
+    await Future.delayed(const Duration(milliseconds: 80));
+
+    if (!mounted || !targetContext.mounted) {
+      _measuring = false;
+      return;
+    }
+
+    final rb = targetContext.findRenderObject();
+    _measuring = false;
+    if (rb is! RenderBox || !rb.attached || !rb.hasSize) return;
+
+    final topLeft = rb.localToGlobal(Offset.zero);
     setState(() {
-      _targetRect = topLeft & box!.size;
+      _targetRect = topLeft & rb.size;
       _measuredForStep = stepIndex;
     });
   }
@@ -128,6 +149,18 @@ class _SpotlightPainter extends CustomPainter {
     final holePath = Path()..addRRect(holeRRect);
     final scrimPath = Path.combine(PathOperation.difference, screenPath, holePath);
     canvas.drawPath(scrimPath, Paint()..color = Colors.black.withOpacity(0.8));
+
+    // Como o tema do app é escuro, só "não escurecer" o alvo não é
+    // suficiente pra ele se destacar de verdade -- soma um clarão radial
+    // suave por cima do conteúdo real, mais forte no centro.
+    canvas.drawRRect(
+      holeRRect,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [Colors.white.withOpacity(0.28), Colors.white.withOpacity(0.0)],
+          stops: const [0.0, 1.0],
+        ).createShader(holeRect),
+    );
 
     // Brilho externo (glow) atrás da borda, pra reforçar o contorno mesmo
     // quando o conteúdo por trás já é escuro.
