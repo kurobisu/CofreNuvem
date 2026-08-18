@@ -89,9 +89,6 @@ Future<bool> showProdutoItemSheet(
   final nomeInicial = (itemExistente?['nome'] ?? produtoInicial?['nome'] ?? '')
       .toString();
   final buscaController = TextEditingController(text: nomeInicial);
-  final marcaController = TextEditingController(
-    text: (produtoInicial?['marca'] ?? '').toString(),
-  );
   final precoUnitController = TextEditingController();
   final totalController = TextEditingController();
   final qtdeController = TextEditingController(text: '1');
@@ -112,6 +109,8 @@ Future<bool> showProdutoItemSheet(
   double? precoAnterior;
   List<Map<String, dynamic>> sugestoes = [];
   List<Map<String, dynamic>> categorias = [];
+  String? marcaId = itemExistente?['marca_id']?.toString();
+  List<Map<String, dynamic>> marcas = [];
   bool salvou = false;
 
   final qtdeInicial =
@@ -129,43 +128,73 @@ Future<bool> showProdutoItemSheet(
         : '';
   }
 
-  Future<Map<String, dynamic>?> buscarEmojiEHistorico(String pid) async {
+  Future<Map<String, dynamic>?> buscarEmojiEHistorico(
+    String pid, [
+    String? marcaFiltro,
+  ]) async {
+    Map<String, dynamic>? prod;
     try {
-      final prod = await supabase
+      prod = await supabase
           .from(SupabaseHelper.tableProdutosCatalogo)
           .select()
           .eq('id', pid)
           .maybeSingle();
-      Map<String, dynamic>? hist;
-      final histRaw = await supabase
+    } catch (_) {}
+
+    Map<String, dynamic>? hist;
+    try {
+      // Filtra o historico pela mesma marca selecionada -- senao o preco
+      // de uma marca mais cara apareceria como "ultimo preco" de outra.
+      final baseQuery = supabase
           .from(SupabaseHelper.tableListaCompras)
           .select('preco, updated_at')
           .eq('produto_id', pid)
           .neq('lista_id', listaId)
           .not('preco', 'is', null)
-          .filter('deleted_at', 'is', null)
-          .order('updated_at', ascending: false)
-          .limit(1)
-          .maybeSingle();
-      hist = histRaw;
-      return {'produto': prod, 'historico': hist};
+          .filter('deleted_at', 'is', null);
+      hist = marcaFiltro != null
+          ? await baseQuery
+              .eq('marca_id', marcaFiltro)
+              .order('updated_at', ascending: false)
+              .limit(1)
+              .maybeSingle()
+          : await baseQuery
+              .filter('marca_id', 'is', null)
+              .order('updated_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
     } catch (_) {
-      return null;
+      // Coluna marca_id pode ainda nao existir (script
+      // scripts/add_produto_marcas.sql nao rodado) -- tenta de novo sem
+      // filtrar por marca em vez de perder o historico de preco inteiro.
+      try {
+        hist = await supabase
+            .from(SupabaseHelper.tableListaCompras)
+            .select('preco, updated_at')
+            .eq('produto_id', pid)
+            .neq('lista_id', listaId)
+            .not('preco', 'is', null)
+            .filter('deleted_at', 'is', null)
+            .order('updated_at', ascending: false)
+            .limit(1)
+            .maybeSingle();
+      } catch (_) {}
     }
+    return {'produto': prod, 'historico': hist};
   }
 
   // Se o item já está ligado a um produto do catálogo, busca os dados reais
   // dele (ícone/tags atuais, pra não abrir a folha "resetada" pro carrinho
   // genérico) e o último preço pago em outra lista, pra já nascer preenchido.
   if (produtoId != null) {
-    final extra = await buscarEmojiEHistorico(produtoId);
+    marcas = await CatalogoRepo.marcasDoProduto(produtoId);
+    final extra = await buscarEmojiEHistorico(produtoId, marcaId);
     final prod = extra?['produto'] as Map<String, dynamic>?;
     if (prod != null) {
       emoji = (prod['emoji'] ?? emoji).toString();
       final tagsRaw = prod['tags'];
       if (tagsRaw is List)
         tagsEscolhidas = tagsRaw.map((e) => e.toString()).toSet();
-      marcaController.text = (prod['marca'] ?? '').toString();
     }
     final hist = extra?['historico'] as Map<String, dynamic>?;
     if (hist != null) precoAnterior = ((hist['preco'] ?? 0) as num).toDouble();
@@ -211,13 +240,26 @@ Future<bool> showProdutoItemSheet(
               setModalState(() => sugestoes = []);
               return;
             }
-            final raw = await supabase
-                .from(SupabaseHelper.tableProdutosCatalogo)
-                .select()
-                .ilike('nome', '%${query.trim()}%')
-                .filter('deleted_at', 'is', null)
-                .order('nome', ascending: true)
-                .limit(4);
+            List<dynamic> raw;
+            try {
+              raw = await supabase
+                  .from(SupabaseHelper.tableProdutosCatalogo)
+                  .select('*, produto_marcas(nome)')
+                  .ilike('nome', '%${query.trim()}%')
+                  .filter('deleted_at', 'is', null)
+                  .order('nome', ascending: true)
+                  .limit(4);
+            } catch (_) {
+              // Tabela produto_marcas pode ainda nao existir (script
+              // scripts/add_produto_marcas.sql nao rodado).
+              raw = await supabase
+                  .from(SupabaseHelper.tableProdutosCatalogo)
+                  .select()
+                  .ilike('nome', '%${query.trim()}%')
+                  .filter('deleted_at', 'is', null)
+                  .order('nome', ascending: true)
+                  .limit(4);
+            }
             setModalState(
               () => sugestoes = raw
                   .map((e) => CaseInsensitiveMap(e as Map<String, dynamic>))
@@ -237,16 +279,80 @@ Future<bool> showProdutoItemSheet(
             tagsEscolhidas = tagsRaw is List
                 ? tagsRaw.map((e) => e.toString()).toSet()
                 : {};
-            marcaController.text = (produto['marca'] ?? '').toString();
+            marcaId = null;
+            marcas = [];
             sugestoes = [];
             setModalState(() {});
 
+            marcas = await CatalogoRepo.marcasDoProduto(produtoId!);
             final extra = await buscarEmojiEHistorico(produtoId!);
             final hist = extra?['historico'] as Map<String, dynamic>?;
             if (hist != null) {
               precoAnterior = ((hist['preco'] ?? 0) as num).toDouble();
             }
             setModalState(() {});
+          }
+
+          /// Troca a marca selecionada e auto-preenche o campo Preço com o
+          /// último valor pago nela -- usuário só confirma ou ajusta se
+          /// mudou desde a última compra.
+          Future<void> selecionarMarca(String? novaMarcaId) async {
+            marcaId = novaMarcaId;
+            setModalState(() {});
+            if (produtoId == null) return;
+            final extra = await buscarEmojiEHistorico(produtoId!, marcaId);
+            final hist = extra?['historico'] as Map<String, dynamic>?;
+            precoAnterior = hist != null
+                ? ((hist['preco'] ?? 0) as num).toDouble()
+                : null;
+            precoUnitController.text = (precoAnterior != null && precoAnterior! > 0)
+                ? CurrencyFormatter.format(precoAnterior!)
+                : '';
+            recalcularTotal();
+            setModalState(() {});
+          }
+
+          Future<void> criarMarcaDialog() async {
+            if (produtoId == null) return;
+            final controller = TextEditingController();
+            final nome = await showDialog<String>(
+              context: context,
+              builder: (dCtx) => AlertDialog(
+                title: const Text('Nova marca'),
+                content: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(
+                    labelText: 'Ex: NesCafé, São Braz...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                actions: [
+                  OutlinedButton(
+                    onPressed: () => Navigator.pop(dCtx),
+                    style: AppColors.secondaryButtonStyle(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    style: AppColors.primaryButtonStyle(context),
+                    onPressed: () =>
+                        Navigator.pop(dCtx, controller.text.trim()),
+                    child: const Text('Salvar'),
+                  ),
+                ],
+              ),
+            );
+            if (nome == null || nome.isEmpty || !context.mounted) return;
+            final novaMarcaId = await CatalogoRepo.criarMarca(
+              produtoId!,
+              nome,
+            );
+            marcas = [
+              ...marcas,
+              {'id': novaMarcaId, 'nome': nome},
+            ];
+            await selecionarMarca(novaMarcaId);
           }
 
           void alterarQuantidade(double delta) {
@@ -406,7 +512,6 @@ Future<bool> showProdutoItemSheet(
                                           categoriaId: categoriaFinal,
                                           emoji: emoji,
                                           tags: tagsEscolhidas.toList(),
-                                          marca: marcaController.text,
                                         );
                                   }
                                 } else if (editarCatalogo) {
@@ -414,7 +519,6 @@ Future<bool> showProdutoItemSheet(
                                     produtoId: produtoIdFinal,
                                     emoji: emoji,
                                     tags: tagsEscolhidas.toList(),
-                                    marca: marcaController.text,
                                   );
                                 }
                                 final db =
@@ -422,23 +526,47 @@ Future<bool> showProdutoItemSheet(
                                 final data = {
                                   'nome': nomeAtual,
                                   'produto_id': produtoIdFinal,
+                                  'marca_id': marcaId,
                                   'unidade': unidade,
                                   'quantidade': qtde,
                                   'preco': unit > 0 ? unit : null,
                                   'lista_id': listaId,
                                 };
-                                if (itemExistente == null) {
-                                  await db.insert(
-                                    SupabaseHelper.tableListaCompras,
+                                try {
+                                  if (itemExistente == null) {
+                                    await db.insert(
+                                      SupabaseHelper.tableListaCompras,
+                                      data,
+                                    );
+                                  } else {
+                                    await db.update(
+                                      SupabaseHelper.tableListaCompras,
+                                      data,
+                                      where: 'id = ?',
+                                      whereArgs: [itemExistente['id']],
+                                    );
+                                  }
+                                } catch (e) {
+                                  // Coluna marca_id pode ainda nao existir
+                                  // (script scripts/add_produto_marcas.sql
+                                  // nao rodado) -- salva sem ela em vez de
+                                  // falhar o item inteiro.
+                                  final semMarca = Map<String, dynamic>.from(
                                     data,
-                                  );
-                                } else {
-                                  await db.update(
-                                    SupabaseHelper.tableListaCompras,
-                                    data,
-                                    where: 'id = ?',
-                                    whereArgs: [itemExistente['id']],
-                                  );
+                                  )..remove('marca_id');
+                                  if (itemExistente == null) {
+                                    await db.insert(
+                                      SupabaseHelper.tableListaCompras,
+                                      semMarca,
+                                    );
+                                  } else {
+                                    await db.update(
+                                      SupabaseHelper.tableListaCompras,
+                                      semMarca,
+                                      where: 'id = ?',
+                                      whereArgs: [itemExistente['id']],
+                                    );
+                                  }
                                 }
                                 salvou = true;
                                 if (ctx.mounted) Navigator.pop(ctx);
@@ -546,19 +674,46 @@ Future<bool> showProdutoItemSheet(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: sugestoes.map((s) {
-                          final marca = (s['marca'] ?? '').toString().trim();
+                          final marcasDoProduto =
+                              (s['produto_marcas'] as List?) ?? [];
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: Colors.black26,
                               child: Text((s['emoji'] ?? '🛒').toString()),
                             ),
                             title: Text(s['nome'].toString()),
-                            subtitle: marca.isEmpty ? null : Text(marca),
+                            subtitle: marcasDoProduto.isEmpty
+                                ? null
+                                : Text(
+                                    '${marcasDoProduto.length} marca${marcasDoProduto.length > 1 ? 's' : ''}',
+                                  ),
                             onTap: () => selecionar(s),
                           );
                         }).toList(),
                       ),
                     ),
+                  if (produtoId != null) ...[
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final m in marcas)
+                          ChoiceChip(
+                            label: Text(m['nome'].toString()),
+                            selected: marcaId == m['id'].toString(),
+                            onSelected: (selecionado) => selecionarMarca(
+                              selecionado ? m['id'].toString() : null,
+                            ),
+                          ),
+                        ActionChip(
+                          avatar: const Icon(Icons.add, size: 16),
+                          label: Text(marcas.isEmpty ? 'Marca' : 'Nova marca'),
+                          onPressed: criarMarcaDialog,
+                        ),
+                      ],
+                    ),
+                  ],
                   if (editarCatalogo && mostrarPersonalizacao) ...[
                     const SizedBox(height: 12),
                     Container(
@@ -614,19 +769,6 @@ Future<bool> showProdutoItemSheet(
                                 ),
                               );
                             }).toList(),
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            controller: marcaController,
-                            textCapitalization: TextCapitalization.words,
-                            decoration:
-                                _campoDecoration(
-                                  context,
-                                  'Marca (opcional)',
-                                ).copyWith(
-                                  hintText: 'Ex: Quero, Bonari...',
-                                  isDense: true,
-                                ),
                           ),
                           const SizedBox(height: 12),
                           Text(

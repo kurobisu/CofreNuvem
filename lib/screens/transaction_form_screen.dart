@@ -240,9 +240,20 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
     // Reset selection if current category is no longer valid
     if (_selectedCategoria != null) {
       final stillValid = _categoriasAtivas.any((c) => c['id'] == _selectedCategoria);
-      if (!stillValid) _selectedCategoria = null;
+      if (!stillValid) {
+        // O id selecionado pode ser de uma categoria-pai duplicada (mesmo
+        // nome, outro id) que a deduplicação por nome acima descartou em
+        // favor de uma linha diferente -- antes de desistir, tenta achar
+        // essa mesma categoria por nome entre as que sobraram.
+        final origem = _categoriasAll.where((c) => c['id'] == _selectedCategoria);
+        final nomeOrigem = origem.isNotEmpty ? (origem.first['nome'] ?? '').toString() : '';
+        final porNome = nomeOrigem.isEmpty
+            ? const Iterable<Map<String, dynamic>>.empty()
+            : _categoriasAtivas.where((c) => (c['nome'] ?? '').toString() == nomeOrigem);
+        _selectedCategoria = porNome.isNotEmpty ? porNome.first['id'] : null;
+      }
     }
-    
+
     if (_selectedCategoria == null && _categoriasAtivas.isNotEmpty) {
       _selectedCategoria = _categoriasAtivas.first['id'];
     }
@@ -427,7 +438,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
 
       ref.refresh(dashboardDataProvider);
 
-      if (mounted) Navigator.pop(context, true);
+      if (mounted) Navigator.pop(context, insertedId);
     } catch (e, stack) {
       debugPrint('Erro ao salvar transação: $e\n$stack');
       if (mounted) {

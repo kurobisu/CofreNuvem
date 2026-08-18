@@ -129,7 +129,7 @@ final produtosPopularesProvider = FutureProvider<List<Map<String, dynamic>>>((
 
   final idsOrdenados = contagem.keys.toList()
     ..sort((a, b) => contagem[b]!.compareTo(contagem[a]!));
-  final top = idsOrdenados.take(24).toList();
+  final top = idsOrdenados.take(15).toList();
 
   final produtosRaw = await supabase
       .from(SupabaseHelper.tableProdutosCatalogo)
@@ -174,7 +174,6 @@ class CatalogoRepo {
     required String emoji,
     required List<String> tags,
     String unidadePadrao = 'Unidade',
-    String? marca,
   }) async {
     final payload = <String, dynamic>{
       'auth_id': _client.auth.currentUser?.id,
@@ -184,37 +183,44 @@ class CatalogoRepo {
       'tags': tags,
       'unidade_padrao': unidadePadrao,
     };
-    final marcaLimpa = marca?.trim();
-    if (marcaLimpa != null && marcaLimpa.isNotEmpty)
-      payload['marca'] = marcaLimpa;
-    return _insertProdutoComFallback(payload);
+    final res = await _client
+        .from(SupabaseHelper.tableProdutosCatalogo)
+        .insert(payload)
+        .select('id')
+        .single();
+    return res['id'].toString();
   }
 
-  /// Insere o produto; se a coluna 'marca' ainda não existir no banco
-  /// (script scripts/add_marca_e_mercado.sql não rodado ainda), tenta de
-  /// novo sem ela em vez de falhar o salvamento inteiro.
-  static Future<String> _insertProdutoComFallback(
-    Map<String, dynamic> payload,
+  /// Marcas (variantes) de um produto do catálogo -- ex: o produto "Café"
+  /// pode ter as marcas "NesCafé" e "São Braz", cada uma com seu próprio
+  /// histórico de preço em lista_compras (via marca_id). Retorna lista
+  /// vazia se o script scripts/add_produto_marcas.sql ainda não rodou.
+  static Future<List<Map<String, dynamic>>> marcasDoProduto(
+    String produtoId,
   ) async {
     try {
-      final res = await _client
-          .from(SupabaseHelper.tableProdutosCatalogo)
-          .insert(payload)
-          .select('id')
-          .single();
-      return res['id'].toString();
-    } catch (e) {
-      if (payload.containsKey('marca')) {
-        final semMarca = Map<String, dynamic>.from(payload)..remove('marca');
-        final res = await _client
-            .from(SupabaseHelper.tableProdutosCatalogo)
-            .insert(semMarca)
-            .select('id')
-            .single();
-        return res['id'].toString();
-      }
-      rethrow;
+      final raw = await _client
+          .from(SupabaseHelper.tableProdutoMarcas)
+          .select()
+          .eq('produto_id', produtoId)
+          .filter('deleted_at', 'is', null)
+          .order('nome', ascending: true);
+      return raw
+          .map((e) => CaseInsensitiveMap(e as Map<String, dynamic>))
+          .cast<Map<String, dynamic>>()
+          .toList();
+    } catch (_) {
+      return [];
     }
+  }
+
+  static Future<String> criarMarca(String produtoId, String nome) async {
+    final res = await _client.from(SupabaseHelper.tableProdutoMarcas).insert({
+      'auth_id': _client.auth.currentUser?.id,
+      'produto_id': produtoId,
+      'nome': nome.trim(),
+    }).select('id').single();
+    return res['id'].toString();
   }
 
   /// Adiciona um produto do catalogo como item numa lista de compras.
@@ -234,31 +240,17 @@ class CatalogoRepo {
     });
   }
 
-  /// Atualiza ícone/tags/marca de um produto já existente no catálogo --
-  /// usado pelo "Editar Item" quando aberto a partir do Catálogo.
+  /// Atualiza ícone/tags de um produto já existente no catálogo -- usado
+  /// pelo "Editar Item" quando aberto a partir do Catálogo.
   static Future<void> atualizarProduto({
     required String produtoId,
     required String emoji,
     required List<String> tags,
-    String? marca,
   }) async {
-    final payload = <String, dynamic>{
-      'emoji': emoji,
-      'tags': tags,
-      'marca': (marca == null || marca.trim().isEmpty) ? null : marca.trim(),
-    };
-    try {
-      await _client
-          .from(SupabaseHelper.tableProdutosCatalogo)
-          .update(payload)
-          .eq('id', produtoId);
-    } catch (e) {
-      payload.remove('marca');
-      await _client
-          .from(SupabaseHelper.tableProdutosCatalogo)
-          .update(payload)
-          .eq('id', produtoId);
-    }
+    await _client
+        .from(SupabaseHelper.tableProdutosCatalogo)
+        .update({'emoji': emoji, 'tags': tags})
+        .eq('id', produtoId);
   }
 
   /// Remove um produto do catálogo (soft delete) -- itens que já existem em

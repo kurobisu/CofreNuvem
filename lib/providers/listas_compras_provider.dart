@@ -10,6 +10,7 @@ class ListaCompras {
   final String? mercado;
   final int marcados;
   final int total;
+  final double valorTotal;
 
   const ListaCompras({
     required this.id,
@@ -18,6 +19,7 @@ class ListaCompras {
     this.mercado,
     required this.marcados,
     required this.total,
+    this.valorTotal = 0,
   });
 
   double get progresso => total == 0 ? 0 : marcados / total;
@@ -48,12 +50,13 @@ Future<List<ListaCompras>> _fetchListas(String status) async {
 
   final itensRaw = await supabase
       .from(SupabaseHelper.tableListaCompras)
-      .select('lista_id, comprado')
+      .select('lista_id, comprado, preco, quantidade')
       .filter('deleted_at', 'is', null)
       .not('lista_id', 'is', null);
 
   final Map<String, int> totalPorLista = {};
   final Map<String, int> marcadosPorLista = {};
+  final Map<String, double> valorPorLista = {};
   for (final raw in itensRaw) {
     final item = CaseInsensitiveMap(raw as Map<String, dynamic>);
     final listaId = item['lista_id']?.toString();
@@ -62,6 +65,9 @@ Future<List<ListaCompras>> _fetchListas(String status) async {
     final comprado = item['comprado'];
     if (comprado == 1 || comprado == true) {
       marcadosPorLista[listaId] = (marcadosPorLista[listaId] ?? 0) + 1;
+      final preco = ((item['preco'] ?? 0) as num).toDouble();
+      final quantidade = ((item['quantidade'] ?? 1) as num).toDouble();
+      valorPorLista[listaId] = (valorPorLista[listaId] ?? 0) + preco * quantidade;
     }
   }
 
@@ -76,6 +82,7 @@ Future<List<ListaCompras>> _fetchListas(String status) async {
       mercado: (mercado == null || mercado.isEmpty) ? null : mercado,
       marcados: marcadosPorLista[id] ?? 0,
       total: totalPorLista[id] ?? 0,
+      valorTotal: valorPorLista[id] ?? 0,
     );
   }).toList();
 }
@@ -114,7 +121,7 @@ final listaItensProvider =
       final raw = await supabase
           .from(SupabaseHelper.tableListaCompras)
           .select(
-            '*, produtos_catalogo(nome, emoji, categoria_id, categorias_produtos(nome))',
+            '*, produtos_catalogo(nome, emoji, categoria_id, categorias_produtos(nome, emoji))',
           )
           .eq('lista_id', listaId)
           .filter('deleted_at', 'is', null)
@@ -125,20 +132,26 @@ final listaItensProvider =
           .toList();
     });
 
-/// Preco mais recente de cada produto (por produto_id) em QUALQUER lista
+/// Preco mais recente de cada par (produto_id, marca_id) em QUALQUER lista
 /// diferente da informada -- usado pra comparar "subiu/desceu desde a
-/// ultima compra" sem contar o proprio item atual como "anterior".
+/// ultima compra" sem contar o proprio item atual como "anterior". A chave
+/// inclui a marca pra nao comparar o preco de marcas diferentes do mesmo
+/// produto como se fossem a mesma coisa (ex: Cafe NesCafe vs Cafe Sao Braz).
+///
+/// [pares] recebe strings no formato 'produtoId::marcaId' (marcaId vazio
+/// quando o item nao tem marca) -- ver [chaveProdutoMarca].
 final precosAnterioresProvider =
     FutureProvider.family<
       Map<String, double>,
-      ({List<String> produtoIds, String excetoListaId})
+      ({List<String> pares, String excetoListaId})
     >((ref, params) async {
-      if (params.produtoIds.isEmpty) return {};
+      if (params.pares.isEmpty) return {};
+      final produtoIds = params.pares.map((p) => p.split('::').first).toSet().toList();
       final supabase = SupabaseHelper.instance.client;
       final raw = await supabase
           .from(SupabaseHelper.tableListaCompras)
-          .select('produto_id, preco, updated_at')
-          .inFilter('produto_id', params.produtoIds)
+          .select('produto_id, marca_id, preco, updated_at')
+          .inFilter('produto_id', produtoIds)
           .neq('lista_id', params.excetoListaId)
           .not('preco', 'is', null)
           .filter('deleted_at', 'is', null)
@@ -148,11 +161,18 @@ final precosAnterioresProvider =
       for (final r in raw) {
         final row = CaseInsensitiveMap(r as Map<String, dynamic>);
         final produtoId = row['produto_id']?.toString();
-        if (produtoId == null || result.containsKey(produtoId)) continue;
-        result[produtoId] = ((row['preco'] ?? 0) as num).toDouble();
+        if (produtoId == null) continue;
+        final chave = chaveProdutoMarca(produtoId, row['marca_id']?.toString());
+        if (result.containsKey(chave)) continue;
+        result[chave] = ((row['preco'] ?? 0) as num).toDouble();
       }
       return result;
     });
+
+/// Chave composta 'produtoId::marcaId' usada por [precosAnterioresProvider]
+/// -- marcaId nulo/vazio vira '_' pra manter a chave estável.
+String chaveProdutoMarca(String produtoId, String? marcaId) =>
+    '$produtoId::${(marcaId == null || marcaId.isEmpty) ? '_' : marcaId}';
 
 class ListasComprasRepo {
   static final _client = SupabaseHelper.instance.client;
@@ -223,16 +243,26 @@ class ListasComprasRepo {
 
     for (final raw in itens) {
       final item = CaseInsensitiveMap(raw as Map<String, dynamic>);
-      await _client.from(SupabaseHelper.tableListaCompras).insert({
+      final payload = <String, dynamic>{
         'auth_id': _client.auth.currentUser?.id,
         'lista_id': novaListaId,
         'nome': item['nome'],
         'produto_id': item['produto_id'],
+        'marca_id': item['marca_id'],
         'preco': item['preco'],
         'quantidade': item['quantidade'],
         'unidade': item['unidade'] ?? 'Unidade',
         'comprado': 0,
-      });
+      };
+      try {
+        await _client.from(SupabaseHelper.tableListaCompras).insert(payload);
+      } catch (_) {
+        // Coluna marca_id pode ainda nao existir (script
+        // scripts/add_produto_marcas.sql nao rodado) -- copia o item mesmo
+        // assim, so sem a marca.
+        payload.remove('marca_id');
+        await _client.from(SupabaseHelper.tableListaCompras).insert(payload);
+      }
     }
     return novaListaId;
   }
@@ -252,13 +282,148 @@ class ListasComprasRepo {
         .filter('deleted_at', 'is', null);
   }
 
-  static Future<void> concluirLista(String listaId) async {
-    await _client
-        .from(SupabaseHelper.tableListasCompras)
-        .update({
-          'status': 'Concluida',
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        })
-        .eq('id', listaId);
+  static Future<void> concluirLista(String listaId, {String? transacaoId}) async {
+    final payload = <String, dynamic>{
+      'status': 'Concluida',
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    };
+    if (transacaoId != null) payload['transacao_id'] = transacaoId;
+    try {
+      await _client
+          .from(SupabaseHelper.tableListasCompras)
+          .update(payload)
+          .eq('id', listaId);
+    } catch (_) {
+      // Coluna transacao_id pode ainda nao existir (script
+      // scripts/add_listas_compras_transacao_id.sql nao rodado) -- conclui
+      // a lista mesmo assim, so sem o vinculo com a transacao.
+      payload.remove('transacao_id');
+      await _client
+          .from(SupabaseHelper.tableListasCompras)
+          .update(payload)
+          .eq('id', listaId);
+    }
+  }
+
+  /// Recalcula o valor da transacao vinculada a esta lista a partir dos
+  /// itens 'comprado' atuais -- chamado depois de qualquer edicao numa
+  /// lista ja concluida, pra manter a Transacao do Historico Financeiro
+  /// sincronizada com o que a lista realmente tem marcado.
+  ///
+  /// No-op se: a lista nao tem transacao vinculada (nao foi concluida pelo
+  /// fluxo normal, ou o script da coluna ainda nao rodou); a transacao faz
+  /// parte de uma compra parcelada (nao da pra redistribuir o novo total
+  /// entre parcelas com seguranca); ou o novo total ficaria zero (uma
+  /// transacao financeira nao devia virar R$0 silenciosamente).
+  static Future<void> sincronizarTransacaoDaLista(String listaId) async {
+    try {
+      final lista = await _client
+          .from(SupabaseHelper.tableListasCompras)
+          .select('transacao_id')
+          .eq('id', listaId)
+          .maybeSingle();
+      final transacaoId = lista?['transacao_id']?.toString();
+      if (transacaoId == null) return;
+
+      final transacao = await _client
+          .from(SupabaseHelper.tableTransacoes)
+          .select('parcela_total')
+          .eq('id', transacaoId)
+          .maybeSingle();
+      final parcelaTotal =
+          (transacao?['parcela_total'] as num?)?.toInt() ?? 1;
+      if (parcelaTotal > 1) return;
+
+      final itensRaw = await _client
+          .from(SupabaseHelper.tableListaCompras)
+          .select('preco, quantidade')
+          .eq('lista_id', listaId)
+          .eq('comprado', 1)
+          .filter('deleted_at', 'is', null);
+      double total = 0;
+      for (final raw in itensRaw) {
+        final item = CaseInsensitiveMap(raw as Map<String, dynamic>);
+        total += ((item['preco'] as num?)?.toDouble() ?? 0) *
+            ((item['quantidade'] as num?)?.toDouble() ?? 1);
+      }
+      if (total <= 0) return;
+
+      await _client
+          .from(SupabaseHelper.tableTransacoes)
+          .update({
+            'valor': total,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
+          .eq('id', transacaoId);
+    } catch (_) {}
+  }
+
+  /// Exclui uma lista ja concluida. Se [excluirTransacaoVinculada], tambem
+  /// exclui (soft delete) a transacao financeira que essa lista gerou ao
+  /// ser finalizada -- inclusive o grupo inteiro de parcelas, se for o
+  /// caso, pra nao sobrar parcela orfa no Historico Financeiro.
+  static Future<void> excluirConcluida(
+    String id, {
+    required bool excluirTransacaoVinculada,
+  }) async {
+    if (excluirTransacaoVinculada) {
+      try {
+        final lista = await _client
+            .from(SupabaseHelper.tableListasCompras)
+            .select('transacao_id')
+            .eq('id', id)
+            .maybeSingle();
+        final transacaoId = lista?['transacao_id']?.toString();
+        if (transacaoId != null) {
+          final now = DateTime.now().toUtc().toIso8601String();
+          final transacao = await _client
+              .from(SupabaseHelper.tableTransacoes)
+              .select('grupo_parcela_id')
+              .eq('id', transacaoId)
+              .maybeSingle();
+          final grupoId = transacao?['grupo_parcela_id']?.toString();
+          if (grupoId != null && grupoId.isNotEmpty) {
+            await _client
+                .from(SupabaseHelper.tableTransacoes)
+                .update({'deleted_at': now})
+                .eq('grupo_parcela_id', grupoId);
+          } else {
+            await _client
+                .from(SupabaseHelper.tableTransacoes)
+                .update({'deleted_at': now})
+                .eq('id', transacaoId);
+          }
+        }
+      } catch (_) {}
+    }
+    await excluir(id);
+  }
+
+  /// Busca o id e o valor atual da transacao vinculada a uma lista
+  /// concluida (se houver) -- usado pra mostrar o valor real na 3a etapa de
+  /// confirmacao de exclusao, em vez do total da propria lista (que pode
+  /// ter ficado desatualizado se a sincronizacao falhou por algum motivo).
+  /// Retorna null se a lista nao tem transacao vinculada, ou se a coluna
+  /// listas_compras.transacao_id ainda nao existe (script
+  /// scripts/add_listas_compras_transacao_id.sql nao rodado).
+  static Future<double?> valorTransacaoVinculada(String listaId) async {
+    try {
+      final lista = await _client
+          .from(SupabaseHelper.tableListasCompras)
+          .select('transacao_id')
+          .eq('id', listaId)
+          .maybeSingle();
+      final transacaoId = lista?['transacao_id']?.toString();
+      if (transacaoId == null) return null;
+      final transacao = await _client
+          .from(SupabaseHelper.tableTransacoes)
+          .select('valor')
+          .eq('id', transacaoId)
+          .maybeSingle();
+      final valor = transacao?['valor'];
+      return valor == null ? null : (valor as num).toDouble();
+    } catch (_) {
+      return null;
+    }
   }
 }

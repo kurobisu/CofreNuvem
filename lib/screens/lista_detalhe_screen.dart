@@ -4,6 +4,7 @@ import '../database/supabase_helper.dart';
 import '../providers/listas_compras_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/app_colors.dart';
+import '../widgets/lista_concluida_delete_dialog.dart';
 import '../widgets/produto_item_sheet.dart';
 import 'catalogo_screen.dart';
 import 'transaction_form_screen.dart';
@@ -42,7 +43,20 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
   bool _isMarcado(Map<String, dynamic> item) =>
       item['comprado'] == 1 || item['comprado'] == true;
 
+  /// Lista já concluída (finalizada anteriormente) -- ainda pode ser
+  /// editada, mas cada edição precisa manter a Transação vinculada em dia.
+  bool get _concluida =>
+      ref.read(listaInfoProvider(widget.listaId)).value?['status']
+          ?.toString() ==
+      'Concluida';
+
   void _refresh() => ref.invalidate(listaItensProvider(widget.listaId));
+
+  Future<void> _sincronizarSeConcluida() async {
+    if (_concluida) {
+      await ListasComprasRepo.sincronizarTransacaoDaLista(widget.listaId);
+    }
+  }
 
   Future<void> _abrirItemSheet([Map<String, dynamic>? item]) async {
     final salvou = await showProdutoItemSheet(
@@ -50,7 +64,10 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
       listaId: widget.listaId,
       itemExistente: item,
     );
-    if (salvou) _refresh();
+    if (salvou) {
+      _refresh();
+      await _sincronizarSeConcluida();
+    }
   }
 
   Future<void> _toggleItem(Map<String, dynamic> item) async {
@@ -62,6 +79,7 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
       whereArgs: [item['id']],
     );
     _refresh();
+    await _sincronizarSeConcluida();
   }
 
   Future<bool> _confirmarRemocao(String nome) async {
@@ -92,6 +110,7 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
   Future<void> _removerItem(Map<String, dynamic> item) async {
     await ListasComprasRepo.removerItem(item['id'].toString());
     _refresh();
+    await _sincronizarSeConcluida();
     if (mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -174,6 +193,26 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
   }
 
   Future<void> _excluirLista() async {
+    if (_concluida) {
+      final valorTransacao = await ListasComprasRepo.valorTransacaoVinculada(
+        widget.listaId,
+      );
+      if (!mounted) return;
+      final confirmou = await confirmarExclusaoListaConcluida(
+        context,
+        nomeLista: _nomeLista,
+        valorTransacao: valorTransacao,
+      );
+      if (confirmou && mounted) {
+        await ListasComprasRepo.excluirConcluida(
+          widget.listaId,
+          excluirTransacaoVinculada: valorTransacao != null,
+        );
+        if (mounted) Navigator.pop(context);
+      }
+      return;
+    }
+
     final etapa1 = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -243,24 +282,47 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
       ids.add(item['id'].toString());
     }
 
-    final db = await SupabaseHelper.instance.database;
-    final catList = await db.query(
-      SupabaseHelper.tableCategorias,
-      where: "Nome = 'Mercado'",
-    );
+    // OnlineProxy.query só filtra por uma coluna por vez, e "Mercado" pode
+    // coexistir com subcategorias de mesmo nome em outras árvores -- usa o
+    // client direto pra achar exatamente a categoria-pai raiz "Mercado"
+    // (mesmo critério usado em manage_categories_screen.dart pra montar a
+    // aba dedicada de Mercado: Nome == 'Mercado' e Parent_ID nulo).
+    final client = SupabaseHelper.instance.client;
     String? categoriaId;
-    if (catList.isEmpty) {
-      categoriaId = await db.insert(SupabaseHelper.tableCategorias, {
-        'Nome': 'Mercado',
-        'Cor_Hexadecimal': '#4CAF50',
-        'Tipo': 'Ambas',
-      });
-    } else {
-      categoriaId = catList.first['ID'].toString();
+    try {
+      // Ordena por 'ordem' igual a query que TransactionFormScreen usa pra
+      // carregar todas as categorias -- se existir mais de uma categoria
+      // "Mercado" raiz duplicada, isso garante que pegamos a mesma que a
+      // deduplicação por nome de _updateCategoriasAtivas vai manter (a
+      // primeira em Ordem), senão o category ficaria selecionado mas
+      // "inválido" pro dropdown e cairia num fallback errado.
+      final mercado = await client
+          .from(SupabaseHelper.tableCategorias)
+          .select('id')
+          .eq('nome', 'Mercado')
+          .filter('parent_id', 'is', null)
+          .filter('deleted_at', 'is', null)
+          .order('ordem', ascending: true)
+          .limit(1)
+          .maybeSingle();
+      categoriaId = mercado?['id']?.toString();
+    } catch (_) {}
+    if (categoriaId == null) {
+      final novaCategoria = await client
+          .from(SupabaseHelper.tableCategorias)
+          .insert({
+            'auth_id': client.auth.currentUser?.id,
+            'nome': 'Mercado',
+            'cor_hexadecimal': '#4CAF50',
+            'tipo': 'Ambas',
+          })
+          .select('id')
+          .single();
+      categoriaId = novaCategoria['id'].toString();
     }
 
     if (!mounted) return;
-    final salvou = await Navigator.push<bool>(
+    final transacaoId = await Navigator.push<String>(
       context,
       MaterialPageRoute(
         builder: (context) => TransactionFormScreen(
@@ -276,8 +338,13 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     // Só conclui a lista se a transação foi realmente salva -- se o usuário
     // saiu da tela sem salvar, a lista deve continuar ativa do jeito que
     // estava.
-    if (salvou == true) {
-      await ListasComprasRepo.concluirLista(widget.listaId);
+    if (transacaoId != null) {
+      await ListasComprasRepo.concluirLista(
+        widget.listaId,
+        transacaoId: transacaoId,
+      );
+      ref.invalidate(listasConcluidasProvider);
+      ref.invalidate(listaInfoProvider(widget.listaId));
       if (mounted) Navigator.pop(context);
     }
   }
@@ -357,19 +424,21 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
                   !algumMarcado,
                 );
                 _refresh();
+                await _sincronizarSeConcluida();
               },
             ),
-            ListTile(
-              leading: const Icon(
-                Icons.shopping_cart_checkout,
-                color: Colors.green,
+            if (!_concluida)
+              ListTile(
+                leading: const Icon(
+                  Icons.shopping_cart_checkout,
+                  color: Colors.green,
+                ),
+                title: const Text('Finalizar compra'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _finalizarCompra(itens);
+                },
               ),
-              title: const Text('Finalizar compra'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _finalizarCompra(itens);
-              },
-            ),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
@@ -417,12 +486,10 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
   @override
   Widget build(BuildContext context) {
     final itensAsync = ref.watch(listaItensProvider(widget.listaId));
-    final mercado = ref
-        .watch(listaInfoProvider(widget.listaId))
-        .value?['mercado']
-        ?.toString()
-        .trim();
+    final info = ref.watch(listaInfoProvider(widget.listaId)).value;
+    final mercado = info?['mercado']?.toString().trim();
     final mercadoValido = (mercado == null || mercado.isEmpty) ? null : mercado;
+    final concluida = info?['status']?.toString() == 'Concluida';
 
     return Scaffold(
       appBar: AppBar(
@@ -430,7 +497,34 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_nomeLista, overflow: TextOverflow.ellipsis),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(_nomeLista, overflow: TextOverflow.ellipsis),
+                ),
+                if (concluida)
+                  Container(
+                    margin: const EdgeInsets.only(left: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Concluída',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.greenAccent,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             if (mercadoValido != null)
               Text(
                 '🏬 $mercadoValido',
@@ -504,14 +598,21 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
                       _num(i['preco']) * _num(i['quantidade'], 1.0);
                 }
 
-                final produtoIds = itens
-                    .map((i) => i['produto_id']?.toString())
+                final pares = itens
+                    .map((i) {
+                      final produtoId = i['produto_id']?.toString();
+                      if (produtoId == null) return null;
+                      return chaveProdutoMarca(
+                        produtoId,
+                        i['marca_id']?.toString(),
+                      );
+                    })
                     .whereType<String>()
                     .toSet()
                     .toList();
                 final precosAsync = ref.watch(
                   precosAnterioresProvider((
-                    produtoIds: produtoIds,
+                    pares: pares,
                     excetoListaId: widget.listaId,
                   )),
                 );
@@ -612,12 +713,18 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     final unidade = (item['unidade'] ?? 'Unidade').toString();
     final total = preco * qtde;
     final produtoId = item['produto_id']?.toString();
+    final categoriaEmoji =
+        (item['produtos_catalogo']?['categorias_produtos']?['emoji'] ?? '🛒')
+            .toString();
 
     Widget? oscilacao;
-    if (produtoId != null &&
-        precosAnteriores.containsKey(produtoId) &&
+    final chavePreco = produtoId == null
+        ? null
+        : chaveProdutoMarca(produtoId, item['marca_id']?.toString());
+    if (chavePreco != null &&
+        precosAnteriores.containsKey(chavePreco) &&
         preco > 0) {
-      final anterior = precosAnteriores[produtoId]!;
+      final anterior = precosAnteriores[chavePreco]!;
       if (preco > anterior) {
         oscilacao = const Icon(Icons.arrow_upward, color: Colors.red, size: 14);
       } else if (preco < anterior) {
@@ -680,7 +787,12 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
             ),
             child: marcado
                 ? const Icon(Icons.check, size: 18, color: Colors.black)
-                : null,
+                : Center(
+                    child: Text(
+                      categoriaEmoji,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
           ),
         ),
         title: Text(

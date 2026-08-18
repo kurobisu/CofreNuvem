@@ -6,7 +6,7 @@ import '../utils/app_colors.dart';
 import '../widgets/produto_item_sheet.dart';
 
 class CategoriaProdutosScreen extends ConsumerStatefulWidget {
-  final String listaId;
+  final String? listaId;
   final String titulo;
   final String emojiTitulo;
   final String? categoriaId;
@@ -14,7 +14,7 @@ class CategoriaProdutosScreen extends ConsumerStatefulWidget {
 
   const CategoriaProdutosScreen({
     super.key,
-    required this.listaId,
+    this.listaId,
     required this.titulo,
     required this.emojiTitulo,
     this.categoriaId,
@@ -28,25 +28,39 @@ class CategoriaProdutosScreen extends ConsumerStatefulWidget {
 
 class _CategoriaProdutosScreenState
     extends ConsumerState<CategoriaProdutosScreen> {
+  void _mostrarErroSemLista() {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Crie uma Lista de Compras primeiro')),
+    );
+  }
+
   Future<void> _toggleProduto(
     Map<String, dynamic> produto,
     bool jaAdicionado,
   ) async {
+    final listaId = widget.listaId;
+    if (listaId == null) {
+      _mostrarErroSemLista();
+      return;
+    }
     if (jaAdicionado) {
       await CatalogoRepo.removerDaLista(
-        listaId: widget.listaId,
+        listaId: listaId,
         produtoId: produto['id'].toString(),
       );
     } else {
-      await CatalogoRepo.adicionarNaLista(
-        listaId: widget.listaId,
-        produto: produto,
-      );
+      await CatalogoRepo.adicionarNaLista(listaId: listaId, produto: produto);
     }
-    ref.invalidate(listaItensProvider(widget.listaId));
+    ref.invalidate(listaItensProvider(listaId));
   }
 
   Future<void> _criarProdutoCustomizado() async {
+    final listaId = widget.listaId;
+    if (listaId == null) {
+      _mostrarErroSemLista();
+      return;
+    }
     final nomeController = TextEditingController();
     String emoji = widget.emojiTitulo.isNotEmpty ? widget.emojiTitulo : '🛒';
     final tagsEscolhidas = <String>{};
@@ -208,16 +222,14 @@ class _CategoriaProdutosScreenState
                                     tags: tagsEscolhidas.toList(),
                                   );
                               await CatalogoRepo.adicionarNaLista(
-                                listaId: widget.listaId,
+                                listaId: listaId,
                                 produto: {
                                   'id': id,
                                   'nome': nomeController.text.trim(),
                                   'unidade_padrao': 'Unidade',
                                 },
                               );
-                              ref.invalidate(
-                                listaItensProvider(widget.listaId),
-                              );
+                              ref.invalidate(listaItensProvider(listaId));
                               if (widget.categoriaId != null)
                                 ref.invalidate(
                                   produtosPorCategoriaProvider(
@@ -250,15 +262,20 @@ class _CategoriaProdutosScreenState
     Map<String, dynamic> produto,
     Map<String, dynamic>? itemExistente,
   ) async {
+    final listaId = widget.listaId;
+    if (listaId == null) {
+      _mostrarErroSemLista();
+      return;
+    }
     final salvou = await showProdutoItemSheet(
       context,
-      listaId: widget.listaId,
+      listaId: listaId,
       itemExistente: itemExistente,
       produtoInicial: itemExistente == null ? produto : null,
       editarCatalogo: true,
     );
     if (salvou) {
-      ref.invalidate(listaItensProvider(widget.listaId));
+      ref.invalidate(listaItensProvider(listaId));
       // Ícone/tags podem ter mudado no catálogo -- recarrega essa grade pra
       // não ficar exibindo o dado antigo em cache.
       if (widget.categoriaId != null)
@@ -273,11 +290,15 @@ class _CategoriaProdutosScreenState
     final produtosAsync = widget.categoriaId != null
         ? ref.watch(produtosPorCategoriaProvider(widget.categoriaId!))
         : ref.watch(produtosPorTagProvider(widget.tag!));
-    final itensListaAsync = ref.watch(listaItensProvider(widget.listaId));
-    final itensPorProdutoId = <String, Map<String, dynamic>>{
-      for (final i in itensListaAsync.value ?? <Map<String, dynamic>>[])
-        if (i['produto_id'] != null) i['produto_id'].toString(): i,
-    };
+    final itensPorProdutoId = <String, Map<String, dynamic>>{};
+    if (widget.listaId != null) {
+      final itensListaAsync = ref.watch(listaItensProvider(widget.listaId!));
+      for (final i in itensListaAsync.value ?? <Map<String, dynamic>>[]) {
+        if (i['produto_id'] != null) {
+          itensPorProdutoId[i['produto_id'].toString()] = i;
+        }
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(

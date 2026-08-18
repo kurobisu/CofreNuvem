@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/dashboard_provider.dart';
 import '../providers/listas_compras_provider.dart';
 import '../utils/app_colors.dart';
-import 'historico_lista_detalhe_screen.dart';
+import '../utils/currency_formatter.dart';
+import '../widgets/lista_concluida_delete_dialog.dart';
 import 'lista_detalhe_screen.dart';
 
 class HistoricoListasScreen extends ConsumerWidget {
@@ -14,6 +16,61 @@ class HistoricoListasScreen extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Nova lista "${lista.nome}" criada com os itens de antes!')));
     await Navigator.push(context, MaterialPageRoute(builder: (_) => ListaDetalheScreen(listaId: novoId, nomeInicial: lista.nome)));
+  }
+
+  Future<void> _abrir(BuildContext context, WidgetRef ref, ListaCompras lista) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ListaDetalheScreen(listaId: lista.id, nomeInicial: lista.nome)),
+    );
+    ref.invalidate(listasConcluidasProvider);
+  }
+
+  Future<void> _excluir(BuildContext context, WidgetRef ref, ListaCompras lista) async {
+    final valorTransacao = await ListasComprasRepo.valorTransacaoVinculada(lista.id);
+    if (!context.mounted) return;
+    final confirmou = await confirmarExclusaoListaConcluida(
+      context,
+      nomeLista: lista.nome,
+      valorTransacao: valorTransacao,
+    );
+    if (!confirmou) return;
+    await ListasComprasRepo.excluirConcluida(lista.id, excluirTransacaoVinculada: true);
+    ref.invalidate(listasConcluidasProvider);
+    ref.invalidate(dashboardDataProvider);
+  }
+
+  void _showCardMenu(BuildContext context, WidgetRef ref, ListaCompras lista) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.copy_outlined),
+              title: const Text('Copiar itens'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _copiar(context, ref, lista);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('Excluir lista', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _excluir(context, ref, lista);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -51,10 +108,7 @@ class HistoricoListasScreen extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(20),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => HistoricoListaDetalheScreen(listaId: lista.id, nomeLista: lista.nome)),
-                    ),
+                    onTap: () => _abrir(context, ref, lista),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Row(
@@ -64,15 +118,26 @@ class HistoricoListasScreen extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(lista.nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                                if (lista.mercado != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2),
+                                    child: Text('🏬 ${lista.mercado}', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 13)),
+                                  ),
                                 const SizedBox(height: 4),
-                                Text('${lista.total} itens · toque para ver', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
+                                Text(
+                                  '${lista.total} itens · ${CurrencyFormatter.format(lista.valorTotal)} · toque para ver',
+                                  style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12),
+                                ),
                               ],
                             ),
                           ),
-                          OutlinedButton.icon(
-                            onPressed: () => _copiar(context, ref, lista),
-                            icon: const Icon(Icons.copy, size: 16),
-                            label: const Text('Copiar itens'),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => _showCardMenu(context, ref, lista),
+                            child: const Padding(
+                              padding: EdgeInsets.all(4.0),
+                              child: Icon(Icons.more_vert, color: Colors.white70),
+                            ),
                           ),
                         ],
                       ),

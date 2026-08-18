@@ -4,6 +4,7 @@ import '../providers/listas_compras_provider.dart';
 import '../utils/app_colors.dart';
 import '../utils/tutorial_keys.dart';
 import '../widgets/nova_lista_sheet.dart';
+import 'catalogo_screen.dart';
 import 'historico_listas_screen.dart';
 import 'lista_detalhe_screen.dart';
 
@@ -196,6 +197,31 @@ class ListasScreen extends ConsumerWidget {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: TextButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CatalogoScreen()),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withOpacity(0.16),
+                foregroundColor: Theme.of(context).colorScheme.primary,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+              ),
+              icon: const Icon(Icons.grid_view, size: 18),
+              label: const Text(
+                'Catálogo',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
           IconButton(
             key: TutorialKeys.shoppingHistoryButton,
             icon: const Icon(Icons.history),

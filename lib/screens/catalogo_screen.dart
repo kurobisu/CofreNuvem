@@ -17,8 +17,8 @@ const _tagIcons = {
 };
 
 class CatalogoScreen extends ConsumerStatefulWidget {
-  final String listaId;
-  const CatalogoScreen({super.key, required this.listaId});
+  final String? listaId;
+  const CatalogoScreen({super.key, this.listaId});
 
   @override
   ConsumerState<CatalogoScreen> createState() => _CatalogoScreenState();
@@ -43,22 +43,31 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
     super.dispose();
   }
 
+  void _mostrarErroSemLista() {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Crie uma Lista de Compras primeiro')),
+    );
+  }
+
   Future<void> _toggleProduto(
     Map<String, dynamic> produto,
     bool jaAdicionado,
   ) async {
+    final listaId = widget.listaId;
+    if (listaId == null) {
+      _mostrarErroSemLista();
+      return;
+    }
     if (jaAdicionado) {
       await CatalogoRepo.removerDaLista(
-        listaId: widget.listaId,
+        listaId: listaId,
         produtoId: produto['id'].toString(),
       );
     } else {
-      await CatalogoRepo.adicionarNaLista(
-        listaId: widget.listaId,
-        produto: produto,
-      );
+      await CatalogoRepo.adicionarNaLista(listaId: listaId, produto: produto);
     }
-    ref.invalidate(listaItensProvider(widget.listaId));
+    ref.invalidate(listaItensProvider(listaId));
   }
 
   /// Toque no ícone do produto (não no badge +/✓): sempre abre a folha de
@@ -68,15 +77,20 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
     Map<String, dynamic> produto,
     Map<String, dynamic>? itemExistente,
   ) async {
+    final listaId = widget.listaId;
+    if (listaId == null) {
+      _mostrarErroSemLista();
+      return;
+    }
     final salvou = await showProdutoItemSheet(
       context,
-      listaId: widget.listaId,
+      listaId: listaId,
       itemExistente: itemExistente,
       produtoInicial: itemExistente == null ? produto : null,
       editarCatalogo: true,
     );
     if (salvou) {
-      ref.invalidate(listaItensProvider(widget.listaId));
+      ref.invalidate(listaItensProvider(listaId));
       // Ícone/tags podem ter mudado no catálogo -- recarrega as grades que
       // mostram esse produto pra não ficar exibindo o dado antigo em cache.
       ref.invalidate(produtosPopularesProvider);
@@ -175,11 +189,15 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
 
   Widget _buildBuscaResultados() {
     final resultadosAsync = ref.watch(buscarProdutosProvider(_busca));
-    final itensListaAsync = ref.watch(listaItensProvider(widget.listaId));
-    final itensPorProdutoId = <String, Map<String, dynamic>>{
-      for (final i in itensListaAsync.value ?? <Map<String, dynamic>>[])
-        if (i['produto_id'] != null) i['produto_id'].toString(): i,
-    };
+    final itensPorProdutoId = <String, Map<String, dynamic>>{};
+    if (widget.listaId != null) {
+      final itensListaAsync = ref.watch(listaItensProvider(widget.listaId!));
+      for (final i in itensListaAsync.value ?? <Map<String, dynamic>>[]) {
+        if (i['produto_id'] != null) {
+          itensPorProdutoId[i['produto_id'].toString()] = i;
+        }
+      }
+    }
 
     return resultadosAsync.when(
       data: (produtos) {
@@ -211,11 +229,15 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
 
   Widget _buildPopularTab() {
     final popularesAsync = ref.watch(produtosPopularesProvider);
-    final itensListaAsync = ref.watch(listaItensProvider(widget.listaId));
-    final itensPorProdutoId = <String, Map<String, dynamic>>{
-      for (final i in itensListaAsync.value ?? <Map<String, dynamic>>[])
-        if (i['produto_id'] != null) i['produto_id'].toString(): i,
-    };
+    final itensPorProdutoId = <String, Map<String, dynamic>>{};
+    if (widget.listaId != null) {
+      final itensListaAsync = ref.watch(listaItensProvider(widget.listaId!));
+      for (final i in itensListaAsync.value ?? <Map<String, dynamic>>[]) {
+        if (i['produto_id'] != null) {
+          itensPorProdutoId[i['produto_id'].toString()] = i;
+        }
+      }
+    }
 
     return popularesAsync.when(
       data: (produtos) {
