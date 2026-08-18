@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/listas_compras_provider.dart';
 import '../utils/app_colors.dart';
+import 'historico_lista_detalhe_screen.dart';
 import 'lista_detalhe_screen.dart';
 
 class HistoricoListasScreen extends ConsumerWidget {
@@ -43,28 +44,40 @@ class HistoricoListasScreen extends ConsumerWidget {
             itemCount: listas.length,
             itemBuilder: (context, index) {
               final lista = listas[index];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(20)),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Material(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(20),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => HistoricoListaDetalheScreen(listaId: lista.id, nomeLista: lista.nome)),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
                         children: [
-                          Text(lista.nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                          const SizedBox(height: 4),
-                          Text('${lista.total} itens', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(lista.nome, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                                const SizedBox(height: 4),
+                                Text('${lista.total} itens · toque para ver', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _copiar(context, ref, lista),
+                            icon: const Icon(Icons.copy, size: 16),
+                            label: const Text('Copiar itens'),
+                          ),
                         ],
                       ),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: () => _copiar(context, ref, lista),
-                      icon: const Icon(Icons.copy, size: 16),
-                      label: const Text('Copiar itens'),
-                    ),
-                  ],
+                  ),
                 ),
               );
             },

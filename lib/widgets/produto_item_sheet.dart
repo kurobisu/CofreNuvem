@@ -9,7 +9,11 @@ import '../utils/app_colors.dart';
 const _unidades = ['Unidade', 'Kg', 'Litro'];
 
 double _parseCurrency(String text) {
-  final str = text.replaceAll('R\$', '').replaceAll('.', '').replaceAll(',', '.').trim();
+  final str = text
+      .replaceAll('R\$', '')
+      .replaceAll('.', '')
+      .replaceAll(',', '.')
+      .trim();
   return double.tryParse(str) ?? 0;
 }
 
@@ -55,7 +59,10 @@ InputDecoration _campoDecoration(BuildContext context, String label) {
     enabledBorder: borda,
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.8),
+      borderSide: BorderSide(
+        color: Theme.of(context).colorScheme.primary,
+        width: 1.8,
+      ),
     ),
   );
 }
@@ -79,35 +86,53 @@ Future<bool> showProdutoItemSheet(
 }) async {
   final supabase = SupabaseHelper.instance.client;
 
-  final nomeInicial = (itemExistente?['nome'] ?? produtoInicial?['nome'] ?? '').toString();
+  final nomeInicial = (itemExistente?['nome'] ?? produtoInicial?['nome'] ?? '')
+      .toString();
   final buscaController = TextEditingController(text: nomeInicial);
   final precoUnitController = TextEditingController();
   final totalController = TextEditingController();
   final qtdeController = TextEditingController(text: '1');
 
-  String unidade = (itemExistente?['unidade'] ?? produtoInicial?['unidade_padrao'] ?? 'Unidade').toString();
+  String unidade =
+      (itemExistente?['unidade'] ??
+              produtoInicial?['unidade_padrao'] ??
+              'Unidade')
+          .toString();
   String emoji = (produtoInicial?['emoji'] ?? '🛒').toString();
-  String? produtoId = (itemExistente?['produto_id'] ?? produtoInicial?['id'])?.toString();
+  String? produtoId = (itemExistente?['produto_id'] ?? produtoInicial?['id'])
+      ?.toString();
   String? categoriaEscolhida;
-  Set<String> tagsEscolhidas = (produtoInicial?['tags'] as List?)?.map((e) => e.toString()).toSet() ?? {};
+  Set<String> tagsEscolhidas =
+      (produtoInicial?['tags'] as List?)?.map((e) => e.toString()).toSet() ??
+      {};
   bool mostrarPersonalizacao = false;
   double? precoAnterior;
   List<Map<String, dynamic>> sugestoes = [];
   List<Map<String, dynamic>> categorias = [];
   bool salvou = false;
 
-  final qtdeInicial = ((itemExistente?['quantidade'] ?? 1) as num?)?.toDouble() ?? 1.0;
-  qtdeController.text = unidade == 'Unidade' ? qtdeInicial.round().toString() : qtdeInicial.toString();
-  final precoInicial = ((itemExistente?['preco'] ?? 0) as num?)?.toDouble() ?? 0.0;
+  final qtdeInicial =
+      ((itemExistente?['quantidade'] ?? 1) as num?)?.toDouble() ?? 1.0;
+  qtdeController.text = unidade == 'Unidade'
+      ? qtdeInicial.round().toString()
+      : qtdeInicial.toString();
+  final precoInicial =
+      ((itemExistente?['preco'] ?? 0) as num?)?.toDouble() ?? 0.0;
   if (precoInicial > 0) {
     precoUnitController.text = CurrencyFormatter.format(precoInicial);
     final totalInicial = precoInicial * qtdeInicial;
-    totalController.text = totalInicial > 0 ? CurrencyFormatter.format(totalInicial) : '';
+    totalController.text = totalInicial > 0
+        ? CurrencyFormatter.format(totalInicial)
+        : '';
   }
 
   Future<Map<String, dynamic>?> buscarEmojiEHistorico(String pid) async {
     try {
-      final prod = await supabase.from(SupabaseHelper.tableProdutosCatalogo).select().eq('id', pid).maybeSingle();
+      final prod = await supabase
+          .from(SupabaseHelper.tableProdutosCatalogo)
+          .select()
+          .eq('id', pid)
+          .maybeSingle();
       Map<String, dynamic>? hist;
       final histRaw = await supabase
           .from(SupabaseHelper.tableListaCompras)
@@ -135,7 +160,8 @@ Future<bool> showProdutoItemSheet(
     if (prod != null) {
       emoji = (prod['emoji'] ?? emoji).toString();
       final tagsRaw = prod['tags'];
-      if (tagsRaw is List) tagsEscolhidas = tagsRaw.map((e) => e.toString()).toSet();
+      if (tagsRaw is List)
+        tagsEscolhidas = tagsRaw.map((e) => e.toString()).toSet();
     }
     final hist = extra?['historico'] as Map<String, dynamic>?;
     if (hist != null) precoAnterior = ((hist['preco'] ?? 0) as num).toDouble();
@@ -144,8 +170,14 @@ Future<bool> showProdutoItemSheet(
   // Categorias pra oferecer o seletor quando o nome digitado não bater com
   // nenhum produto do catálogo -- assim dá pra já salvar o produto novo lá.
   try {
-    final rawCategorias = await supabase.from(SupabaseHelper.tableCategoriasProdutos).select().order('ordem', ascending: true);
-    categorias = rawCategorias.map((e) => CaseInsensitiveMap(e as Map<String, dynamic>)).cast<Map<String, dynamic>>().toList();
+    final rawCategorias = await supabase
+        .from(SupabaseHelper.tableCategoriasProdutos)
+        .select()
+        .order('ordem', ascending: true);
+    categorias = rawCategorias
+        .map((e) => CaseInsensitiveMap(e as Map<String, dynamic>))
+        .cast<Map<String, dynamic>>()
+        .toList();
   } catch (_) {}
 
   await showModalBottomSheet(
@@ -153,15 +185,21 @@ Future<bool> showProdutoItemSheet(
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
     builder: (ctx) {
       return StatefulBuilder(
         builder: (context, setModalState) {
           void recalcularTotal() {
             final unit = _parseCurrency(precoUnitController.text);
-            final qtde = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 1.0;
+            final qtde =
+                double.tryParse(qtdeController.text.replaceAll(',', '.')) ??
+                1.0;
             final total = unit * qtde;
-            totalController.text = total > 0 ? CurrencyFormatter.format(total) : '';
+            totalController.text = total > 0
+                ? CurrencyFormatter.format(total)
+                : '';
           }
 
           Future<void> buscar(String query) async {
@@ -176,7 +214,12 @@ Future<bool> showProdutoItemSheet(
                 .filter('deleted_at', 'is', null)
                 .order('nome', ascending: true)
                 .limit(4);
-            setModalState(() => sugestoes = raw.map((e) => CaseInsensitiveMap(e as Map<String, dynamic>)).cast<Map<String, dynamic>>().toList());
+            setModalState(
+              () => sugestoes = raw
+                  .map((e) => CaseInsensitiveMap(e as Map<String, dynamic>))
+                  .cast<Map<String, dynamic>>()
+                  .toList(),
+            );
           }
 
           Future<void> selecionar(Map<String, dynamic> produto) async {
@@ -187,7 +230,9 @@ Future<bool> showProdutoItemSheet(
             qtdeController.text = unidade == 'Unidade' ? '1' : '1';
             categoriaEscolhida = null;
             final tagsRaw = produto['tags'];
-            tagsEscolhidas = tagsRaw is List ? tagsRaw.map((e) => e.toString()).toSet() : {};
+            tagsEscolhidas = tagsRaw is List
+                ? tagsRaw.map((e) => e.toString()).toSet()
+                : {};
             sugestoes = [];
             setModalState(() {});
 
@@ -200,10 +245,15 @@ Future<bool> showProdutoItemSheet(
           }
 
           void alterarQuantidade(double delta) {
-            final atual = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 1.0;
+            final atual =
+                double.tryParse(qtdeController.text.replaceAll(',', '.')) ??
+                1.0;
             var novo = atual + delta;
-            if (novo < (unidade == 'Unidade' ? 1 : 0.25)) novo = unidade == 'Unidade' ? 1 : 0.25;
-            qtdeController.text = unidade == 'Unidade' ? novo.round().toString() : novo.toStringAsFixed(2);
+            if (novo < (unidade == 'Unidade' ? 1 : 0.25))
+              novo = unidade == 'Unidade' ? 1 : 0.25;
+            qtdeController.text = unidade == 'Unidade'
+                ? novo.round().toString()
+                : novo.toStringAsFixed(2);
             recalcularTotal();
             setModalState(() {});
           }
@@ -218,316 +268,459 @@ Future<bool> showProdutoItemSheet(
                 final pct = (diff / precoAnterior!) * 100;
                 historicoWidget = Text(
                   '${diff > 0 ? '+' : '-'} ${CurrencyFormatter.format(diff.abs())} (${diff > 0 ? '+' : '-'}${pct.abs().toStringAsFixed(1)}%) vs último preço (${CurrencyFormatter.format(precoAnterior!)})',
-                  style: TextStyle(color: diff > 0 ? Colors.red : Colors.green, fontWeight: FontWeight.bold, fontSize: 12),
+                  style: TextStyle(
+                    color: diff > 0 ? Colors.red : Colors.green,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 );
               }
             } else {
               historicoWidget = Text(
                 'Último preço: ${CurrencyFormatter.format(precoAnterior!)}',
-                style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12),
+                style: const TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
               );
             }
           }
 
           return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.divider(context),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.divider(context), borderRadius: BorderRadius.circular(4)))),
-                      const SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          OutlinedButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            style: AppColors.secondaryButtonStyle(context),
-                            child: const Text('Cancelar'),
-                          ),
-                          Text(itemExistente == null ? 'Novo Item' : 'Editar Item', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          ElevatedButton(
-                            style: AppColors.primaryButtonStyle(context),
-                            onPressed: nomeAtual.isEmpty
-                                ? null
-                                : () async {
-                                    final unit = _parseCurrency(precoUnitController.text);
-                                    final qtde = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 1.0;
-                                    var produtoIdFinal = produtoId;
-                                    if (produtoIdFinal == null && categoriaEscolhida != null) {
-                                      produtoIdFinal = await CatalogoRepo.criarProdutoCustomizado(
+                      OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: AppColors.secondaryButtonStyle(context),
+                        child: const Text('Cancelar'),
+                      ),
+                      Text(
+                        itemExistente == null ? 'Novo Item' : 'Editar Item',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      ElevatedButton(
+                        style: AppColors.primaryButtonStyle(context),
+                        onPressed: nomeAtual.isEmpty
+                            ? null
+                            : () async {
+                                final unit = _parseCurrency(
+                                  precoUnitController.text,
+                                );
+                                final qtde =
+                                    double.tryParse(
+                                      qtdeController.text.replaceAll(',', '.'),
+                                    ) ??
+                                    1.0;
+                                var produtoIdFinal = produtoId;
+                                if (produtoIdFinal == null &&
+                                    categoriaEscolhida != null) {
+                                  produtoIdFinal =
+                                      await CatalogoRepo.criarProdutoCustomizado(
                                         nome: nomeAtual,
                                         categoriaId: categoriaEscolhida!,
                                         emoji: emoji,
                                         tags: tagsEscolhidas.toList(),
                                       );
-                                    } else if (produtoIdFinal != null && editarCatalogo) {
-                                      await CatalogoRepo.atualizarProduto(
-                                        produtoId: produtoIdFinal,
-                                        emoji: emoji,
-                                        tags: tagsEscolhidas.toList(),
-                                      );
-                                    }
-                                    final db = await SupabaseHelper.instance.database;
-                                    final data = {
-                                      'nome': nomeAtual,
-                                      'produto_id': produtoIdFinal,
-                                      'unidade': unidade,
-                                      'quantidade': qtde,
-                                      'preco': unit > 0 ? unit : null,
-                                      'lista_id': listaId,
-                                    };
-                                    if (itemExistente == null) {
-                                      await db.insert(SupabaseHelper.tableListaCompras, data);
-                                    } else {
-                                      await db.update(SupabaseHelper.tableListaCompras, data, where: 'id = ?', whereArgs: [itemExistente['id']]);
-                                    }
-                                    salvou = true;
-                                    if (ctx.mounted) Navigator.pop(ctx);
-                                  },
-                            child: const Text('Salvar'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.divider(context), width: 1.2),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: buscaController,
-                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                                decoration: const InputDecoration(border: InputBorder.none, hintText: 'Nome do produto'),
-                                textCapitalization: TextCapitalization.sentences,
-                                onChanged: (v) {
-                                  produtoId = null;
-                                  precoAnterior = null;
-                                  buscar(v);
-                                },
-                              ),
-                            ),
-                            InkWell(
-                              customBorder: const CircleBorder(),
-                              onTap: editarCatalogo ? () => setModalState(() => mostrarPersonalizacao = !mostrarPersonalizacao) : null,
-                              child: Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  CircleAvatar(backgroundColor: Colors.black26, radius: 20, child: Text(emoji, style: const TextStyle(fontSize: 20))),
-                                  if (editarCatalogo)
-                                    Positioned(
-                                      right: -2,
-                                      bottom: -2,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(3),
-                                        decoration: BoxDecoration(
-                                          color: Theme.of(context).colorScheme.primary,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
-                                        ),
-                                        child: const Icon(Icons.edit, size: 10, color: Colors.white),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (editarCatalogo && mostrarPersonalizacao) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).cardColor,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.divider(context), width: 1.2),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Ícone', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context), fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: emojisDisponiveis.map((e) {
-                                  final selecionado = emoji == e;
-                                  return InkWell(
-                                    onTap: () => setModalState(() => emoji = e),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: selecionado ? Theme.of(context).colorScheme.primary.withOpacity(0.2) : Colors.transparent,
-                                        border: Border.all(color: selecionado ? Theme.of(context).colorScheme.primary : AppColors.divider(context)),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(e, style: const TextStyle(fontSize: 20)),
-                                    ),
+                                } else if (produtoIdFinal != null &&
+                                    editarCatalogo) {
+                                  await CatalogoRepo.atualizarProduto(
+                                    produtoId: produtoIdFinal,
+                                    emoji: emoji,
+                                    tags: tagsEscolhidas.toList(),
                                   );
-                                }).toList(),
-                              ),
-                              const SizedBox(height: 12),
-                              Text('Tags', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context), fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: tagsDisponiveis.map((t) {
-                                  final selecionado = tagsEscolhidas.contains(t);
-                                  return FilterChip(
-                                    label: Text(t),
-                                    selected: selecionado,
-                                    onSelected: (v) => setModalState(() => v ? tagsEscolhidas.add(t) : tagsEscolhidas.remove(t)),
+                                }
+                                final db =
+                                    await SupabaseHelper.instance.database;
+                                final data = {
+                                  'nome': nomeAtual,
+                                  'produto_id': produtoIdFinal,
+                                  'unidade': unidade,
+                                  'quantidade': qtde,
+                                  'preco': unit > 0 ? unit : null,
+                                  'lista_id': listaId,
+                                };
+                                if (itemExistente == null) {
+                                  await db.insert(
+                                    SupabaseHelper.tableListaCompras,
+                                    data,
                                   );
-                                }).toList(),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      if (produtoId == null && nomeAtual.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: categoriaEscolhida,
-                          isExpanded: true,
-                          decoration: _campoDecoration(context, 'Categoria (produto novo)'),
-                          hint: const Text('Selecionar categoria'),
-                          items: categorias
-                              .map((c) => DropdownMenuItem<String>(value: c['id'].toString(), child: Text('${c['emoji']} ${c['nome']}')))
-                              .toList(),
-                          onChanged: (v) => setModalState(() => categoriaEscolhida = v),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6, left: 4),
-                          child: Text(
-                            'Produto não está no catálogo. Escolha uma categoria pra já salvá-lo lá.',
-                            style: TextStyle(fontSize: 11, color: AppColors.secondaryText(context)),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: precoUnitController,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-                              decoration: _campoDecoration(context, 'Preço'),
-                              onChanged: (_) => setModalState(recalcularTotal),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: IgnorePointer(
-                              child: TextField(
-                                controller: totalController,
-                                decoration: _campoDecoration(context, 'Total'),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (historicoWidget is! SizedBox) Padding(padding: const EdgeInsets.only(top: 8), child: historicoWidget),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: unidade,
-                              decoration: _campoDecoration(context, 'Und. de Medida'),
-                              items: _unidades.map((u) {
-                                return DropdownMenuItem(
-                                  value: u,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(_iconeUnidade(u), size: 16),
-                                      const SizedBox(width: 6),
-                                      Text(u),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (v) {
-                                setModalState(() {
-                                  unidade = v!;
-                                  qtdeController.text = unidade == 'Unidade' ? '1' : '1.0';
-                                  recalcularTotal();
-                                });
+                                } else {
+                                  await db.update(
+                                    SupabaseHelper.tableListaCompras,
+                                    data,
+                                    where: 'id = ?',
+                                    whereArgs: [itemExistente['id']],
+                                  );
+                                }
+                                salvou = true;
+                                if (ctx.mounted) Navigator.pop(ctx);
                               },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: qtdeController,
-                              keyboardType: TextInputType.numberWithOptions(decimal: unidade != 'Unidade'),
-                              inputFormatters: unidade == 'Unidade' ? [FilteringTextInputFormatter.digitsOnly] : null,
-                              decoration: _campoDecoration(context, 'Quantidade').copyWith(
-                                prefixIcon: Icon(_iconeUnidade(unidade), size: 18),
-                                hintText: _hintQuantidade(unidade),
-                              ),
-                              onChanged: (_) => setModalState(recalcularTotal),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Column(
-                            children: [
-                              Row(
-                                children: [
-                                  _qtdeBtn(context, Icons.remove, () => alterarQuantidade(-_passoUnidade(unidade))),
-                                  const SizedBox(width: 6),
-                                  _qtdeBtn(context, Icons.add, () => alterarQuantidade(_passoUnidade(unidade))),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
+                        child: const Text('Salvar'),
                       ),
-                      const SizedBox(height: 12),
                     ],
                   ),
-                ),
-                Container(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (sugestoes.isNotEmpty)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).cardColor,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.divider(context), width: 1.2),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppColors.divider(context),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: buscaController,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            decoration: const InputDecoration(
+                              border: InputBorder.none,
+                              hintText: 'Nome do produto',
+                            ),
+                            textCapitalization: TextCapitalization.sentences,
+                            onChanged: (v) {
+                              produtoId = null;
+                              precoAnterior = null;
+                              buscar(v);
+                            },
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: sugestoes.map((s) {
-                              return ListTile(
-                                leading: CircleAvatar(backgroundColor: Colors.black26, child: Text((s['emoji'] ?? '🛒').toString())),
-                                title: Text(s['nome'].toString()),
-                                onTap: () => selecionar(s),
+                        ),
+                        InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: editarCatalogo
+                              ? () => setModalState(
+                                  () => mostrarPersonalizacao =
+                                      !mostrarPersonalizacao,
+                                )
+                              : null,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: Colors.black26,
+                                radius: 20,
+                                child: Text(
+                                  emoji,
+                                  style: const TextStyle(fontSize: 20),
+                                ),
+                              ),
+                              if (editarCatalogo)
+                                Positioned(
+                                  right: -2,
+                                  bottom: -2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Theme.of(
+                                          context,
+                                        ).scaffoldBackgroundColor,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.edit,
+                                      size: 10,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (sugestoes.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.divider(context),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: sugestoes.map((s) {
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.black26,
+                              child: Text((s['emoji'] ?? '🛒').toString()),
+                            ),
+                            title: Text(s['nome'].toString()),
+                            onTap: () => selecionar(s),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  if (editarCatalogo && mostrarPersonalizacao) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.divider(context),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ícone',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.secondaryText(context),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: emojisDisponiveis.map((e) {
+                              final selecionado = emoji == e;
+                              return InkWell(
+                                onTap: () => setModalState(() => emoji = e),
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: selecionado
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.primary.withOpacity(0.2)
+                                        : Colors.transparent,
+                                    border: Border.all(
+                                      color: selecionado
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.primary
+                                          : AppColors.divider(context),
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    e,
+                                    style: const TextStyle(fontSize: 20),
+                                  ),
+                                ),
                               );
                             }).toList(),
                           ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Tags',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.secondaryText(context),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: tagsDisponiveis.map((t) {
+                              final selecionado = tagsEscolhidas.contains(t);
+                              return FilterChip(
+                                label: Text(t),
+                                selected: selecionado,
+                                onSelected: (v) => setModalState(
+                                  () => v
+                                      ? tagsEscolhidas.add(t)
+                                      : tagsEscolhidas.remove(t),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (produtoId == null && nomeAtual.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: categoriaEscolhida,
+                      isExpanded: true,
+                      decoration: _campoDecoration(
+                        context,
+                        'Categoria (produto novo)',
+                      ),
+                      hint: const Text('Selecionar categoria'),
+                      items: categorias
+                          .map(
+                            (c) => DropdownMenuItem<String>(
+                              value: c['id'].toString(),
+                              child: Text('${c['emoji']} ${c['nome']}'),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) =>
+                          setModalState(() => categoriaEscolhida = v),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, left: 4),
+                      child: Text(
+                        'Produto não está no catálogo. Escolha uma categoria pra já salvá-lo lá.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.secondaryText(context),
                         ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: precoUnitController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            CurrencyInputFormatter(),
+                          ],
+                          decoration: _campoDecoration(context, 'Preço'),
+                          onChanged: (_) => setModalState(recalcularTotal),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: IgnorePointer(
+                          child: TextField(
+                            controller: totalController,
+                            decoration: _campoDecoration(context, 'Total'),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              ],
+                  if (historicoWidget is! SizedBox)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: historicoWidget,
+                    ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          initialValue: unidade,
+                          decoration: _campoDecoration(
+                            context,
+                            'Und. de Medida',
+                          ),
+                          items: _unidades.map((u) {
+                            return DropdownMenuItem(
+                              value: u,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(_iconeUnidade(u), size: 16),
+                                  const SizedBox(width: 6),
+                                  Text(u),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (v) {
+                            setModalState(() {
+                              unidade = v!;
+                              qtdeController.text = unidade == 'Unidade'
+                                  ? '1'
+                                  : '1.0';
+                              recalcularTotal();
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: qtdeController,
+                          keyboardType: TextInputType.numberWithOptions(
+                            decimal: unidade != 'Unidade',
+                          ),
+                          inputFormatters: unidade == 'Unidade'
+                              ? [FilteringTextInputFormatter.digitsOnly]
+                              : null,
+                          decoration: _campoDecoration(context, 'Quantidade')
+                              .copyWith(
+                                prefixIcon: Icon(
+                                  _iconeUnidade(unidade),
+                                  size: 18,
+                                ),
+                                hintText: _hintQuantidade(unidade),
+                              ),
+                          onChanged: (_) => setModalState(recalcularTotal),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        children: [
+                          Row(
+                            children: [
+                              _qtdeBtn(
+                                context,
+                                Icons.remove,
+                                () =>
+                                    alterarQuantidade(-_passoUnidade(unidade)),
+                              ),
+                              const SizedBox(width: 6),
+                              _qtdeBtn(
+                                context,
+                                Icons.add,
+                                () => alterarQuantidade(_passoUnidade(unidade)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           );
         },
@@ -545,7 +738,10 @@ Widget _qtdeBtn(BuildContext context, IconData icon, VoidCallback onTap) {
     child: Container(
       width: 40,
       height: 40,
-      decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.green,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Icon(icon, color: Colors.white),
     ),
   );

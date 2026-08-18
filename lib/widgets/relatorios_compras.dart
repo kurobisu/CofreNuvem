@@ -1,0 +1,382 @@
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../database/supabase_helper.dart';
+import '../utils/app_colors.dart';
+import '../utils/currency_formatter.dart';
+
+/// Itens efetivamente comprados (comprado=1) em qualquer lista, com a
+/// categoria do catálogo embutida -- base pra todos os relatórios desta
+/// aba. Cobre o histórico acumulado (sem filtro de período por enquanto).
+final _historicoComprasProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final supabase = SupabaseHelper.instance.client;
+  final raw = await supabase
+      .from(SupabaseHelper.tableListaCompras)
+      .select('preco, quantidade, nome, produto_id, updated_at, produtos_catalogo(nome, emoji, categoria_id, categorias_produtos(nome, emoji))')
+      .eq('comprado', 1)
+      .filter('deleted_at', 'is', null);
+  return raw.map((e) => CaseInsensitiveMap(e as Map<String, dynamic>)).cast<Map<String, dynamic>>().toList();
+});
+
+const _paletaCores = [
+  Color(0xFF10B981), Color(0xFF3B82F6), Color(0xFFF59E0B), Color(0xFFEF4444),
+  Color(0xFF8B5CF6), Color(0xFFEC4899), Color(0xFF14B8A6), Color(0xFFF97316),
+  Color(0xFF06B6D4), Color(0xFF84CC16), Color(0xFF6366F1), Color(0xFFD946EF),
+];
+
+const _nomesMeses = ['', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+double _num(dynamic v, [double fallback = 0]) {
+  if (v == null) return fallback;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString()) ?? fallback;
+}
+
+/// Conteúdo da aba "Relatórios" dentro do Catálogo: categorias mais
+/// compradas, produtos mais frequentes e gasto por mês -- tudo calculado
+/// em cima dos itens já marcados como comprados em qualquer lista.
+class ComprasRelatoriosTab extends ConsumerStatefulWidget {
+  const ComprasRelatoriosTab({super.key});
+
+  @override
+  ConsumerState<ComprasRelatoriosTab> createState() => _ComprasRelatoriosTabState();
+}
+
+class _ComprasRelatoriosTabState extends ConsumerState<ComprasRelatoriosTab> {
+  int _categoriaTocada = -1;
+
+  Widget _sectionCard(BuildContext context, {required Widget child}) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2235) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildCategoriasCard(BuildContext context, List<Map<String, dynamic>> historico) {
+    final Map<String, double> porCategoria = {};
+    final Map<String, String> emojiPorCategoria = {};
+    for (final item in historico) {
+      final total = _num(item['preco']) * _num(item['quantidade'], 1.0);
+      if (total <= 0) continue;
+      final produto = item['produtos_catalogo'] as Map<String, dynamic>?;
+      final categoria = produto?['categorias_produtos'] as Map<String, dynamic>?;
+      final nome = (categoria?['nome'] ?? 'Sem categoria').toString();
+      porCategoria[nome] = (porCategoria[nome] ?? 0) + total;
+      emojiPorCategoria[nome] = (categoria?['emoji'] ?? '🛒').toString();
+    }
+    final entries = porCategoria.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    final totalGeral = entries.fold<double>(0, (s, e) => s + e.value);
+
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    final sections = <PieChartSectionData>[];
+    for (var i = 0; i < entries.length; i++) {
+      final isTouched = i == _categoriaTocada;
+      sections.add(PieChartSectionData(
+        color: _paletaCores[i % _paletaCores.length],
+        value: entries[i].value,
+        title: '',
+        radius: isTouched ? 45 : 35,
+        borderSide: isTouched ? BorderSide(color: Colors.white.withOpacity(0.9), width: 3) : BorderSide.none,
+      ));
+    }
+
+    final isTocada = _categoriaTocada >= 0 && _categoriaTocada < entries.length;
+    final tocada = isTocada ? entries[_categoriaTocada] : null;
+
+    return _sectionCard(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Text('Categorias mais compradas', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
+              if (isTocada)
+                InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => setState(() => _categoriaTocada = -1),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.close_rounded, size: 14, color: AppColors.iconMuted(context)),
+                        const SizedBox(width: 2),
+                        Text('Limpar', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Text('Toque para ver', style: TextStyle(fontSize: 11, color: AppColors.mutedText(context))),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 220,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                PieChart(
+                  PieChartData(
+                    pieTouchData: PieTouchData(
+                      touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                        if (!event.isInterestedForInteractions || pieTouchResponse == null || pieTouchResponse.touchedSection == null) {
+                          return;
+                        }
+                        setState(() => _categoriaTocada = pieTouchResponse.touchedSection!.touchedSectionIndex);
+                      },
+                    ),
+                    sectionsSpace: 2,
+                    centerSpaceRadius: 65,
+                    sections: sections,
+                  ),
+                  swapAnimationDuration: const Duration(milliseconds: 400),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: tocada != null
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${emojiPorCategoria[tocada.key]} ${tocada.key}',
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(CurrencyFormatter.format(tocada.value), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
+                            Text('${(tocada.value / totalGeral * 100).toStringAsFixed(1)}% do total', style: TextStyle(fontSize: 11, color: AppColors.mutedText(context))),
+                          ],
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('Total gasto', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
+                            const SizedBox(height: 4),
+                            Text(CurrencyFormatter.format(totalGeral), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...entries.take(8).toList().asMap().entries.map((e) {
+            final i = e.key;
+            final entry = e.value;
+            final pct = totalGeral > 0 ? entry.value / totalGeral * 100 : 0.0;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Container(width: 10, height: 10, decoration: BoxDecoration(color: _paletaCores[i % _paletaCores.length], shape: BoxShape.circle)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('${emojiPorCategoria[entry.key]} ${entry.key}', overflow: TextOverflow.ellipsis)),
+                  Text('${pct.toStringAsFixed(0)}%', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
+                  const SizedBox(width: 8),
+                  SizedBox(width: 76, child: Text(CurrencyFormatter.format(entry.value), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600))),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProdutosFrequentesCard(BuildContext context, List<Map<String, dynamic>> historico) {
+    final Map<String, int> contagem = {};
+    final Map<String, double> totalPorProduto = {};
+    final Map<String, String> emojiPorProduto = {};
+    for (final item in historico) {
+      final produto = item['produtos_catalogo'] as Map<String, dynamic>?;
+      final nome = (produto?['nome'] ?? item['nome'] ?? 'Produto').toString();
+      final total = _num(item['preco']) * _num(item['quantidade'], 1.0);
+      contagem[nome] = (contagem[nome] ?? 0) + 1;
+      totalPorProduto[nome] = (totalPorProduto[nome] ?? 0) + total;
+      emojiPorProduto[nome] = (produto?['emoji'] ?? '🛒').toString();
+    }
+    final ranking = contagem.keys.toList()..sort((a, b) => contagem[b]!.compareTo(contagem[a]!));
+    final top = ranking.take(10).toList();
+
+    if (top.isEmpty) return const SizedBox.shrink();
+
+    return _sectionCard(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Produtos mais frequentes', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text('Quantas vezes cada produto entrou numa compra', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
+          const SizedBox(height: 16),
+          ...top.asMap().entries.map((e) {
+            final posicao = e.key + 1;
+            final nome = e.value;
+            final vezes = contagem[nome]!;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  SizedBox(width: 22, child: Text('$posicao', style: TextStyle(color: AppColors.mutedText(context), fontWeight: FontWeight.bold))),
+                  Text(emojiPorProduto[nome] ?? '🛒', style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(nome, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
+                  Text('${vezes}x', style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
+                  const SizedBox(width: 10),
+                  SizedBox(width: 76, child: Text(CurrencyFormatter.format(totalPorProduto[nome] ?? 0), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.w600))),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGastoMensalCard(BuildContext context, List<Map<String, dynamic>> historico) {
+    final Map<String, double> porMes = {};
+    for (final item in historico) {
+      final dataStr = item['updated_at']?.toString();
+      if (dataStr == null) continue;
+      DateTime data;
+      try {
+        data = DateTime.parse(dataStr);
+      } catch (_) {
+        continue;
+      }
+      final chave = '${data.year}-${data.month.toString().padLeft(2, '0')}';
+      final total = _num(item['preco']) * _num(item['quantidade'], 1.0);
+      porMes[chave] = (porMes[chave] ?? 0) + total;
+    }
+    final chavesOrdenadas = porMes.keys.toList()..sort();
+    final ultimos = chavesOrdenadas.length > 12 ? chavesOrdenadas.sublist(chavesOrdenadas.length - 12) : chavesOrdenadas;
+
+    if (ultimos.isEmpty) return const SizedBox.shrink();
+
+    double maxVal = 0;
+    for (final k in ultimos) {
+      if (porMes[k]! > maxVal) maxVal = porMes[k]!;
+    }
+    if (maxVal == 0) maxVal = 1;
+
+    return _sectionCard(
+      context,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Gasto por mês', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 220,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: maxVal * 1.2,
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (group) => Colors.black87,
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final partes = ultimos[group.x.toInt()].split('-');
+                      final mes = _nomesMeses[int.parse(partes[1])];
+                      return BarTooltipItem('$mes/${partes[0]}\n${CurrencyFormatter.format(rod.toY)}', const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12));
+                    },
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 28,
+                      getTitlesWidget: (value, meta) {
+                        final i = value.toInt();
+                        if (i < 0 || i >= ultimos.length) return const Text('');
+                        final partes = ultimos[i].split('-');
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(_nomesMeses[int.parse(partes[1])], style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                        );
+                      },
+                    ),
+                  ),
+                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (v) => FlLine(color: AppColors.divider(context), strokeWidth: 1)),
+                borderData: FlBorderData(show: false),
+                barGroups: ultimos.asMap().entries.map((e) {
+                  return BarChartGroupData(
+                    x: e.key,
+                    barRods: [
+                      BarChartRodData(
+                        toY: porMes[e.value]!,
+                        width: 18,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
+              swapAnimationDuration: const Duration(milliseconds: 400),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final historicoAsync = ref.watch(_historicoComprasProvider);
+
+    return historicoAsync.when(
+      data: (historico) {
+        if (historico.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.bar_chart, size: 64, color: AppColors.iconMuted(context)),
+                  const SizedBox(height: 16),
+                  const Text('Nenhuma compra registrada ainda.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Assim que a família marcar itens como comprados, os relatórios aparecem aqui.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.secondaryText(context)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          physics: const BouncingScrollPhysics(),
+          children: [
+            _buildCategoriasCard(context, historico),
+            _buildProdutosFrequentesCard(context, historico),
+            _buildGastoMensalCard(context, historico),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => Center(child: Text('Erro: $err')),
+    );
+  }
+}

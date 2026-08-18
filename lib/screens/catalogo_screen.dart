@@ -4,6 +4,7 @@ import '../providers/catalogo_provider.dart';
 import '../providers/listas_compras_provider.dart';
 import '../utils/app_colors.dart';
 import '../widgets/produto_item_sheet.dart';
+import '../widgets/relatorios_compras.dart';
 import 'categoria_produtos_screen.dart';
 
 const _tagIcons = {
@@ -318,25 +319,7 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
               children: [
                 _buildPopularTab(),
                 _buildCatalogoTab(),
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.bar_chart, size: 64, color: AppColors.iconMuted(context)),
-                        const SizedBox(height: 16),
-                        const Text('Relatórios em breve', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Gráficos de categorias mais compradas, produtos frequentes e oscilação de gastos.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.secondaryText(context)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                const ComprasRelatoriosTab(),
               ],
             ),
     );
