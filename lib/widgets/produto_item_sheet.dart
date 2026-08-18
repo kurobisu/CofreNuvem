@@ -89,6 +89,9 @@ Future<bool> showProdutoItemSheet(
   final nomeInicial = (itemExistente?['nome'] ?? produtoInicial?['nome'] ?? '')
       .toString();
   final buscaController = TextEditingController(text: nomeInicial);
+  final marcaController = TextEditingController(
+    text: (produtoInicial?['marca'] ?? '').toString(),
+  );
   final precoUnitController = TextEditingController();
   final totalController = TextEditingController();
   final qtdeController = TextEditingController(text: '1');
@@ -162,6 +165,7 @@ Future<bool> showProdutoItemSheet(
       final tagsRaw = prod['tags'];
       if (tagsRaw is List)
         tagsEscolhidas = tagsRaw.map((e) => e.toString()).toSet();
+      marcaController.text = (prod['marca'] ?? '').toString();
     }
     final hist = extra?['historico'] as Map<String, dynamic>?;
     if (hist != null) precoAnterior = ((hist['preco'] ?? 0) as num).toDouble();
@@ -233,6 +237,7 @@ Future<bool> showProdutoItemSheet(
             tagsEscolhidas = tagsRaw is List
                 ? tagsRaw.map((e) => e.toString()).toSet()
                 : {};
+            marcaController.text = (produto['marca'] ?? '').toString();
             sugestoes = [];
             setModalState(() {});
 
@@ -287,6 +292,59 @@ Future<bool> showProdutoItemSheet(
             }
           }
 
+          Future<void> excluirDoCatalogo() async {
+            final etapa1 = await showDialog<bool>(
+              context: context,
+              builder: (dCtx) => AlertDialog(
+                title: const Text('Excluir produto do catálogo?'),
+                content: Text(
+                  '"$nomeAtual" vai deixar de aparecer no Catálogo pra toda a família. Itens que já estão em listas não são afetados.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dCtx, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                    ),
+                    onPressed: () => Navigator.pop(dCtx, true),
+                    child: const Text('Continuar'),
+                  ),
+                ],
+              ),
+            );
+            if (etapa1 != true || !context.mounted) return;
+
+            final etapa2 = await showDialog<bool>(
+              context: context,
+              builder: (dCtx) => AlertDialog(
+                title: const Text('Tem certeza?'),
+                content: const Text('Essa ação não pode ser desfeita.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dCtx, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => Navigator.pop(dCtx, true),
+                    child: const Text('Excluir Definitivamente'),
+                  ),
+                ],
+              ),
+            );
+            if (etapa2 == true && produtoId != null) {
+              await CatalogoRepo.excluirProduto(produtoId!);
+              salvou = true;
+              if (ctx.mounted) Navigator.pop(ctx);
+            }
+          }
+
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom,
@@ -334,21 +392,29 @@ Future<bool> showProdutoItemSheet(
                                     ) ??
                                     1.0;
                                 var produtoIdFinal = produtoId;
-                                if (produtoIdFinal == null &&
-                                    categoriaEscolhida != null) {
-                                  produtoIdFinal =
-                                      await CatalogoRepo.criarProdutoCustomizado(
-                                        nome: nomeAtual,
-                                        categoriaId: categoriaEscolhida!,
-                                        emoji: emoji,
-                                        tags: tagsEscolhidas.toList(),
-                                      );
-                                } else if (produtoIdFinal != null &&
-                                    editarCatalogo) {
+                                if (produtoIdFinal == null) {
+                                  // Produto novo -- sempre entra no
+                                  // catálogo, mesmo sem categoria escolhida
+                                  // (cai em "Sem categoria" nesse caso).
+                                  final categoriaFinal =
+                                      categoriaEscolhida ??
+                                      await CatalogoRepo.categoriaSemCategoriaId();
+                                  if (categoriaFinal != null) {
+                                    produtoIdFinal =
+                                        await CatalogoRepo.criarProdutoCustomizado(
+                                          nome: nomeAtual,
+                                          categoriaId: categoriaFinal,
+                                          emoji: emoji,
+                                          tags: tagsEscolhidas.toList(),
+                                          marca: marcaController.text,
+                                        );
+                                  }
+                                } else if (editarCatalogo) {
                                   await CatalogoRepo.atualizarProduto(
                                     produtoId: produtoIdFinal,
                                     emoji: emoji,
                                     tags: tagsEscolhidas.toList(),
+                                    marca: marcaController.text,
                                   );
                                 }
                                 final db =
@@ -480,12 +546,14 @@ Future<bool> showProdutoItemSheet(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: sugestoes.map((s) {
+                          final marca = (s['marca'] ?? '').toString().trim();
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundColor: Colors.black26,
                               child: Text((s['emoji'] ?? '🛒').toString()),
                             ),
                             title: Text(s['nome'].toString()),
+                            subtitle: marca.isEmpty ? null : Text(marca),
                             onTap: () => selecionar(s),
                           );
                         }).toList(),
@@ -548,6 +616,19 @@ Future<bool> showProdutoItemSheet(
                             }).toList(),
                           ),
                           const SizedBox(height: 12),
+                          TextField(
+                            controller: marcaController,
+                            textCapitalization: TextCapitalization.words,
+                            decoration:
+                                _campoDecoration(
+                                  context,
+                                  'Marca (opcional)',
+                                ).copyWith(
+                                  hintText: 'Ex: Quero, Bonari...',
+                                  isDense: true,
+                                ),
+                          ),
+                          const SizedBox(height: 12),
                           Text(
                             'Tags',
                             style: TextStyle(
@@ -573,6 +654,19 @@ Future<bool> showProdutoItemSheet(
                               );
                             }).toList(),
                           ),
+                          if (produtoId != null) ...[
+                            const SizedBox(height: 12),
+                            const Divider(height: 1),
+                            const SizedBox(height: 4),
+                            TextButton.icon(
+                              onPressed: excluirDoCatalogo,
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.red,
+                              ),
+                              icon: const Icon(Icons.delete_outline, size: 18),
+                              label: const Text('Excluir produto do catálogo'),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -601,7 +695,7 @@ Future<bool> showProdutoItemSheet(
                     Padding(
                       padding: const EdgeInsets.only(top: 6, left: 4),
                       child: Text(
-                        'Produto não está no catálogo. Escolha uma categoria pra já salvá-lo lá.',
+                        'Produto novo -- já vai pro catálogo ao salvar. Escolher uma categoria é opcional (fica em "Sem categoria" se pular).',
                         style: TextStyle(
                           fontSize: 11,
                           color: AppColors.secondaryText(context),

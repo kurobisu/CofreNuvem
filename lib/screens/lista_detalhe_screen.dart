@@ -12,7 +12,11 @@ class ListaDetalheScreen extends ConsumerStatefulWidget {
   final String listaId;
   final String nomeInicial;
 
-  const ListaDetalheScreen({super.key, required this.listaId, required this.nomeInicial});
+  const ListaDetalheScreen({
+    super.key,
+    required this.listaId,
+    required this.nomeInicial,
+  });
 
   @override
   ConsumerState<ListaDetalheScreen> createState() => _ListaDetalheScreenState();
@@ -35,19 +39,68 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     return double.tryParse(v.toString()) ?? fallback;
   }
 
-  bool _isMarcado(Map<String, dynamic> item) => item['comprado'] == 1 || item['comprado'] == true;
+  bool _isMarcado(Map<String, dynamic> item) =>
+      item['comprado'] == 1 || item['comprado'] == true;
 
   void _refresh() => ref.invalidate(listaItensProvider(widget.listaId));
 
   Future<void> _abrirItemSheet([Map<String, dynamic>? item]) async {
-    final salvou = await showProdutoItemSheet(context, listaId: widget.listaId, itemExistente: item);
+    final salvou = await showProdutoItemSheet(
+      context,
+      listaId: widget.listaId,
+      itemExistente: item,
+    );
     if (salvou) _refresh();
   }
 
   Future<void> _toggleItem(Map<String, dynamic> item) async {
     final db = await SupabaseHelper.instance.database;
-    await db.update(SupabaseHelper.tableListaCompras, {'comprado': _isMarcado(item) ? 0 : 1}, where: 'id = ?', whereArgs: [item['id']]);
+    await db.update(
+      SupabaseHelper.tableListaCompras,
+      {'comprado': _isMarcado(item) ? 0 : 1},
+      where: 'id = ?',
+      whereArgs: [item['id']],
+    );
     _refresh();
+  }
+
+  Future<bool> _confirmarRemocao(String nome) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Remover Item?'),
+            content: Text('Deseja remover "$nome" da sua lista de compras?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Excluir'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  Future<void> _removerItem(Map<String, dynamic> item) async {
+    await ListasComprasRepo.removerItem(item['id'].toString());
+    _refresh();
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Item "${item['nome']}" removido'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _renomearLista() async {
@@ -60,7 +113,10 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
           controller: controller,
           autofocus: true,
           textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(labelText: 'Nome da lista', border: OutlineInputBorder()),
+          decoration: const InputDecoration(
+            labelText: 'Nome da lista',
+            border: OutlineInputBorder(),
+          ),
         ),
         actions: [
           OutlinedButton(
@@ -82,19 +138,60 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     }
   }
 
+  Future<void> _definirMercado(String? mercadoAtual) async {
+    final controller = TextEditingController(text: mercadoAtual ?? '');
+    final novoMercado = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mercado desta lista'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Ex: Atacadão, Carrefour...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          OutlinedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: AppColors.secondaryButtonStyle(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: AppColors.primaryButtonStyle(context),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (novoMercado != null) {
+      await ListasComprasRepo.definirMercado(widget.listaId, novoMercado);
+      ref.invalidate(listaInfoProvider(widget.listaId));
+    }
+  }
+
   Future<void> _excluirLista() async {
     final etapa1 = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Excluir "$_nomeLista"?'),
-        content: const Text('Todos os itens dessa lista serão excluídos junto.'),
+        content: const Text(
+          'Todos os itens dessa lista serão excluídos junto.',
+        ),
         actions: [
           OutlinedButton(
             onPressed: () => Navigator.pop(ctx, false),
             style: AppColors.secondaryButtonStyle(context),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () => Navigator.pop(ctx, true), child: const Text('Continuar')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Continuar'),
+          ),
         ],
       ),
     );
@@ -112,7 +209,10 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Excluir Definitivamente'),
           ),
@@ -128,7 +228,11 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
   Future<void> _finalizarCompra(List<Map<String, dynamic>> itens) async {
     final comprados = itens.where(_isMarcado).toList();
     if (comprados.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Marque pelo menos um item como comprado.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Marque pelo menos um item como comprado.'),
+        ),
+      );
       return;
     }
 
@@ -140,10 +244,17 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     }
 
     final db = await SupabaseHelper.instance.database;
-    final catList = await db.query(SupabaseHelper.tableCategorias, where: "Nome = 'Mercado'");
+    final catList = await db.query(
+      SupabaseHelper.tableCategorias,
+      where: "Nome = 'Mercado'",
+    );
     String? categoriaId;
     if (catList.isEmpty) {
-      categoriaId = await db.insert(SupabaseHelper.tableCategorias, {'Nome': 'Mercado', 'Cor_Hexadecimal': '#4CAF50', 'Tipo': 'Ambas'});
+      categoriaId = await db.insert(SupabaseHelper.tableCategorias, {
+        'Nome': 'Mercado',
+        'Cor_Hexadecimal': '#4CAF50',
+        'Tipo': 'Ambas',
+      });
     } else {
       categoriaId = catList.first['ID'].toString();
     }
@@ -175,7 +286,9 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Theme.of(context).cardColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -196,12 +309,14 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     );
   }
 
-  void _showKebabMenu(List<Map<String, dynamic>> itens) {
+  void _showKebabMenu(List<Map<String, dynamic>> itens, String? mercadoAtual) {
     final algumMarcado = itens.any(_isMarcado);
     showModalBottomSheet(
       context: context,
       backgroundColor: Theme.of(context).cardColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -215,6 +330,14 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.storefront_outlined),
+              title: const Text('Definir mercado'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _definirMercado(mercadoAtual);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.sort),
               title: const Text('Ordenar itens'),
               onTap: () {
@@ -223,16 +346,24 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
               },
             ),
             ListTile(
-              leading: Icon(algumMarcado ? Icons.check_box_outline_blank : Icons.check_box),
+              leading: Icon(
+                algumMarcado ? Icons.check_box_outline_blank : Icons.check_box,
+              ),
               title: Text(algumMarcado ? 'Desmarcar todos' : 'Marcar todos'),
               onTap: () async {
                 Navigator.pop(ctx);
-                await ListasComprasRepo.marcarTodos(widget.listaId, !algumMarcado);
+                await ListasComprasRepo.marcarTodos(
+                  widget.listaId,
+                  !algumMarcado,
+                );
                 _refresh();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.shopping_cart_checkout, color: Colors.green),
+              leading: const Icon(
+                Icons.shopping_cart_checkout,
+                color: Colors.green,
+              ),
               title: const Text('Finalizar compra'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -242,7 +373,10 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('Excluir lista', style: TextStyle(color: Colors.red)),
+              title: const Text(
+                'Excluir lista',
+                style: TextStyle(color: Colors.red),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 _excluirLista();
@@ -257,14 +391,24 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
   List<Map<String, dynamic>> _ordenarItens(List<Map<String, dynamic>> itens) {
     final list = List<Map<String, dynamic>>.from(itens);
     if (_ordenacao == 'Alfabética') {
-      list.sort((a, b) => (a['nome'] ?? '').toString().toLowerCase().compareTo((b['nome'] ?? '').toString().toLowerCase()));
+      list.sort(
+        (a, b) => (a['nome'] ?? '').toString().toLowerCase().compareTo(
+          (b['nome'] ?? '').toString().toLowerCase(),
+        ),
+      );
     } else if (_ordenacao == 'Categoria') {
       list.sort((a, b) {
-        final catA = (a['produtos_catalogo']?['categorias_produtos']?['nome'] ?? 'zzz').toString();
-        final catB = (b['produtos_catalogo']?['categorias_produtos']?['nome'] ?? 'zzz').toString();
+        final catA =
+            (a['produtos_catalogo']?['categorias_produtos']?['nome'] ?? 'zzz')
+                .toString();
+        final catB =
+            (b['produtos_catalogo']?['categorias_produtos']?['nome'] ?? 'zzz')
+                .toString();
         final cmp = catA.compareTo(catB);
         if (cmp != 0) return cmp;
-        return (a['nome'] ?? '').toString().toLowerCase().compareTo((b['nome'] ?? '').toString().toLowerCase());
+        return (a['nome'] ?? '').toString().toLowerCase().compareTo(
+          (b['nome'] ?? '').toString().toLowerCase(),
+        );
       });
     }
     return list;
@@ -273,30 +417,68 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
   @override
   Widget build(BuildContext context) {
     final itensAsync = ref.watch(listaItensProvider(widget.listaId));
+    final mercado = ref
+        .watch(listaInfoProvider(widget.listaId))
+        .value?['mercado']
+        ?.toString()
+        .trim();
+    final mercadoValido = (mercado == null || mercado.isEmpty) ? null : mercado;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_nomeLista, overflow: TextOverflow.ellipsis),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_nomeLista, overflow: TextOverflow.ellipsis),
+            if (mercadoValido != null)
+              Text(
+                '🏬 $mercadoValido',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                  color: AppColors.secondaryText(context),
+                ),
+              ),
+          ],
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: TextButton.icon(
               onPressed: () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => CatalogoScreen(listaId: widget.listaId)));
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CatalogoScreen(listaId: widget.listaId),
+                  ),
+                );
                 _refresh();
               },
               style: TextButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.16),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withOpacity(0.16),
                 foregroundColor: Theme.of(context).colorScheme.primary,
                 shape: const StadiumBorder(),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
               ),
               icon: const Icon(Icons.grid_view, size: 18),
-              label: const Text('Catálogo', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text(
+                'Catálogo',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
           itensAsync.maybeWhen(
-            data: (itens) => IconButton(icon: const Icon(Icons.more_vert), onPressed: () => _showKebabMenu(itens)),
+            data: (itens) => IconButton(
+              icon: const Icon(Icons.more_vert),
+              onPressed: () => _showKebabMenu(itens, mercadoValido),
+            ),
             orElse: () => const SizedBox.shrink(),
           ),
         ],
@@ -314,23 +496,39 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
 
                 double totalNaoMarcados = 0, totalMarcados = 0;
                 for (final i in naoMarcados) {
-                  totalNaoMarcados += _num(i['preco']) * _num(i['quantidade'], 1.0);
+                  totalNaoMarcados +=
+                      _num(i['preco']) * _num(i['quantidade'], 1.0);
                 }
                 for (final i in marcados) {
-                  totalMarcados += _num(i['preco']) * _num(i['quantidade'], 1.0);
+                  totalMarcados +=
+                      _num(i['preco']) * _num(i['quantidade'], 1.0);
                 }
 
-                final produtoIds = itens.map((i) => i['produto_id']?.toString()).whereType<String>().toSet().toList();
-                final precosAsync = ref.watch(precosAnterioresProvider((produtoIds: produtoIds, excetoListaId: widget.listaId)));
-                final precosAnteriores = precosAsync.value ?? <String, double>{};
+                final produtoIds = itens
+                    .map((i) => i['produto_id']?.toString())
+                    .whereType<String>()
+                    .toSet()
+                    .toList();
+                final precosAsync = ref.watch(
+                  precosAnterioresProvider((
+                    produtoIds: produtoIds,
+                    excetoListaId: widget.listaId,
+                  )),
+                );
+                final precosAnteriores =
+                    precosAsync.value ?? <String, double>{};
 
                 return ListView(
                   children: [
-                    ...naoMarcados.map((item) => _buildItemTile(item, precosAnteriores)),
+                    ...naoMarcados.map(
+                      (item) => _buildItemTile(item, precosAnteriores),
+                    ),
                     _buildResumoBar(totalNaoMarcados, totalMarcados),
                     if (marcados.isNotEmpty) ...[
                       InkWell(
-                        onTap: () => setState(() => _ocultarMarcados = !_ocultarMarcados),
+                        onTap: () => setState(
+                          () => _ocultarMarcados = !_ocultarMarcados,
+                        ),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           child: Row(
@@ -338,14 +536,27 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
                             children: [
                               Text(
                                 '(${marcados.length}) ${_ocultarMarcados ? 'Mostrar' : 'Ocultar'} itens marcados',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                              Icon(_ocultarMarcados ? Icons.expand_more : Icons.expand_less),
+                              Icon(
+                                _ocultarMarcados
+                                    ? Icons.expand_more
+                                    : Icons.expand_less,
+                              ),
                             ],
                           ),
                         ),
                       ),
-                      if (!_ocultarMarcados) ...marcados.map((item) => _buildItemTile(item, precosAnteriores, marcado: true)),
+                      if (!_ocultarMarcados)
+                        ...marcados.map(
+                          (item) => _buildItemTile(
+                            item,
+                            precosAnteriores,
+                            marcado: true,
+                          ),
+                        ),
                     ],
                     const SizedBox(height: 24),
                   ],
@@ -368,9 +579,16 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.shopping_basket_outlined, size: 96, color: Colors.green.withOpacity(0.6)),
+            Icon(
+              Icons.shopping_basket_outlined,
+              size: 96,
+              color: Colors.green.withOpacity(0.6),
+            ),
             const SizedBox(height: 24),
-            const Text('O que você precisa comprar?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Text(
+              'O que você precisa comprar?',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
             const SizedBox(height: 8),
             Text(
               'Toque no botão "+" para começar a incluir produtos',
@@ -383,7 +601,11 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     );
   }
 
-  Widget _buildItemTile(Map<String, dynamic> item, Map<String, double> precosAnteriores, {bool marcado = false}) {
+  Widget _buildItemTile(
+    Map<String, dynamic> item,
+    Map<String, double> precosAnteriores, {
+    bool marcado = false,
+  }) {
     final nome = (item['nome'] ?? '').toString();
     final preco = _num(item['preco']);
     final qtde = _num(item['quantidade'], 1.0);
@@ -392,12 +614,18 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     final produtoId = item['produto_id']?.toString();
 
     Widget? oscilacao;
-    if (produtoId != null && precosAnteriores.containsKey(produtoId) && preco > 0) {
+    if (produtoId != null &&
+        precosAnteriores.containsKey(produtoId) &&
+        preco > 0) {
       final anterior = precosAnteriores[produtoId]!;
       if (preco > anterior) {
         oscilacao = const Icon(Icons.arrow_upward, color: Colors.red, size: 14);
       } else if (preco < anterior) {
-        oscilacao = const Icon(Icons.arrow_downward, color: Colors.green, size: 14);
+        oscilacao = const Icon(
+          Icons.arrow_downward,
+          color: Colors.green,
+          size: 14,
+        );
       } else {
         oscilacao = Icon(Icons.remove, color: Colors.blue.shade300, size: 14);
       }
@@ -411,33 +639,80 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
       qtdeLabel = '$qtdeStr $unidade';
     }
 
-    return ListTile(
-      leading: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => _toggleItem(item),
-        child: Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: marcado ? Colors.green : Colors.transparent,
-            border: Border.all(color: marcado ? Colors.green : Colors.blueAccent, width: 2),
-          ),
-          child: marcado ? const Icon(Icons.check, size: 18, color: Colors.black) : null,
+    return Dismissible(
+      key: ValueKey(item['id']),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Colors.red,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              'Excluir',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(width: 8),
+            Icon(Icons.delete, color: Colors.white),
+          ],
         ),
       ),
-      title: Text(
-        nome,
-        style: TextStyle(color: marcado ? Colors.white38 : Colors.white, decoration: marcado ? TextDecoration.lineThrough : null),
-      ),
-      onTap: () => _abrirItemSheet(item),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (qtdeLabel != null) Padding(padding: const EdgeInsets.only(right: 8), child: Text(qtdeLabel, style: TextStyle(color: AppColors.secondaryText(context)))),
-          if (oscilacao != null) Padding(padding: const EdgeInsets.only(right: 4), child: oscilacao),
-          Text(total > 0 ? CurrencyFormatter.format(total) : '-', style: TextStyle(color: marcado ? Colors.white38 : Colors.white)),
-        ],
+      confirmDismiss: (_) => _confirmarRemocao(nome),
+      onDismissed: (_) => _removerItem(item),
+      child: ListTile(
+        leading: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () => _toggleItem(item),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: marcado ? Colors.green : Colors.transparent,
+              border: Border.all(
+                color: marcado ? Colors.green : Colors.blueAccent,
+                width: 2,
+              ),
+            ),
+            child: marcado
+                ? const Icon(Icons.check, size: 18, color: Colors.black)
+                : null,
+          ),
+        ),
+        title: Text(
+          nome,
+          style: TextStyle(
+            color: marcado ? Colors.white38 : Colors.white,
+            decoration: marcado ? TextDecoration.lineThrough : null,
+          ),
+        ),
+        onTap: () => _abrirItemSheet(item),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (qtdeLabel != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  qtdeLabel,
+                  style: TextStyle(color: AppColors.secondaryText(context)),
+                ),
+              ),
+            if (oscilacao != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: oscilacao,
+              ),
+            Text(
+              total > 0 ? CurrencyFormatter.format(total) : '-',
+              style: TextStyle(color: marcado ? Colors.white38 : Colors.white),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -461,25 +736,54 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(color: AppColors.secondaryText(context), fontSize: 12)),
-        Text(CurrencyFormatter.format(valor), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(
+          label,
+          style: TextStyle(
+            color: AppColors.secondaryText(context),
+            fontSize: 12,
+          ),
+        ),
+        Text(
+          CurrencyFormatter.format(valor),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
       ],
     );
   }
 
   Widget _buildBottomInputPanel() {
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
-      decoration: const BoxDecoration(color: Color(0xFF1E2A3A), borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        12 + MediaQuery.of(context).padding.bottom,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E2A3A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       child: Row(
         children: [
           Expanded(
             child: GestureDetector(
               onTap: () => _abrirItemSheet(),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
-                child: const Text('Eu preciso de ...', style: TextStyle(color: Colors.black54)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                child: const Text(
+                  'Eu preciso de ...',
+                  style: TextStyle(color: Colors.black54),
+                ),
               ),
             ),
           ),
@@ -490,7 +794,10 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
             child: Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+              ),
               child: const Icon(Icons.add, color: Colors.white),
             ),
           ),

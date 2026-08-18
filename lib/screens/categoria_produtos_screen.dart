@@ -22,15 +22,26 @@ class CategoriaProdutosScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<CategoriaProdutosScreen> createState() => _CategoriaProdutosScreenState();
+  ConsumerState<CategoriaProdutosScreen> createState() =>
+      _CategoriaProdutosScreenState();
 }
 
-class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScreen> {
-  Future<void> _toggleProduto(Map<String, dynamic> produto, bool jaAdicionado) async {
+class _CategoriaProdutosScreenState
+    extends ConsumerState<CategoriaProdutosScreen> {
+  Future<void> _toggleProduto(
+    Map<String, dynamic> produto,
+    bool jaAdicionado,
+  ) async {
     if (jaAdicionado) {
-      await CatalogoRepo.removerDaLista(listaId: widget.listaId, produtoId: produto['id'].toString());
+      await CatalogoRepo.removerDaLista(
+        listaId: widget.listaId,
+        produtoId: produto['id'].toString(),
+      );
     } else {
-      await CatalogoRepo.adicionarNaLista(listaId: widget.listaId, produto: produto);
+      await CatalogoRepo.adicionarNaLista(
+        listaId: widget.listaId,
+        produto: produto,
+      );
     }
     ref.invalidate(listaItensProvider(widget.listaId));
   }
@@ -56,7 +67,10 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
         enabledBorder: borda,
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.8),
+          borderSide: BorderSide(
+            color: Theme.of(context).colorScheme.primary,
+            width: 1.8,
+          ),
         ),
       );
     }
@@ -66,18 +80,31 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
       isScrollControlled: true,
       useSafeArea: true,
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 24, right: 24, top: 24),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('Novo Produto', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    const Text(
+                      'Novo Produto',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: nomeController,
@@ -92,12 +119,23 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
                         isExpanded: true,
                         decoration: campo('Categoria'),
                         items: categorias
-                            .map((c) => DropdownMenuItem<String>(value: c['id'].toString(), child: Text('${c['emoji']} ${c['nome']}')))
+                            .map(
+                              (c) => DropdownMenuItem<String>(
+                                value: c['id'].toString(),
+                                child: Text('${c['emoji']} ${c['nome']}'),
+                              ),
+                            )
                             .toList(),
                         onChanged: (v) => setModalState(() => categoriaId = v),
                       ),
                     const SizedBox(height: 16),
-                    Text('Ícone', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
+                    Text(
+                      'Ícone',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText(context),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -109,17 +147,34 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
                           child: Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: selecionado ? Theme.of(context).colorScheme.primary.withOpacity(0.2) : Colors.transparent,
-                              border: Border.all(color: selecionado ? Theme.of(context).colorScheme.primary : AppColors.divider(context)),
+                              color: selecionado
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.primary.withOpacity(0.2)
+                                  : Colors.transparent,
+                              border: Border.all(
+                                color: selecionado
+                                    ? Theme.of(context).colorScheme.primary
+                                    : AppColors.divider(context),
+                              ),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Text(e, style: const TextStyle(fontSize: 20)),
+                            child: Text(
+                              e,
+                              style: const TextStyle(fontSize: 20),
+                            ),
                           ),
                         );
                       }).toList(),
                     ),
                     const SizedBox(height: 16),
-                    Text('Tags (opcional)', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context))),
+                    Text(
+                      'Tags (opcional)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText(context),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -129,29 +184,50 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
                         return FilterChip(
                           label: Text(t),
                           selected: selecionado,
-                          onSelected: (v) => setModalState(() => v ? tagsEscolhidas.add(t) : tagsEscolhidas.remove(t)),
+                          onSelected: (v) => setModalState(
+                            () => v
+                                ? tagsEscolhidas.add(t)
+                                : tagsEscolhidas.remove(t),
+                          ),
                         );
                       }).toList(),
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
                       style: AppColors.primaryButtonStyle(context),
-                      onPressed: (nomeController.text.trim().isEmpty || categoriaId == null)
+                      onPressed:
+                          (nomeController.text.trim().isEmpty ||
+                              categoriaId == null)
                           ? null
                           : () async {
-                              final id = await CatalogoRepo.criarProdutoCustomizado(
-                                nome: nomeController.text.trim(),
-                                categoriaId: categoriaId!,
-                                emoji: emoji,
-                                tags: tagsEscolhidas.toList(),
-                              );
+                              final id =
+                                  await CatalogoRepo.criarProdutoCustomizado(
+                                    nome: nomeController.text.trim(),
+                                    categoriaId: categoriaId!,
+                                    emoji: emoji,
+                                    tags: tagsEscolhidas.toList(),
+                                  );
                               await CatalogoRepo.adicionarNaLista(
                                 listaId: widget.listaId,
-                                produto: {'id': id, 'nome': nomeController.text.trim(), 'unidade_padrao': 'Unidade'},
+                                produto: {
+                                  'id': id,
+                                  'nome': nomeController.text.trim(),
+                                  'unidade_padrao': 'Unidade',
+                                },
                               );
-                              ref.invalidate(listaItensProvider(widget.listaId));
-                              if (widget.categoriaId != null) ref.invalidate(produtosPorCategoriaProvider(widget.categoriaId!));
-                              if (widget.tag != null) ref.invalidate(produtosPorTagProvider(widget.tag!));
+                              ref.invalidate(
+                                listaItensProvider(widget.listaId),
+                              );
+                              if (widget.categoriaId != null)
+                                ref.invalidate(
+                                  produtosPorCategoriaProvider(
+                                    widget.categoriaId!,
+                                  ),
+                                );
+                              if (widget.tag != null)
+                                ref.invalidate(
+                                  produtosPorTagProvider(widget.tag!),
+                                );
                               if (ctx.mounted) Navigator.pop(ctx);
                             },
                       child: const Text('Criar e Adicionar'),
@@ -170,7 +246,10 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
   /// Toque no ícone do produto (não no badge +/✓): sempre abre a folha de
   /// edição, seja pra criar o item (com preço/medida) ou editar o que já
   /// está na lista.
-  Future<void> _abrirEdicao(Map<String, dynamic> produto, Map<String, dynamic>? itemExistente) async {
+  Future<void> _abrirEdicao(
+    Map<String, dynamic> produto,
+    Map<String, dynamic>? itemExistente,
+  ) async {
     final salvou = await showProdutoItemSheet(
       context,
       listaId: widget.listaId,
@@ -182,8 +261,10 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
       ref.invalidate(listaItensProvider(widget.listaId));
       // Ícone/tags podem ter mudado no catálogo -- recarrega essa grade pra
       // não ficar exibindo o dado antigo em cache.
-      if (widget.categoriaId != null) ref.invalidate(produtosPorCategoriaProvider(widget.categoriaId!));
-      if (widget.tag != null) ref.invalidate(produtosPorTagProvider(widget.tag!));
+      if (widget.categoriaId != null)
+        ref.invalidate(produtosPorCategoriaProvider(widget.categoriaId!));
+      if (widget.tag != null)
+        ref.invalidate(produtosPorTagProvider(widget.tag!));
     }
   }
 
@@ -204,7 +285,9 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
           children: [
             Text(widget.emojiTitulo, style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 8),
-            Expanded(child: Text(widget.titulo, overflow: TextOverflow.ellipsis)),
+            Expanded(
+              child: Text(widget.titulo, overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
       ),
@@ -212,18 +295,42 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
         data: (produtos) {
           if (produtos.isEmpty) {
             return Center(
-              child: Text('Nenhum produto aqui ainda.', style: TextStyle(color: AppColors.secondaryText(context))),
+              child: Text(
+                'Nenhum produto aqui ainda.',
+                style: TextStyle(color: AppColors.secondaryText(context)),
+              ),
             );
           }
           return GridView.builder(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 16, crossAxisSpacing: 12, childAspectRatio: 0.88),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.88,
+            ),
             itemCount: produtos.length,
             itemBuilder: (context, index) {
               final produto = produtos[index];
               final produtoId = produto['id'].toString();
               final itemExistente = itensPorProdutoId[produtoId];
               final adicionado = itemExistente != null;
+              // O check só deve aparecer quando o item foi de fato comprado
+              // -- "está na lista mas ainda não comprado" usa um ícone
+              // neutro (menos), pra não parecer que salvar já marca como
+              // concluído.
+              final comprado =
+                  adicionado &&
+                  (itemExistente['comprado'] == 1 ||
+                      itemExistente['comprado'] == true);
+              final IconData badgeIcon = comprado
+                  ? Icons.check
+                  : (adicionado ? Icons.remove : Icons.add);
+              final Color badgeColor = comprado
+                  ? Colors.green
+                  : (adicionado
+                        ? Colors.blueAccent
+                        : Theme.of(context).colorScheme.primary);
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -233,12 +340,19 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
                       alignment: Alignment.center,
                       children: [
                         Material(
-                          color: adicionado ? Colors.blueAccent.withOpacity(0.15) : Theme.of(context).cardColor,
+                          color: adicionado
+                              ? Colors.blueAccent.withOpacity(0.15)
+                              : Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(20),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(20),
                             onTap: () => _abrirEdicao(produto, itemExistente),
-                            child: Center(child: Text(produto['emoji'] ?? '🛒', style: const TextStyle(fontSize: 40))),
+                            child: Center(
+                              child: Text(
+                                produto['emoji'] ?? '🛒',
+                                style: const TextStyle(fontSize: 40),
+                              ),
+                            ),
                           ),
                         ),
                         Positioned(
@@ -251,11 +365,21 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: adicionado ? Colors.blueAccent : Theme.of(context).colorScheme.primary,
+                                color: badgeColor,
                                 shape: BoxShape.circle,
-                                boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 2))],
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black45,
+                                    blurRadius: 4,
+                                    offset: Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                              child: Icon(adicionado ? Icons.check : Icons.add, size: 18, color: Colors.white),
+                              child: Icon(
+                                badgeIcon,
+                                size: 18,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -268,7 +392,11 @@ class _CategoriaProdutosScreenState extends ConsumerState<CategoriaProdutosScree
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               );

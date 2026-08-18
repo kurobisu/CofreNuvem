@@ -24,7 +24,8 @@ class CatalogoScreen extends ConsumerStatefulWidget {
   ConsumerState<CatalogoScreen> createState() => _CatalogoScreenState();
 }
 
-class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTickerProviderStateMixin {
+class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
+    with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   final _buscaController = TextEditingController();
   String _busca = '';
@@ -42,11 +43,20 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
     super.dispose();
   }
 
-  Future<void> _toggleProduto(Map<String, dynamic> produto, bool jaAdicionado) async {
+  Future<void> _toggleProduto(
+    Map<String, dynamic> produto,
+    bool jaAdicionado,
+  ) async {
     if (jaAdicionado) {
-      await CatalogoRepo.removerDaLista(listaId: widget.listaId, produtoId: produto['id'].toString());
+      await CatalogoRepo.removerDaLista(
+        listaId: widget.listaId,
+        produtoId: produto['id'].toString(),
+      );
     } else {
-      await CatalogoRepo.adicionarNaLista(listaId: widget.listaId, produto: produto);
+      await CatalogoRepo.adicionarNaLista(
+        listaId: widget.listaId,
+        produto: produto,
+      );
     }
     ref.invalidate(listaItensProvider(widget.listaId));
   }
@@ -54,7 +64,10 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
   /// Toque no ícone do produto (não no badge +/✓): sempre abre a folha de
   /// edição, seja pra criar o item (com preço/medida) ou editar o que já
   /// está na lista.
-  Future<void> _abrirEdicao(Map<String, dynamic> produto, Map<String, dynamic>? itemExistente) async {
+  Future<void> _abrirEdicao(
+    Map<String, dynamic> produto,
+    Map<String, dynamic>? itemExistente,
+  ) async {
     final salvou = await showProdutoItemSheet(
       context,
       listaId: widget.listaId,
@@ -67,14 +80,32 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
       // Ícone/tags podem ter mudado no catálogo -- recarrega as grades que
       // mostram esse produto pra não ficar exibindo o dado antigo em cache.
       ref.invalidate(produtosPopularesProvider);
-      if (_busca.trim().isNotEmpty) ref.invalidate(buscarProdutosProvider(_busca));
+      if (_busca.trim().isNotEmpty)
+        ref.invalidate(buscarProdutosProvider(_busca));
     }
   }
 
-  Widget _produtoCard(Map<String, dynamic> produto, Map<String, Map<String, dynamic>> itensPorProdutoId) {
+  Widget _produtoCard(
+    Map<String, dynamic> produto,
+    Map<String, Map<String, dynamic>> itensPorProdutoId,
+  ) {
     final produtoId = produto['id'].toString();
     final itemExistente = itensPorProdutoId[produtoId];
     final adicionado = itemExistente != null;
+    // O check só deve aparecer quando o item foi de fato comprado -- "está
+    // na lista mas ainda não comprado" usa um ícone neutro (menos), pra não
+    // parecer que salvar/adicionar já marca como concluído.
+    final comprado =
+        adicionado &&
+        (itemExistente['comprado'] == 1 || itemExistente['comprado'] == true);
+    final IconData badgeIcon = comprado
+        ? Icons.check
+        : (adicionado ? Icons.remove : Icons.add);
+    final Color badgeColor = comprado
+        ? Colors.green
+        : (adicionado
+              ? Colors.blueAccent
+              : Theme.of(context).colorScheme.primary);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -84,12 +115,19 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
             alignment: Alignment.center,
             children: [
               Material(
-                color: adicionado ? Colors.blueAccent.withOpacity(0.15) : Theme.of(context).cardColor,
+                color: adicionado
+                    ? Colors.blueAccent.withOpacity(0.15)
+                    : Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(20),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(20),
                   onTap: () => _abrirEdicao(produto, itemExistente),
-                  child: Center(child: Text(produto['emoji'] ?? '🛒', style: const TextStyle(fontSize: 36))),
+                  child: Center(
+                    child: Text(
+                      produto['emoji'] ?? '🛒',
+                      style: const TextStyle(fontSize: 36),
+                    ),
+                  ),
                 ),
               ),
               Positioned(
@@ -102,11 +140,17 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: adicionado ? Colors.blueAccent : Theme.of(context).colorScheme.primary,
+                      color: badgeColor,
                       shape: BoxShape.circle,
-                      boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(0, 2))],
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black45,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Icon(adicionado ? Icons.check : Icons.add, size: 18, color: Colors.white),
+                    child: Icon(badgeIcon, size: 18, color: Colors.white),
                   ),
                 ),
               ),
@@ -119,7 +163,11 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white),
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
         ),
       ],
     );
@@ -136,13 +184,24 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
     return resultadosAsync.when(
       data: (produtos) {
         if (produtos.isEmpty) {
-          return Center(child: Text('Nenhum produto encontrado.', style: TextStyle(color: AppColors.secondaryText(context))));
+          return Center(
+            child: Text(
+              'Nenhum produto encontrado.',
+              style: TextStyle(color: AppColors.secondaryText(context)),
+            ),
+          );
         }
         return GridView.builder(
           padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 16, crossAxisSpacing: 12, childAspectRatio: 0.88),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.88,
+          ),
           itemCount: produtos.length,
-          itemBuilder: (context, index) => _produtoCard(produtos[index], itensPorProdutoId),
+          itemBuilder: (context, index) =>
+              _produtoCard(produtos[index], itensPorProdutoId),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -174,9 +233,15 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
         }
         return GridView.builder(
           padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 16, crossAxisSpacing: 12, childAspectRatio: 0.88),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.88,
+          ),
           itemCount: produtos.length,
-          itemBuilder: (context, index) => _produtoCard(produtos[index], itensPorProdutoId),
+          itemBuilder: (context, index) =>
+              _produtoCard(produtos[index], itensPorProdutoId),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -197,7 +262,14 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text('Filtros rápidos', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context), fontWeight: FontWeight.bold)),
+            Text(
+              'Filtros rápidos',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.secondaryText(context),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 10,
@@ -210,7 +282,12 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
                   onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => CategoriaProdutosScreen(listaId: widget.listaId, titulo: e.key, emojiTitulo: e.value, tag: e.key),
+                      builder: (_) => CategoriaProdutosScreen(
+                        listaId: widget.listaId,
+                        titulo: e.key,
+                        emojiTitulo: e.value,
+                        tag: e.key,
+                      ),
                     ),
                   ),
                 );
@@ -218,12 +295,24 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
             ),
             const SizedBox(height: 24),
             for (final grupo in porGrupo.entries) ...[
-              Text(grupo.key.toUpperCase(), style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context), fontWeight: FontWeight.bold)),
+              Text(
+                grupo.key.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.secondaryText(context),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 8),
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 0.9),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 0.9,
+                ),
                 itemCount: grupo.value.length,
                 itemBuilder: (context, index) {
                   final categoria = grupo.value[index];
@@ -241,11 +330,17 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
                       ),
                     ),
                     child: Container(
-                      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(20)),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(categoria['emoji'] ?? '🛒', style: const TextStyle(fontSize: 32)),
+                          Text(
+                            categoria['emoji'] ?? '🛒',
+                            style: const TextStyle(fontSize: 32),
+                          ),
                           const SizedBox(height: 8),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -254,7 +349,11 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
                               textAlign: TextAlign.center,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],
@@ -294,7 +393,10 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen> with SingleTick
         title: Container(
           height: 42,
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(24)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(24),
+          ),
           child: TextField(
             controller: _buscaController,
             textAlign: TextAlign.center,
