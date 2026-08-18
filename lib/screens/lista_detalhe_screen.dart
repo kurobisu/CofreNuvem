@@ -56,10 +56,23 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Renomear Lista'),
-        content: TextField(controller: controller, autofocus: true, textCapitalization: TextCapitalization.sentences),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(labelText: 'Nome da lista', border: OutlineInputBorder()),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Salvar')),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: AppColors.secondaryButtonStyle(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: AppColors.primaryButtonStyle(context),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Salvar'),
+          ),
         ],
       ),
     );
@@ -76,7 +89,11 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
         title: Text('Excluir "$_nomeLista"?'),
         content: const Text('Todos os itens dessa lista serão excluídos junto.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: AppColors.secondaryButtonStyle(context),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.orange), onPressed: () => Navigator.pop(ctx, true), child: const Text('Continuar')),
         ],
       ),
@@ -89,7 +106,11 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
         title: const Text('Tem certeza?'),
         content: const Text('Essa ação não pode ser desfeita.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            style: AppColors.secondaryButtonStyle(context),
+            child: const Text('Cancelar'),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             onPressed: () => Navigator.pop(ctx, true),
@@ -128,7 +149,7 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     }
 
     if (!mounted) return;
-    await Navigator.push(
+    final salvou = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (context) => TransactionFormScreen(
@@ -141,13 +162,19 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
       ),
     );
 
-    await ListasComprasRepo.concluirLista(widget.listaId);
-    if (mounted) Navigator.pop(context);
+    // Só conclui a lista se a transação foi realmente salva -- se o usuário
+    // saiu da tela sem salvar, a lista deve continuar ativa do jeito que
+    // estava.
+    if (salvou == true) {
+      await ListasComprasRepo.concluirLista(widget.listaId);
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   void _showOrdenarMenu() {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -173,6 +200,7 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
     final algumMarcado = itens.any(_isMarcado);
     showModalBottomSheet(
       context: context,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Column(
@@ -250,13 +278,22 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
       appBar: AppBar(
         title: Text(_nomeLista, overflow: TextOverflow.ellipsis),
         actions: [
-          TextButton.icon(
-            onPressed: () async {
-              await Navigator.push(context, MaterialPageRoute(builder: (_) => CatalogoScreen(listaId: widget.listaId)));
-              _refresh();
-            },
-            icon: const Icon(Icons.grid_view, size: 18),
-            label: const Text('Catálogo'),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: TextButton.icon(
+              onPressed: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => CatalogoScreen(listaId: widget.listaId)));
+                _refresh();
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.16),
+                foregroundColor: Theme.of(context).colorScheme.primary,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+              icon: const Icon(Icons.grid_view, size: 18),
+              label: const Text('Catálogo', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ),
           itensAsync.maybeWhen(
             data: (itens) => IconButton(icon: const Icon(Icons.more_vert), onPressed: () => _showKebabMenu(itens)),

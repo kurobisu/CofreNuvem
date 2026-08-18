@@ -29,10 +29,23 @@ class ListasScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Renomear Lista'),
-        content: TextField(controller: controller, autofocus: true, textCapitalization: TextCapitalization.sentences),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(labelText: 'Nome da lista', border: OutlineInputBorder()),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Salvar')),
+          OutlinedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: AppColors.secondaryButtonStyle(context),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: AppColors.primaryButtonStyle(context),
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Salvar'),
+          ),
         ],
       ),
     );
@@ -93,6 +106,7 @@ class ListasScreen extends ConsumerWidget {
   void _showCardMenu(BuildContext context, WidgetRef ref, ListaCompras lista) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Column(

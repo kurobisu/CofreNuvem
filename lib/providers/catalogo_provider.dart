@@ -3,6 +3,10 @@ import '../database/supabase_helper.dart';
 
 const tagsDisponiveis = ['Vegetariano', 'Vegano', 'Keto', 'Sem Glúten', 'Alto teor de proteína', 'Congelador'];
 
+const emojisDisponiveis = [
+  '🛒', '🍎', '🥦', '🍞', '🧀', '🥩', '🐟', '🥫', '🥤', '☕', '🍷', '🧴', '🧸', '💊', '👕', '💐', '🧽', '📝', '🦴', '🍕', '🍪', '🥛', '🥚', '🍚',
+];
+
 final categoriasProdutoProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final supabase = SupabaseHelper.instance.client;
   final raw = await supabase.from(SupabaseHelper.tableCategoriasProdutos).select().order('ordem', ascending: true);
@@ -119,6 +123,16 @@ class CatalogoRepo {
       'quantidade': quantidade,
       'comprado': 0,
     });
+  }
+
+  /// Atualiza ícone/tags de um produto já existente no catálogo -- usado
+  /// pelo "Editar Item" quando aberto a partir do Catálogo.
+  static Future<void> atualizarProduto({
+    required String produtoId,
+    required String emoji,
+    required List<String> tags,
+  }) async {
+    await _client.from(SupabaseHelper.tableProdutosCatalogo).update({'emoji': emoji, 'tags': tags}).eq('id', produtoId);
   }
 
   static Future<void> removerDaLista({required String listaId, required String produtoId}) async {

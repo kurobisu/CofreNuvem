@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database/supabase_helper.dart';
+import '../providers/catalogo_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/app_colors.dart';
@@ -12,17 +13,69 @@ double _parseCurrency(String text) {
   return double.tryParse(str) ?? 0;
 }
 
+IconData _iconeUnidade(String unidade) {
+  switch (unidade) {
+    case 'Kg':
+      return Icons.scale;
+    case 'Litro':
+      return Icons.liquor;
+    default:
+      return Icons.inventory_2;
+  }
+}
+
+/// Passo do +/- e exemplo de preenchimento pra cada unidade: 250g/250ml por
+/// toque no Kg/Litro, 1 unidade inteira no caso de contagem.
+double _passoUnidade(String unidade) => unidade == 'Unidade' ? 1 : 0.25;
+
+String? _hintQuantidade(String unidade) {
+  switch (unidade) {
+    case 'Kg':
+      return 'Ex: 1.83Kg';
+    case 'Litro':
+      return 'Ex: 1.5L';
+    default:
+      return null;
+  }
+}
+
+/// Decoração padrão dos campos desta folha: preenchimento + borda sempre
+/// visível (não dá pra confiar só na cor de fundo contrastar com a folha,
+/// já que por padrão as duas vêm praticamente iguais no tema escuro).
+InputDecoration _campoDecoration(BuildContext context, String label) {
+  final borda = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(16),
+    borderSide: BorderSide(color: AppColors.divider(context), width: 1.2),
+  );
+  return InputDecoration(
+    labelText: label,
+    filled: true,
+    fillColor: Theme.of(context).cardColor,
+    border: borda,
+    enabledBorder: borda,
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 1.8),
+    ),
+  );
+}
+
 /// Bottom sheet de adicionar/editar um item da lista, com autocomplete
 /// contra o catálogo de produtos. Retorna true se salvou algo.
 ///
 /// [produtoInicial] pré-preenche o formulário a partir de um produto do
 /// catálogo (ex: veio do botão "+" numa tela de categoria) sem que isso
 /// vire uma edição -- o Salvar continua criando um item novo.
+///
+/// [editarCatalogo] mostra os controles de ícone/tags do produto (usado
+/// quando a folha é aberta a partir do Catálogo); na Lista de Compras esses
+/// controles ficam escondidos pra manter o fluxo rápido.
 Future<bool> showProdutoItemSheet(
   BuildContext context, {
   required String listaId,
   Map<String, dynamic>? itemExistente,
   Map<String, dynamic>? produtoInicial,
+  bool editarCatalogo = false,
 }) async {
   final supabase = SupabaseHelper.instance.client;
 
@@ -35,14 +88,22 @@ Future<bool> showProdutoItemSheet(
   String unidade = (itemExistente?['unidade'] ?? produtoInicial?['unidade_padrao'] ?? 'Unidade').toString();
   String emoji = (produtoInicial?['emoji'] ?? '🛒').toString();
   String? produtoId = (itemExistente?['produto_id'] ?? produtoInicial?['id'])?.toString();
+  String? categoriaEscolhida;
+  Set<String> tagsEscolhidas = (produtoInicial?['tags'] as List?)?.map((e) => e.toString()).toSet() ?? {};
+  bool mostrarPersonalizacao = false;
   double? precoAnterior;
   List<Map<String, dynamic>> sugestoes = [];
+  List<Map<String, dynamic>> categorias = [];
   bool salvou = false;
 
   final qtdeInicial = ((itemExistente?['quantidade'] ?? 1) as num?)?.toDouble() ?? 1.0;
   qtdeController.text = unidade == 'Unidade' ? qtdeInicial.round().toString() : qtdeInicial.toString();
   final precoInicial = ((itemExistente?['preco'] ?? 0) as num?)?.toDouble() ?? 0.0;
-  if (precoInicial > 0) precoUnitController.text = CurrencyFormatter.format(precoInicial);
+  if (precoInicial > 0) {
+    precoUnitController.text = CurrencyFormatter.format(precoInicial);
+    final totalInicial = precoInicial * qtdeInicial;
+    totalController.text = totalInicial > 0 ? CurrencyFormatter.format(totalInicial) : '';
+  }
 
   Future<Map<String, dynamic>?> buscarEmojiEHistorico(String pid) async {
     try {
@@ -65,18 +126,33 @@ Future<bool> showProdutoItemSheet(
     }
   }
 
-  // Se veio de um produto do catálogo, já busca o último preço pago antes
-  // de abrir a folha, pra já nascer preenchido.
-  if (produtoId != null && itemExistente == null) {
+  // Se o item já está ligado a um produto do catálogo, busca os dados reais
+  // dele (ícone/tags atuais, pra não abrir a folha "resetada" pro carrinho
+  // genérico) e o último preço pago em outra lista, pra já nascer preenchido.
+  if (produtoId != null) {
     final extra = await buscarEmojiEHistorico(produtoId);
+    final prod = extra?['produto'] as Map<String, dynamic>?;
+    if (prod != null) {
+      emoji = (prod['emoji'] ?? emoji).toString();
+      final tagsRaw = prod['tags'];
+      if (tagsRaw is List) tagsEscolhidas = tagsRaw.map((e) => e.toString()).toSet();
+    }
     final hist = extra?['historico'] as Map<String, dynamic>?;
     if (hist != null) precoAnterior = ((hist['preco'] ?? 0) as num).toDouble();
   }
+
+  // Categorias pra oferecer o seletor quando o nome digitado não bater com
+  // nenhum produto do catálogo -- assim dá pra já salvar o produto novo lá.
+  try {
+    final rawCategorias = await supabase.from(SupabaseHelper.tableCategoriasProdutos).select().order('ordem', ascending: true);
+    categorias = rawCategorias.map((e) => CaseInsensitiveMap(e as Map<String, dynamic>)).cast<Map<String, dynamic>>().toList();
+  } catch (_) {}
 
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (ctx) {
       return StatefulBuilder(
@@ -109,6 +185,9 @@ Future<bool> showProdutoItemSheet(
             emoji = (produto['emoji'] ?? '🛒').toString();
             unidade = (produto['unidade_padrao'] ?? 'Unidade').toString();
             qtdeController.text = unidade == 'Unidade' ? '1' : '1';
+            categoriaEscolhida = null;
+            final tagsRaw = produto['tags'];
+            tagsEscolhidas = tagsRaw is List ? tagsRaw.map((e) => e.toString()).toSet() : {};
             sugestoes = [];
             setModalState(() {});
 
@@ -123,8 +202,8 @@ Future<bool> showProdutoItemSheet(
           void alterarQuantidade(double delta) {
             final atual = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 1.0;
             var novo = atual + delta;
-            if (novo < (unidade == 'Unidade' ? 1 : 0.1)) novo = unidade == 'Unidade' ? 1 : 0.1;
-            qtdeController.text = unidade == 'Unidade' ? novo.round().toString() : novo.toStringAsFixed(1);
+            if (novo < (unidade == 'Unidade' ? 1 : 0.25)) novo = unidade == 'Unidade' ? 1 : 0.25;
+            qtdeController.text = unidade == 'Unidade' ? novo.round().toString() : novo.toStringAsFixed(2);
             recalcularTotal();
             setModalState(() {});
           }
@@ -165,18 +244,38 @@ Future<bool> showProdutoItemSheet(
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: AppColors.secondaryButtonStyle(context),
+                            child: const Text('Cancelar'),
+                          ),
                           Text(itemExistente == null ? 'Novo Item' : 'Editar Item', style: const TextStyle(fontWeight: FontWeight.bold)),
-                          TextButton(
+                          ElevatedButton(
+                            style: AppColors.primaryButtonStyle(context),
                             onPressed: nomeAtual.isEmpty
                                 ? null
                                 : () async {
                                     final unit = _parseCurrency(precoUnitController.text);
                                     final qtde = double.tryParse(qtdeController.text.replaceAll(',', '.')) ?? 1.0;
+                                    var produtoIdFinal = produtoId;
+                                    if (produtoIdFinal == null && categoriaEscolhida != null) {
+                                      produtoIdFinal = await CatalogoRepo.criarProdutoCustomizado(
+                                        nome: nomeAtual,
+                                        categoriaId: categoriaEscolhida!,
+                                        emoji: emoji,
+                                        tags: tagsEscolhidas.toList(),
+                                      );
+                                    } else if (produtoIdFinal != null && editarCatalogo) {
+                                      await CatalogoRepo.atualizarProduto(
+                                        produtoId: produtoIdFinal,
+                                        emoji: emoji,
+                                        tags: tagsEscolhidas.toList(),
+                                      );
+                                    }
                                     final db = await SupabaseHelper.instance.database;
                                     final data = {
                                       'nome': nomeAtual,
-                                      'produto_id': produtoId,
+                                      'produto_id': produtoIdFinal,
                                       'unidade': unidade,
                                       'quantidade': qtde,
                                       'preco': unit > 0 ? unit : null,
@@ -190,14 +289,18 @@ Future<bool> showProdutoItemSheet(
                                     salvou = true;
                                     if (ctx.mounted) Navigator.pop(ctx);
                                   },
-                            child: const Text('Salvar', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                            child: const Text('Salvar'),
                           ),
                         ],
                       ),
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                        decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16)),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.divider(context), width: 1.2),
+                        ),
                         child: Row(
                           children: [
                             Expanded(
@@ -213,10 +316,105 @@ Future<bool> showProdutoItemSheet(
                                 },
                               ),
                             ),
-                            CircleAvatar(backgroundColor: Colors.black26, radius: 20, child: Text(emoji, style: const TextStyle(fontSize: 20))),
+                            InkWell(
+                              customBorder: const CircleBorder(),
+                              onTap: editarCatalogo ? () => setModalState(() => mostrarPersonalizacao = !mostrarPersonalizacao) : null,
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  CircleAvatar(backgroundColor: Colors.black26, radius: 20, child: Text(emoji, style: const TextStyle(fontSize: 20))),
+                                  if (editarCatalogo)
+                                    Positioned(
+                                      right: -2,
+                                      bottom: -2,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(3),
+                                        decoration: BoxDecoration(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
+                                        ),
+                                        child: const Icon(Icons.edit, size: 10, color: Colors.white),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),
+                      if (editarCatalogo && mostrarPersonalizacao) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.divider(context), width: 1.2),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Ícone', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context), fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: emojisDisponiveis.map((e) {
+                                  final selecionado = emoji == e;
+                                  return InkWell(
+                                    onTap: () => setModalState(() => emoji = e),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: selecionado ? Theme.of(context).colorScheme.primary.withOpacity(0.2) : Colors.transparent,
+                                        border: Border.all(color: selecionado ? Theme.of(context).colorScheme.primary : AppColors.divider(context)),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(e, style: const TextStyle(fontSize: 20)),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 12),
+                              Text('Tags', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(context), fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: tagsDisponiveis.map((t) {
+                                  final selecionado = tagsEscolhidas.contains(t);
+                                  return FilterChip(
+                                    label: Text(t),
+                                    selected: selecionado,
+                                    onSelected: (v) => setModalState(() => v ? tagsEscolhidas.add(t) : tagsEscolhidas.remove(t)),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (produtoId == null && nomeAtual.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: categoriaEscolhida,
+                          isExpanded: true,
+                          decoration: _campoDecoration(context, 'Categoria (produto novo)'),
+                          hint: const Text('Selecionar categoria'),
+                          items: categorias
+                              .map((c) => DropdownMenuItem<String>(value: c['id'].toString(), child: Text('${c['emoji']} ${c['nome']}')))
+                              .toList(),
+                          onChanged: (v) => setModalState(() => categoriaEscolhida = v),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, left: 4),
+                          child: Text(
+                            'Produto não está no catálogo. Escolha uma categoria pra já salvá-lo lá.',
+                            style: TextStyle(fontSize: 11, color: AppColors.secondaryText(context)),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -225,7 +423,7 @@ Future<bool> showProdutoItemSheet(
                               controller: precoUnitController,
                               keyboardType: TextInputType.number,
                               inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-                              decoration: InputDecoration(labelText: 'Preço', filled: true, fillColor: Theme.of(context).cardColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
+                              decoration: _campoDecoration(context, 'Preço'),
                               onChanged: (_) => setModalState(recalcularTotal),
                             ),
                           ),
@@ -234,7 +432,7 @@ Future<bool> showProdutoItemSheet(
                             child: IgnorePointer(
                               child: TextField(
                                 controller: totalController,
-                                decoration: InputDecoration(labelText: 'Total', filled: true, fillColor: Theme.of(context).cardColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
+                                decoration: _campoDecoration(context, 'Total'),
                               ),
                             ),
                           ),
@@ -247,8 +445,20 @@ Future<bool> showProdutoItemSheet(
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               initialValue: unidade,
-                              decoration: InputDecoration(labelText: 'Unidade', filled: true, fillColor: Theme.of(context).cardColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
-                              items: _unidades.map((u) => DropdownMenuItem(value: u, child: Text(u))).toList(),
+                              decoration: _campoDecoration(context, 'Und. de Medida'),
+                              items: _unidades.map((u) {
+                                return DropdownMenuItem(
+                                  value: u,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(_iconeUnidade(u), size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(u),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
                               onChanged: (v) {
                                 setModalState(() {
                                   unidade = v!;
@@ -264,7 +474,10 @@ Future<bool> showProdutoItemSheet(
                               controller: qtdeController,
                               keyboardType: TextInputType.numberWithOptions(decimal: unidade != 'Unidade'),
                               inputFormatters: unidade == 'Unidade' ? [FilteringTextInputFormatter.digitsOnly] : null,
-                              decoration: InputDecoration(labelText: 'Quantidade', filled: true, fillColor: Theme.of(context).cardColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
+                              decoration: _campoDecoration(context, 'Quantidade').copyWith(
+                                prefixIcon: Icon(_iconeUnidade(unidade), size: 18),
+                                hintText: _hintQuantidade(unidade),
+                              ),
                               onChanged: (_) => setModalState(recalcularTotal),
                             ),
                           ),
@@ -273,9 +486,9 @@ Future<bool> showProdutoItemSheet(
                             children: [
                               Row(
                                 children: [
-                                  _qtdeBtn(context, Icons.remove, () => alterarQuantidade(unidade == 'Unidade' ? -1 : -0.5)),
+                                  _qtdeBtn(context, Icons.remove, () => alterarQuantidade(-_passoUnidade(unidade))),
                                   const SizedBox(width: 6),
-                                  _qtdeBtn(context, Icons.add, () => alterarQuantidade(unidade == 'Unidade' ? 1 : 0.5)),
+                                  _qtdeBtn(context, Icons.add, () => alterarQuantidade(_passoUnidade(unidade))),
                                 ],
                               ),
                             ],
@@ -295,7 +508,11 @@ Future<bool> showProdutoItemSheet(
                       if (sugestoes.isNotEmpty)
                         Container(
                           margin: const EdgeInsets.only(bottom: 8),
-                          decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(16)),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).cardColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.divider(context), width: 1.2),
+                          ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: sugestoes.map((s) {

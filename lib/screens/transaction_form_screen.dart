@@ -427,7 +427,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
 
       ref.refresh(dashboardDataProvider);
 
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context, true);
     } catch (e, stack) {
       debugPrint('Erro ao salvar transação: $e\n$stack');
       if (mounted) {
