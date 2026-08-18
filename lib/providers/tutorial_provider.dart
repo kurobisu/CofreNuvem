@@ -72,13 +72,13 @@ final List<TutorialStep> tutorialSteps = [
   ),
   TutorialStep(
     targetKey: TutorialKeys.shoppingAddFab,
-    title: 'Lista de Compras',
-    description: 'Crie sua lista de compras aqui. Cada item pode ter preço e quantidade, e você marca o que já colocou no carrinho.',
+    title: 'Criar Listas de Compras',
+    description: 'Crie quantas listas quiser (mercado, farmácia, feira...). Dentro de cada uma você adiciona itens do catálogo, com preço, quantidade e comparação com o último preço pago.',
   ),
   TutorialStep(
     targetKey: TutorialKeys.shoppingHistoryButton,
-    title: 'Biblioteca de Produtos',
-    description: 'Todo produto que você já comprou fica salvo aqui com o histórico de preços, pra você comparar e ver se o valor subiu ou baixou desde a última vez.',
+    title: 'Listas Concluídas',
+    description: 'Depois que você finaliza uma compra, a lista fica guardada aqui. Você pode copiar os itens dela pra começar uma lista nova rapidinho.',
     nextLabel: 'Concluir',
   ),
 ];

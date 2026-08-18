@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dashboard_screen.dart';
 import 'transaction_form_screen.dart';
-import 'shopping_list_screen.dart';
+import 'listas_screen.dart';
 import 'investments_screen.dart';
 import 'settings_screen.dart';
 import 'onboarding_screen.dart';
@@ -46,7 +46,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
 
   final List<Widget> _pages = const [
     DashboardScreen(),
-    ShoppingListScreen(),
+    ListasScreen(),
     InvestmentsScreen(),
     SettingsScreen(),
   ];

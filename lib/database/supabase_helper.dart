@@ -38,6 +38,9 @@ class SupabaseHelper {
   static const tableProdutos = 'produtos';
   static const tableContasCompartilhadas = 'contas_compartilhadas';
   static const tableMetas = 'metas';
+  static const tableListasCompras = 'listas_compras';
+  static const tableCategoriasProdutos = 'categorias_produtos';
+  static const tableProdutosCatalogo = 'produtos_catalogo';
 
   Future<OnlineProxy> get database async {
     return OnlineProxy(client);
