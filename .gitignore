@@ -88,6 +88,8 @@ app.*.map.json
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.b64
 
 # Secrets
 .env

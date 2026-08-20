@@ -78,11 +78,13 @@ jobs:
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $tag = "${{ github.ref_name }}"
+          $installerPath = "build\windows\x64\installer\CofreNuvem-Setup-$version.exe"
+          $sha256 = (Get-FileHash -Path $installerPath -Algorithm SHA256).Hash.ToLower()
           $json = @{
             version = $version
             download_url = "https://github.com/kurobisu/CofreNuvem/releases/download/$tag/CofreNuvem-Setup-$version.exe"
             release_notes = "Nova versão $version"
-            sha256 = ""
+            sha256 = $sha256
           } | ConvertTo-Json -Depth 3
           $json | Out-File -FilePath latest.json -Encoding utf8
 

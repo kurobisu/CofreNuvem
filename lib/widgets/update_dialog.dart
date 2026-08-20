@@ -35,7 +35,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
       if (!mounted) return;
 
-      await UpdateService().installUpdate(installerPath);
+      await UpdateService().installUpdate(
+        installerPath,
+        expectedSha256: widget.updateInfo.sha256,
+      );
     } catch (e) {
       if (mounted) {
         setState(() {

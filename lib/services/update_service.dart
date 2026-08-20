@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -111,7 +112,13 @@ class UpdateService {
 
   /// Launches the installer silently and exits the running app.
   /// The Inno Setup installer is responsible for closing/restarting the app.
-  Future<void> installUpdate(String installerPath) async {
+  ///
+  /// [expectedSha256], when provided by the update endpoint, is checked
+  /// against the downloaded file before it runs. Releases published before
+  /// this check existed carry an empty `sha256` in `latest.json`, so a
+  /// missing/empty hash skips verification rather than blocking those
+  /// updates.
+  Future<void> installUpdate(String installerPath, {String? expectedSha256}) async {
     if (!Platform.isWindows) {
       throw UnsupportedError('Auto-install is only supported on Windows');
     }
@@ -119,6 +126,16 @@ class UpdateService {
     final file = File(installerPath);
     if (!await file.exists()) {
       throw FileSystemException('Installer not found', installerPath);
+    }
+
+    if (expectedSha256 != null && expectedSha256.isNotEmpty) {
+      final actualHash = sha256.convert(await file.readAsBytes()).toString();
+      if (actualHash.toLowerCase() != expectedSha256.toLowerCase()) {
+        await file.delete();
+        throw Exception(
+          'Verificação de integridade do instalador falhou (hash SHA-256 não confere). Atualização cancelada por segurança.',
+        );
+      }
     }
 
     final args = const [

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'main_screen.dart';
 import '../utils/app_colors.dart';
 
@@ -20,7 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _isLogin = true;
   bool _rememberMe = true;
-  
+
+  static const _secureStorage = FlutterSecureStorage();
+  static String _pwdKey(String email) => 'saved_pwd_$email';
+
   List<Map<String, String>> _savedAccounts = [];
 
   @override
@@ -32,25 +36,49 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loadSavedAccounts() async {
     final prefs = await SharedPreferences.getInstance();
     final List<String> accountsJson = prefs.getStringList('saved_accounts') ?? [];
-    
+
+    final loaded = <Map<String, String>>[];
+    var needsRewrite = false;
+
+    for (final e in accountsJson) {
+      final decoded = jsonDecode(e) as Map<String, dynamic>;
+      final email = decoded['email']?.toString() ?? '';
+      final name = decoded['name']?.toString() ?? '';
+
+      // Migração de contas salvas antes desta correção: a senha ainda vem
+      // embutida (base64, reversível) no próprio JSON do shared_preferences.
+      // Move para o secure storage (DPAPI no Windows) e reescreve a entrada
+      // sem a senha, preservando o login rápido sem exigir nova digitação.
+      final legacyPassword = decoded['password']?.toString();
+      if (legacyPassword != null && legacyPassword.isNotEmpty) {
+        try {
+          final plain = utf8.decode(base64Decode(legacyPassword));
+          await _secureStorage.write(key: _pwdKey(email), value: plain);
+        } catch (_) {
+          // Formato inesperado: ignora, conta cai no fluxo de login manual.
+        }
+        needsRewrite = true;
+      }
+
+      loaded.add({'email': email, 'name': name});
+    }
+
+    if (needsRewrite) {
+      final rewritten = loaded
+          .map((a) => jsonEncode({'email': a['email'], 'name': a['name']}))
+          .toList();
+      await prefs.setStringList('saved_accounts', rewritten);
+    }
+
     if (mounted) {
-      setState(() {
-        _savedAccounts = accountsJson.map((e) {
-          final decoded = jsonDecode(e) as Map<String, dynamic>;
-          return {
-            'email': decoded['email']?.toString() ?? '',
-            'password': decoded['password']?.toString() ?? '',
-            'name': decoded['name']?.toString() ?? '',
-          };
-        }).toList();
-      });
+      setState(() => _savedAccounts = loaded);
     }
   }
 
   Future<void> _saveAccount(String email, String password, String name) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> accountsJson = prefs.getStringList('saved_accounts') ?? [];
-    
+
     // Remove if already exists to update password/name and move to front
     accountsJson.removeWhere((e) {
       final decoded = jsonDecode(e) as Map<String, dynamic>;
@@ -59,26 +87,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final newAccount = jsonEncode({
       'email': email,
-      // Convert to base64 just for obfuscation in shared_prefs (not real security, but prevents plain text peeking)
-      'password': base64Encode(utf8.encode(password)),
       'name': name.isEmpty ? email.split('@').first : name,
     });
-    
+
     accountsJson.insert(0, newAccount);
     await prefs.setStringList('saved_accounts', accountsJson);
+    await _secureStorage.write(key: _pwdKey(email), value: password);
     _loadSavedAccounts();
   }
 
   Future<void> _removeAccount(String email) async {
     final prefs = await SharedPreferences.getInstance();
     List<String> accountsJson = prefs.getStringList('saved_accounts') ?? [];
-    
+
     accountsJson.removeWhere((e) {
       final decoded = jsonDecode(e) as Map<String, dynamic>;
       return decoded['email'] == email;
     });
-    
+
     await prefs.setStringList('saved_accounts', accountsJson);
+    await _secureStorage.delete(key: _pwdKey(email));
     _loadSavedAccounts();
   }
 
@@ -167,11 +195,25 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _fillAndLogin(Map<String, String> account) {
-    _emailController.text = account['email']!;
-    final pass = utf8.decode(base64Decode(account['password']!));
-    _passwordController.text = pass;
+  Future<void> _fillAndLogin(Map<String, String> account) async {
+    final email = account['email']!;
+    final pass = await _secureStorage.read(key: _pwdKey(email));
+    _emailController.text = email;
     _isLogin = true;
+
+    if (pass == null) {
+      // Senha não encontrada no secure storage (ex.: apagada externamente) --
+      // deixa o e-mail preenchido e pede a senha manualmente em vez de travar.
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Digite sua senha para continuar')),
+        );
+      }
+      return;
+    }
+
+    _passwordController.text = pass;
     _authenticate();
   }
 
