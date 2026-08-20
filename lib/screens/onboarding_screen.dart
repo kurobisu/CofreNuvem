@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/supabase_helper.dart';
 import '../utils/bancos_brasil.dart';
 import '../utils/default_data.dart';
+import '../utils/profile_guard.dart';
 import 'main_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -13,6 +14,12 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
+  // Segunda camada de proteção contra o bug de perfil duplicado (ver
+  // ProfileGuard): mesmo que algo tenha mandado o usuário pra cá por
+  // engano, esta tela re-confirma por conta própria antes de deixar
+  // alguém criar um perfil/conta/cartão novos. Só mostra o formulário
+  // depois que essa checagem termina.
+  bool _checkingExistingProfile = true;
   int _currentStep = 0;
   bool _isLoading = false;
 
@@ -37,6 +44,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (metadata != null && metadata['nome'] != null) {
       _perfilNomeController.text = metadata['nome'];
     }
+    _guardAgainstExistingProfile();
+  }
+
+  Future<void> _guardAgainstExistingProfile() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final hasProfile = await ProfileGuard.hasProfileRemote();
+      if (hasProfile == true) {
+        await ProfileGuard.markHasProfile(userId);
+        if (mounted) {
+          Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainScreen()));
+        }
+        return;
+      }
+    }
+    if (mounted) setState(() => _checkingExistingProfile = false);
   }
 
   void _finishOnboarding() async {
@@ -56,6 +79,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         'Nome': _perfilNomeController.text.trim(),
         'PIN_Acesso': null,
       });
+
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId != null) {
+        await ProfileGuard.markHasProfile(currentUserId);
+      }
 
       // 2. Criar Conta Bancaria
       final contaId = await db.insert(SupabaseHelper.tableContasBancarias, {
@@ -122,6 +150,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingExistingProfile) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bem-vindo ao CofreNuvem!'),

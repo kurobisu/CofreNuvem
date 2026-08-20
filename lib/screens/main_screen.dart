@@ -8,6 +8,7 @@ import 'settings_screen.dart';
 import 'onboarding_screen.dart';
 import '../database/supabase_helper.dart';
 import '../providers/navigation_provider.dart';
+import '../utils/profile_guard.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -26,14 +27,30 @@ class _MainScreenState extends ConsumerState<MainScreen> {
   }
 
   Future<void> _checkOnboarding() async {
-    try {
-      final db = await SupabaseHelper.instance.database;
-      final countRes = await db.query(SupabaseHelper.tableUsuarios, limit: 1);
-      if (countRes.isEmpty && mounted) {
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const OnboardingScreen()));
-      }
-    } catch (e) {
-      debugPrint('Erro onboarding: $e');
+    final userId = SupabaseHelper.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    // Já confirmamos antes (nesta sessão ou numa anterior) que este usuário
+    // tem perfil -- nunca mais precisa checar por rede, então uma falha de
+    // rede logo após abrir o app (comum após atualizar de versão) não pode
+    // mais mandar um usuário existente pro onboarding.
+    if (await ProfileGuard.knownToHaveProfile(userId)) return;
+
+    final hasProfile = await ProfileGuard.hasProfileRemote();
+    if (hasProfile == null) {
+      // Falha de rede/transiente: nunca assume "usuário novo" nesse caso.
+      debugPrint('Erro ao verificar perfil existente -- tentando de novo mais tarde');
+      return;
+    }
+    if (hasProfile) {
+      await ProfileGuard.markHasProfile(userId);
+      return;
+    }
+
+    // Consulta rodou com sucesso e confirmou 0 linhas: agora sim é seguro
+    // considerar que este usuário nunca fez o onboarding.
+    if (mounted) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const OnboardingScreen()));
     }
   }
 
