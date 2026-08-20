@@ -6,7 +6,10 @@ plugins {
 
 android {
     namespace = "com.cofrenuvem.cofrenuvem"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage exige compileSdk 37+ (o padrão do Flutter
+    // ainda é 36) -- só afeta contra quais APIs o app compila, não o
+    // targetSdk/minSdk mínimo de aparelho suportado.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
