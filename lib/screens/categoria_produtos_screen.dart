@@ -57,10 +57,6 @@ class _CategoriaProdutosScreenState
 
   Future<void> _criarProdutoCustomizado() async {
     final listaId = widget.listaId;
-    if (listaId == null) {
-      _mostrarErroSemLista();
-      return;
-    }
     final nomeController = TextEditingController();
     String emoji = widget.emojiTitulo.isNotEmpty ? widget.emojiTitulo : '🛒';
     final tagsEscolhidas = <String>{};
@@ -221,15 +217,20 @@ class _CategoriaProdutosScreenState
                                     emoji: emoji,
                                     tags: tagsEscolhidas.toList(),
                                   );
-                              await CatalogoRepo.adicionarNaLista(
-                                listaId: listaId,
-                                produto: {
-                                  'id': id,
-                                  'nome': nomeController.text.trim(),
-                                  'unidade_padrao': 'Unidade',
-                                },
-                              );
-                              ref.invalidate(listaItensProvider(listaId));
+                              // Sem lista aberta, o produto fica só
+                              // cadastrado no catálogo -- não há lista pra
+                              // adicioná-lo.
+                              if (listaId != null) {
+                                await CatalogoRepo.adicionarNaLista(
+                                  listaId: listaId,
+                                  produto: {
+                                    'id': id,
+                                    'nome': nomeController.text.trim(),
+                                    'unidade_padrao': 'Unidade',
+                                  },
+                                );
+                                ref.invalidate(listaItensProvider(listaId));
+                              }
                               if (widget.categoriaId != null)
                                 ref.invalidate(
                                   produtosPorCategoriaProvider(
@@ -242,7 +243,9 @@ class _CategoriaProdutosScreenState
                                 );
                               if (ctx.mounted) Navigator.pop(ctx);
                             },
-                      child: const Text('Criar e Adicionar'),
+                      child: Text(
+                        listaId != null ? 'Criar e Adicionar' : 'Criar Produto',
+                      ),
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -256,17 +259,14 @@ class _CategoriaProdutosScreenState
   }
 
   /// Toque no ícone do produto (não no badge +/✓): sempre abre a folha de
-  /// edição, seja pra criar o item (com preço/medida) ou editar o que já
-  /// está na lista.
+  /// edição, seja pra criar/editar o item numa lista (com preço/medida) ou,
+  /// sem nenhuma lista aberta, só criar/editar o produto no catálogo (nome,
+  /// ícone, tags, marca) -- ver o modo "só catálogo" de showProdutoItemSheet.
   Future<void> _abrirEdicao(
     Map<String, dynamic> produto,
     Map<String, dynamic>? itemExistente,
   ) async {
     final listaId = widget.listaId;
-    if (listaId == null) {
-      _mostrarErroSemLista();
-      return;
-    }
     final salvou = await showProdutoItemSheet(
       context,
       listaId: listaId,
@@ -275,7 +275,7 @@ class _CategoriaProdutosScreenState
       editarCatalogo: true,
     );
     if (salvou) {
-      ref.invalidate(listaItensProvider(listaId));
+      if (listaId != null) ref.invalidate(listaItensProvider(listaId));
       // Ícone/tags podem ter mudado no catálogo -- recarrega essa grade pra
       // não ficar exibindo o dado antigo em cache.
       if (widget.categoriaId != null)

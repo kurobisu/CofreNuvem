@@ -71,6 +71,14 @@ InputDecoration _campoDecoration(BuildContext context, String label) {
 /// Bottom sheet de adicionar/editar um item da lista, com autocomplete
 /// contra o catálogo de produtos. Retorna true se salvou algo.
 ///
+/// [listaId] nulo abre a folha em modo "só catálogo" -- usado quando o
+/// Catálogo é acessado sem nenhuma Lista de Compras aberta (ver
+/// CatalogoScreen/CategoriaProdutosScreen). Nesse modo dá pra criar/editar
+/// um produto do catálogo (nome, ícone, tags, marca), mas os campos de
+/// Preço/Unidade/Quantidade somem -- eles pertencem a um item de lista, que
+/// não existe sem uma lista pra guardá-lo -- e o Salvar nunca insere/atualiza
+/// uma linha em `lista_compras`.
+///
 /// [produtoInicial] pré-preenche o formulário a partir de um produto do
 /// catálogo (ex: veio do botão "+" numa tela de categoria) sem que isso
 /// vire uma edição -- o Salvar continua criando um item novo.
@@ -80,7 +88,7 @@ InputDecoration _campoDecoration(BuildContext context, String label) {
 /// controles ficam escondidos pra manter o fluxo rápido.
 Future<bool> showProdutoItemSheet(
   BuildContext context, {
-  required String listaId,
+  String? listaId,
   Map<String, dynamic>? itemExistente,
   Map<String, dynamic>? produtoInicial,
   bool editarCatalogo = false,
@@ -143,43 +151,47 @@ Future<bool> showProdutoItemSheet(
     } catch (_) {}
 
     Map<String, dynamic>? hist;
-    try {
-      // Filtra o historico pela mesma marca selecionada -- senao o preco
-      // de uma marca mais cara apareceria como "ultimo preco" de outra.
-      final baseQuery = supabase
-          .from(SupabaseHelper.tableListaCompras)
-          .select('preco, updated_at')
-          .eq('produto_id', pid)
-          .neq('lista_id', listaId)
-          .not('preco', 'is', null)
-          .filter('deleted_at', 'is', null);
-      hist = marcaFiltro != null
-          ? await baseQuery
-              .eq('marca_id', marcaFiltro)
-              .order('updated_at', ascending: false)
-              .limit(1)
-              .maybeSingle()
-          : await baseQuery
-              .filter('marca_id', 'is', null)
-              .order('updated_at', ascending: false)
-              .limit(1)
-              .maybeSingle();
-    } catch (_) {
-      // Coluna marca_id pode ainda nao existir (script
-      // scripts/add_produto_marcas.sql nao rodado) -- tenta de novo sem
-      // filtrar por marca em vez de perder o historico de preco inteiro.
+    // Sem lista (modo só catálogo) não há Preço/Total pra preencher, então
+    // nem vale a pena buscar histórico de preço.
+    if (listaId != null) {
       try {
-        hist = await supabase
+        // Filtra o historico pela mesma marca selecionada -- senao o preco
+        // de uma marca mais cara apareceria como "ultimo preco" de outra.
+        final baseQuery = supabase
             .from(SupabaseHelper.tableListaCompras)
             .select('preco, updated_at')
             .eq('produto_id', pid)
             .neq('lista_id', listaId)
             .not('preco', 'is', null)
-            .filter('deleted_at', 'is', null)
-            .order('updated_at', ascending: false)
-            .limit(1)
-            .maybeSingle();
-      } catch (_) {}
+            .filter('deleted_at', 'is', null);
+        hist = marcaFiltro != null
+            ? await baseQuery
+                .eq('marca_id', marcaFiltro)
+                .order('updated_at', ascending: false)
+                .limit(1)
+                .maybeSingle()
+            : await baseQuery
+                .filter('marca_id', 'is', null)
+                .order('updated_at', ascending: false)
+                .limit(1)
+                .maybeSingle();
+      } catch (_) {
+        // Coluna marca_id pode ainda nao existir (script
+        // scripts/add_produto_marcas.sql nao rodado) -- tenta de novo sem
+        // filtrar por marca em vez de perder o historico de preco inteiro.
+        try {
+          hist = await supabase
+              .from(SupabaseHelper.tableListaCompras)
+              .select('preco, updated_at')
+              .eq('produto_id', pid)
+              .neq('lista_id', listaId)
+              .not('preco', 'is', null)
+              .filter('deleted_at', 'is', null)
+              .order('updated_at', ascending: false)
+              .limit(1)
+              .maybeSingle();
+        } catch (_) {}
+      }
     }
     return {'produto': prod, 'historico': hist};
   }
@@ -482,7 +494,9 @@ Future<bool> showProdutoItemSheet(
                         child: const Text('Cancelar'),
                       ),
                       Text(
-                        itemExistente == null ? 'Novo Item' : 'Editar Item',
+                        listaId == null
+                            ? (produtoId == null ? 'Novo Produto' : 'Editar Produto')
+                            : (itemExistente == null ? 'Novo Item' : 'Editar Item'),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       ElevatedButton(
@@ -490,14 +504,6 @@ Future<bool> showProdutoItemSheet(
                         onPressed: nomeAtual.isEmpty
                             ? null
                             : () async {
-                                final unit = _parseCurrency(
-                                  precoUnitController.text,
-                                );
-                                final qtde =
-                                    double.tryParse(
-                                      qtdeController.text.replaceAll(',', '.'),
-                                    ) ??
-                                    1.0;
                                 var produtoIdFinal = produtoId;
                                 if (produtoIdFinal == null) {
                                   // Produto novo -- sempre entra no
@@ -522,51 +528,68 @@ Future<bool> showProdutoItemSheet(
                                     tags: tagsEscolhidas.toList(),
                                   );
                                 }
-                                final db =
-                                    await SupabaseHelper.instance.database;
-                                final data = {
-                                  'nome': nomeAtual,
-                                  'produto_id': produtoIdFinal,
-                                  'marca_id': marcaId,
-                                  'unidade': unidade,
-                                  'quantidade': qtde,
-                                  'preco': unit > 0 ? unit : null,
-                                  'lista_id': listaId,
-                                };
-                                try {
-                                  if (itemExistente == null) {
-                                    await db.insert(
-                                      SupabaseHelper.tableListaCompras,
+
+                                // Sem lista (modo só catálogo), o produto já
+                                // está criado/atualizado acima -- não há
+                                // item de lista pra inserir/atualizar.
+                                if (listaId != null) {
+                                  final unit = _parseCurrency(
+                                    precoUnitController.text,
+                                  );
+                                  final qtde =
+                                      double.tryParse(
+                                        qtdeController.text.replaceAll(
+                                          ',',
+                                          '.',
+                                        ),
+                                      ) ??
+                                      1.0;
+                                  final db =
+                                      await SupabaseHelper.instance.database;
+                                  final data = {
+                                    'nome': nomeAtual,
+                                    'produto_id': produtoIdFinal,
+                                    'marca_id': marcaId,
+                                    'unidade': unidade,
+                                    'quantidade': qtde,
+                                    'preco': unit > 0 ? unit : null,
+                                    'lista_id': listaId,
+                                  };
+                                  try {
+                                    if (itemExistente == null) {
+                                      await db.insert(
+                                        SupabaseHelper.tableListaCompras,
+                                        data,
+                                      );
+                                    } else {
+                                      await db.update(
+                                        SupabaseHelper.tableListaCompras,
+                                        data,
+                                        where: 'id = ?',
+                                        whereArgs: [itemExistente['id']],
+                                      );
+                                    }
+                                  } catch (e) {
+                                    // Coluna marca_id pode ainda nao existir
+                                    // (script scripts/add_produto_marcas.sql
+                                    // nao rodado) -- salva sem ela em vez de
+                                    // falhar o item inteiro.
+                                    final semMarca = Map<String, dynamic>.from(
                                       data,
-                                    );
-                                  } else {
-                                    await db.update(
-                                      SupabaseHelper.tableListaCompras,
-                                      data,
-                                      where: 'id = ?',
-                                      whereArgs: [itemExistente['id']],
-                                    );
-                                  }
-                                } catch (e) {
-                                  // Coluna marca_id pode ainda nao existir
-                                  // (script scripts/add_produto_marcas.sql
-                                  // nao rodado) -- salva sem ela em vez de
-                                  // falhar o item inteiro.
-                                  final semMarca = Map<String, dynamic>.from(
-                                    data,
-                                  )..remove('marca_id');
-                                  if (itemExistente == null) {
-                                    await db.insert(
-                                      SupabaseHelper.tableListaCompras,
-                                      semMarca,
-                                    );
-                                  } else {
-                                    await db.update(
-                                      SupabaseHelper.tableListaCompras,
-                                      semMarca,
-                                      where: 'id = ?',
-                                      whereArgs: [itemExistente['id']],
-                                    );
+                                    )..remove('marca_id');
+                                    if (itemExistente == null) {
+                                      await db.insert(
+                                        SupabaseHelper.tableListaCompras,
+                                        semMarca,
+                                      );
+                                    } else {
+                                      await db.update(
+                                        SupabaseHelper.tableListaCompras,
+                                        semMarca,
+                                        where: 'id = ?',
+                                        whereArgs: [itemExistente['id']],
+                                      );
+                                    }
                                   }
                                 }
                                 salvou = true;
@@ -858,133 +881,140 @@ Future<bool> showProdutoItemSheet(
                       ),
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: precoUnitController,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            CurrencyInputFormatter(),
-                          ],
-                          decoration: _campoDecoration(context, 'Preço').copyWith(
-                            suffixIcon: HelpIconButton(
-                              title: 'Preço',
-                              explanation:
-                                  'É o preço por Kg, Litro ou Unidade -- não o valor total pago. '
-                                  'O campo "Total" ao lado é calculado sozinho (Preço × Quantidade).',
-                              example: 'Pagou R\$ 9,00 por 2 Kg? O Preço é R\$ 4,50 (por Kg).',
+                  // Preço/Unidade/Quantidade pertencem a um item de lista --
+                  // sem lista (modo só catálogo) não há onde salvá-los.
+                  if (listaId != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: precoUnitController,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              CurrencyInputFormatter(),
+                            ],
+                            decoration: _campoDecoration(context, 'Preço').copyWith(
+                              suffixIcon: HelpIconButton(
+                                title: 'Preço',
+                                explanation:
+                                    'É o preço por Kg, Litro ou Unidade -- não o valor total pago. '
+                                    'O campo "Total" ao lado é calculado sozinho (Preço × Quantidade).',
+                                example: 'Pagou R\$ 9,00 por 2 Kg? O Preço é R\$ 4,50 (por Kg).',
+                              ),
+                            ),
+                            onChanged: (_) => setModalState(recalcularTotal),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: IgnorePointer(
+                            child: TextField(
+                              controller: totalController,
+                              decoration: _campoDecoration(context, 'Total'),
                             ),
                           ),
-                          onChanged: (_) => setModalState(recalcularTotal),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: IgnorePointer(
-                          child: TextField(
-                            controller: totalController,
-                            decoration: _campoDecoration(context, 'Total'),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (historicoWidget is! SizedBox)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: historicoWidget,
+                      ],
                     ),
-                  const SizedBox(height: 12),
-                  LabelWithHelp(
-                    label: 'UNIDADE E QUANTIDADE',
-                    title: 'Unidade e Quantidade',
-                    explanation:
-                        'Em "Kg" ou "Litro", digite o quanto você comprou de fato -- com '
-                        'casas decimais. Em "Unidade", é a contagem de itens (1, 2, 3...).',
-                    example: 'Comprou 1,83 Kg de carne? Unidade = Kg, Quantidade = 1.83.',
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          initialValue: unidade,
-                          decoration: _campoDecoration(
-                            context,
-                            'Und. de Medida',
-                          ),
-                          items: _unidades.map((u) {
-                            return DropdownMenuItem(
-                              value: u,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(_iconeUnidade(u), size: 16),
-                                  const SizedBox(width: 6),
-                                  Text(u),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (v) {
-                            setModalState(() {
-                              unidade = v!;
-                              qtdeController.text = unidade == 'Unidade'
-                                  ? '1'
-                                  : '1.0';
-                              recalcularTotal();
-                            });
-                          },
-                        ),
+                    if (historicoWidget is! SizedBox)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: historicoWidget,
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: qtdeController,
-                          keyboardType: TextInputType.numberWithOptions(
-                            decimal: unidade != 'Unidade',
-                          ),
-                          inputFormatters: unidade == 'Unidade'
-                              ? [FilteringTextInputFormatter.digitsOnly]
-                              : null,
-                          decoration: _campoDecoration(context, 'Quantidade')
-                              .copyWith(
-                                prefixIcon: Icon(
-                                  _iconeUnidade(unidade),
-                                  size: 18,
+                    const SizedBox(height: 12),
+                    LabelWithHelp(
+                      label: 'UNIDADE E QUANTIDADE',
+                      title: 'Unidade e Quantidade',
+                      explanation:
+                          'Em "Kg" ou "Litro", digite o quanto você comprou de fato -- com '
+                          'casas decimais. Em "Unidade", é a contagem de itens (1, 2, 3...).',
+                      example: 'Comprou 1,83 Kg de carne? Unidade = Kg, Quantidade = 1.83.',
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            initialValue: unidade,
+                            decoration: _campoDecoration(
+                              context,
+                              'Und. de Medida',
+                            ),
+                            items: _unidades.map((u) {
+                              return DropdownMenuItem(
+                                value: u,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(_iconeUnidade(u), size: 16),
+                                    const SizedBox(width: 6),
+                                    Text(u),
+                                  ],
                                 ),
-                                hintText: _hintQuantidade(unidade),
-                              ),
-                          onChanged: (_) => setModalState(recalcularTotal),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Column(
-                        children: [
-                          Row(
-                            children: [
-                              _qtdeBtn(
-                                context,
-                                Icons.remove,
-                                () =>
-                                    alterarQuantidade(-_passoUnidade(unidade)),
-                              ),
-                              const SizedBox(width: 6),
-                              _qtdeBtn(
-                                context,
-                                Icons.add,
-                                () => alterarQuantidade(_passoUnidade(unidade)),
-                              ),
-                            ],
+                              );
+                            }).toList(),
+                            onChanged: (v) {
+                              setModalState(() {
+                                unidade = v!;
+                                qtdeController.text = unidade == 'Unidade'
+                                    ? '1'
+                                    : '1.0';
+                                recalcularTotal();
+                              });
+                            },
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: qtdeController,
+                            keyboardType: TextInputType.numberWithOptions(
+                              decimal: unidade != 'Unidade',
+                            ),
+                            inputFormatters: unidade == 'Unidade'
+                                ? [FilteringTextInputFormatter.digitsOnly]
+                                : null,
+                            decoration: _campoDecoration(context, 'Quantidade')
+                                .copyWith(
+                                  prefixIcon: Icon(
+                                    _iconeUnidade(unidade),
+                                    size: 18,
+                                  ),
+                                  hintText: _hintQuantidade(unidade),
+                                ),
+                            onChanged: (_) => setModalState(recalcularTotal),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          children: [
+                            Row(
+                              children: [
+                                _qtdeBtn(
+                                  context,
+                                  Icons.remove,
+                                  () => alterarQuantidade(
+                                    -_passoUnidade(unidade),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                _qtdeBtn(
+                                  context,
+                                  Icons.add,
+                                  () => alterarQuantidade(
+                                    _passoUnidade(unidade),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                 ],
               ),
             ),

@@ -74,17 +74,14 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
   }
 
   /// Toque no ícone do produto (não no badge +/✓): sempre abre a folha de
-  /// edição, seja pra criar o item (com preço/medida) ou editar o que já
-  /// está na lista.
+  /// edição, seja pra criar/editar o item numa lista (com preço/medida) ou,
+  /// sem nenhuma lista aberta, só criar/editar o produto no catálogo (nome,
+  /// ícone, tags, marca) -- ver o modo "só catálogo" de showProdutoItemSheet.
   Future<void> _abrirEdicao(
     Map<String, dynamic> produto,
     Map<String, dynamic>? itemExistente,
   ) async {
     final listaId = widget.listaId;
-    if (listaId == null) {
-      _mostrarErroSemLista();
-      return;
-    }
     final salvou = await showProdutoItemSheet(
       context,
       listaId: listaId,
@@ -93,7 +90,7 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
       editarCatalogo: true,
     );
     if (salvou) {
-      ref.invalidate(listaItensProvider(listaId));
+      if (listaId != null) ref.invalidate(listaItensProvider(listaId));
       // Ícone/tags podem ter mudado no catálogo -- recarrega as grades que
       // mostram esse produto pra não ficar exibindo o dado antigo em cache.
       ref.invalidate(produtosPopularesProvider);
