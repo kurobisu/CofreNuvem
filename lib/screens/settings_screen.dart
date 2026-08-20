@@ -10,6 +10,9 @@ import '../utils/csv_export.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'family_screen.dart';
 import '../utils/app_version.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -116,13 +119,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurações $appVersion')),
+      appBar: AppBar(
+        title: const Text('Configurações $appVersion'),
+        actions: const [TutorialButton(screen: TutorialScreens.ajustes)],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           const Text('Cadastros', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 8),
           Card(
+            key: TutorialKeys.settingsCadastrosCard,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
@@ -159,6 +166,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const Text('Família & Compartilhamento', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 8),
           Card(
+            key: TutorialKeys.settingsFamiliaCard,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: ListTile(
               leading: const Icon(Icons.family_restroom, color: Colors.indigo),
@@ -204,6 +212,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: ListTile(
+              key: TutorialKeys.settingsSincronizarTile,
               leading: const Icon(Icons.cloud_sync, color: Colors.blue),
               title: const Text('Forçar Sincronização'),
               subtitle: const Text('Baixa e envia dados da nuvem do aplicativo'),
@@ -219,6 +228,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Card(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: ListTile(
+              key: TutorialKeys.settingsExportarTile,
               leading: const Icon(Icons.table_view, color: Colors.green),
               title: const Text('Exportar para CSV'),
               subtitle: const Text('Gera arquivo compatível com Excel'),

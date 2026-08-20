@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/supabase_helper.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 
 class FamilyScreen extends StatefulWidget {
@@ -130,6 +133,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
       appBar: AppBar(
         title: const Text('Compartilhamento Familiar'),
         elevation: 0,
+        actions: const [TutorialButton(screen: TutorialScreens.familia)],
       ),
       body: SafeArea(
         child: _isLoading && _membros.isEmpty
@@ -253,6 +257,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                     ),
                     const SizedBox(height: 16),
                     Container(
+                      key: TutorialKeys.familiaConvidarCard,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Theme.of(context).cardColor,

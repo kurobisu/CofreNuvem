@@ -28,4 +28,30 @@ class TutorialKeys {
       GlobalKey(debugLabel: 'tutorial_catalogo_tab_catalogo');
   static final GlobalKey catalogoTabRelatorios =
       GlobalKey(debugLabel: 'tutorial_catalogo_tab_relatorios');
+
+  // Ajustes -- tela principal (SettingsScreen)
+  static final GlobalKey settingsCadastrosCard =
+      GlobalKey(debugLabel: 'tutorial_settings_cadastros_card');
+  static final GlobalKey settingsFamiliaCard =
+      GlobalKey(debugLabel: 'tutorial_settings_familia_card');
+  static final GlobalKey settingsSincronizarTile =
+      GlobalKey(debugLabel: 'tutorial_settings_sincronizar_tile');
+  static final GlobalKey settingsExportarTile =
+      GlobalKey(debugLabel: 'tutorial_settings_exportar_tile');
+
+  // Ajustes -- Contas & Métodos (ManageAccountsScreen)
+  static final GlobalKey contasAddButton =
+      GlobalKey(debugLabel: 'tutorial_contas_add_button');
+
+  // Ajustes -- Categorias (ManageCategoriesScreen)
+  static final GlobalKey categoriasAddButton =
+      GlobalKey(debugLabel: 'tutorial_categorias_add_button');
+
+  // Ajustes -- Usuários (ManageUsersScreen)
+  static final GlobalKey usuariosAddButton =
+      GlobalKey(debugLabel: 'tutorial_usuarios_add_button');
+
+  // Ajustes -- Família & Compartilhamento (FamilyScreen)
+  static final GlobalKey familiaConvidarCard =
+      GlobalKey(debugLabel: 'tutorial_familia_convidar_card');
 }

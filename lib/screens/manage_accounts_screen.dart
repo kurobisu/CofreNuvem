@@ -4,6 +4,10 @@ import '../utils/bancos_brasil.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/help_icon_button.dart';
+import '../widgets/tutorial_button.dart';
 import 'invoices_screen.dart';
 
 class ManageAccountsScreen extends StatefulWidget {
@@ -508,7 +512,19 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                           prefixText: 'R\$ ',
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      LabelWithHelp(
+                        label: 'FECHAMENTO E VENCIMENTO',
+                        title: 'Dia de Fechamento e Vencimento',
+                        explanation:
+                            'Fechamento é o dia em que a fatura para de somar novas compras '
+                            'e o valor final fica definido. Vencimento é o dia em que você '
+                            'paga essa fatura -- normalmente uns dias depois do fechamento.',
+                        example:
+                            'Fechamento dia 25, Vencimento dia 5: uma compra feita dia 20 '
+                            'entra na fatura que fecha dia 25 e vence dia 5 do mês seguinte.',
+                      ),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
@@ -594,7 +610,19 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
                           prefixText: 'R\$ ',
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 8),
+                      LabelWithHelp(
+                        label: 'FECHAMENTO E VENCIMENTO',
+                        title: 'Dia de Fechamento e Vencimento',
+                        explanation:
+                            'Fechamento é o dia em que a fatura para de somar novas compras '
+                            'e o valor final fica definido. Vencimento é o dia em que você '
+                            'paga essa fatura -- normalmente uns dias depois do fechamento.',
+                        example:
+                            'Fechamento dia 25, Vencimento dia 5: uma compra feita dia 20 '
+                            'entra na fatura que fecha dia 25 e vence dia 5 do mês seguinte.',
+                      ),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Expanded(
@@ -654,7 +682,10 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Contas & Métodos')),
+      appBar: AppBar(
+        title: const Text('Contas & Métodos'),
+        actions: const [TutorialButton(screen: TutorialScreens.contas)],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : ReorderableListView.builder(
@@ -764,6 +795,7 @@ class _ManageAccountsScreenState extends State<ManageAccountsScreen> {
               },
             ),
       floatingActionButton: FloatingActionButton.extended(
+        key: TutorialKeys.contasAddButton,
         onPressed: _showAddContaDialog,
         backgroundColor: AppTheme.primary,
         icon: const Icon(Icons.add, color: Colors.white),

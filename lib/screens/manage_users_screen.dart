@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../database/supabase_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
@@ -426,7 +429,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Gerenciar Usuários')),
+      appBar: AppBar(
+        title: const Text('Gerenciar Usuários'),
+        actions: const [TutorialButton(screen: TutorialScreens.usuarios)],
+      ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
         : ReorderableListView.builder(
@@ -482,6 +488,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             },
           ),
       floatingActionButton: FloatingActionButton(
+        key: TutorialKeys.usuariosAddButton,
         onPressed: () => _showUserDialog(),
         backgroundColor: AppTheme.primary,
         child: const Icon(Icons.add, color: Colors.white),
