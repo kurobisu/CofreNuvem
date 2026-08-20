@@ -161,19 +161,41 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
   }
 
   Future<void> _definirMercado(String? mercadoAtual) async {
-    final controller = TextEditingController(text: mercadoAtual ?? '');
+    // Busca os mercados já usados pela família antes de abrir o diálogo, pra
+    // alimentar o autocomplete -- sem isso, cada grafia diferente do mesmo
+    // mercado (ex: "Atacadão" vs "atacadao") vira uma entrada solta nos
+    // Relatórios em vez de somar no mesmo filtro.
+    final conhecidos = await ListasComprasRepo.mercadosConhecidos();
+    if (!mounted) return;
+
+    String mercadoDigitado = mercadoAtual ?? '';
     final novoMercado = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Mercado desta lista'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            labelText: 'Ex: Atacadão, Carrefour...',
-            border: OutlineInputBorder(),
-          ),
+        content: Autocomplete<String>(
+          initialValue: TextEditingValue(text: mercadoAtual ?? ''),
+          optionsBuilder: (TextEditingValue value) {
+            final busca = value.text.trim().toLowerCase();
+            if (busca.isEmpty) return conhecidos;
+            return conhecidos.where((m) => m.toLowerCase().contains(busca));
+          },
+          onSelected: (selection) => mercadoDigitado = selection,
+          fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+            return TextField(
+              controller: controller,
+              focusNode: focusNode,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Busque ou digite um mercado novo',
+                hintText: 'Ex: Atacadão, Carrefour...',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) => mercadoDigitado = v,
+              onSubmitted: (_) => onFieldSubmitted(),
+            );
+          },
         ),
         actions: [
           OutlinedButton(
@@ -183,7 +205,7 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
           ),
           ElevatedButton(
             style: AppColors.primaryButtonStyle(context),
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            onPressed: () => Navigator.pop(ctx, mercadoDigitado.trim()),
             child: const Text('Salvar'),
           ),
         ],

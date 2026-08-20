@@ -211,6 +211,29 @@ class ListasComprasRepo {
     } catch (_) {}
   }
 
+  /// Nomes de mercado já usados em listas anteriores desta família --
+  /// alimenta o autocomplete de "Definir mercado" em ListaDetalheScreen, pra
+  /// não deixar duas grafias diferentes do mesmo mercado (ex: "Atacadão" e
+  /// "atacadao") virarem entradas separadas nos Relatórios.
+  static Future<List<String>> mercadosConhecidos() async {
+    try {
+      final raw = await _client
+          .from(SupabaseHelper.tableListasCompras)
+          .select('mercado')
+          .not('mercado', 'is', null)
+          .filter('deleted_at', 'is', null);
+      final nomes = raw
+          .map((r) => (r['mercado'] ?? '').toString().trim())
+          .where((m) => m.isNotEmpty)
+          .toSet()
+          .toList();
+      nomes.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      return nomes;
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Remove um item específico de uma lista (soft delete) -- usado pelo
   /// swipe-to-delete. Funciona tanto pra itens ligados ao catálogo quanto
   /// pra itens avulsos (produto_id nulo), já que mira o id da própria linha.
