@@ -8,6 +8,10 @@ import '../providers/dashboard_provider.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/help_icon_button.dart';
+import '../widgets/tutorial_button.dart';
 
 class TransactionFormScreen extends ConsumerStatefulWidget {
   final String? transactionId;
@@ -460,6 +464,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.transactionId != null ? 'Editar Transação' : 'Nova Transação'),
+        actions: const [TutorialButton(screen: TutorialScreens.transactionForm)],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -471,6 +476,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
               // Tipo Selector (Oculto se for forçado a ser Despesa, ex: Lista de Compras)
               if (!widget.forceDespesa) ...[
                 SegmentedButton<String>(
+                  key: TutorialKeys.transactionFormTipoSelector,
                   segments: const [
                     ButtonSegment(value: 'Despesa', label: Text('Despesa'), icon: Icon(Icons.remove_circle_outline)),
                     ButtonSegment(value: 'Receita', label: Text('Receita'), icon: Icon(Icons.add_circle_outline)),
@@ -641,6 +647,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
               const SizedBox(height: 16),
 
               SwitchListTile(
+                key: TutorialKeys.transactionFormPagaSwitch,
                 title: const Text('Transação Paga?'),
                 subtitle: const Text('Desmarque se estiver pendente'),
                 value: _isPaga,
@@ -667,6 +674,7 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                 if (_isParcelado) ...[
                   const SizedBox(height: 16),
                   Container(
+                    key: TutorialKeys.transactionFormParcelamento,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Theme.of(context).cardColor,
@@ -702,6 +710,15 @@ class _TransactionFormScreenState extends ConsumerState<TransactionFormScreen> {
                         Row(
                           children: [
                             const SizedBox(width: 80, child: Text('Iniciando na: ')),
+                            HelpIconButton(
+                              title: 'Iniciando na parcela',
+                              explanation:
+                                  'Use isso pra lançar uma compra parcelada que você já vinha '
+                                  'pagando antes de usar o app -- em vez de recriar as parcelas '
+                                  'que já passaram, o app lança só a partir da parcela atual.',
+                              example:
+                                  'Compra em 10x, você já pagou 3? Total = 10, Iniciando na = 4.',
+                            ),
                             Expanded(
                               child: Slider(
                                 value: _parcelaInicial.toDouble(),

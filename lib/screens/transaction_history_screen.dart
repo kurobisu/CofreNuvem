@@ -10,6 +10,9 @@ import '../utils/app_colors.dart';
 import 'transaction_form_screen.dart';
 import 'family_transfer_screen.dart';
 import '../providers/dashboard_provider.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 class TransactionHistoryScreen extends ConsumerStatefulWidget {
   const TransactionHistoryScreen({super.key});
@@ -508,9 +511,11 @@ class _TransactionHistoryScreenState extends ConsumerState<TransactionHistoryScr
         ),
         actions: [
           IconButton(
+            key: TutorialKeys.historyFilterButton,
             icon: const Icon(Icons.filter_alt),
             onPressed: _openFilterDialog,
-          )
+          ),
+          const TutorialButton(screen: TutorialScreens.transactionHistory),
         ],
       ),
       body: _isLoading

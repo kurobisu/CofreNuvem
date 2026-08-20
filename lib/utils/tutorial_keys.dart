@@ -70,4 +70,38 @@ class TutorialKeys {
   // Investimentos -- detalhe de um ativo (InvestmentDetailsScreen)
   static final GlobalKey investimentoDetalheResgatarButton =
       GlobalKey(debugLabel: 'tutorial_investimento_detalhe_resgatar_button');
+
+  // Dashboard -- tela principal (DashboardScreen) e o FAB em MainScreen
+  static final GlobalKey dashboardFab =
+      GlobalKey(debugLabel: 'tutorial_dashboard_fab');
+  static final GlobalKey dashboardRelatoriosButton =
+      GlobalKey(debugLabel: 'tutorial_dashboard_relatorios_button');
+  static final GlobalKey dashboardSaldoCard =
+      GlobalKey(debugLabel: 'tutorial_dashboard_saldo_card');
+  static final GlobalKey dashboardUserBalancesList =
+      GlobalKey(debugLabel: 'tutorial_dashboard_user_balances_list');
+  static final GlobalKey dashboardCartoesRow =
+      GlobalKey(debugLabel: 'tutorial_dashboard_cartoes_row');
+  static final GlobalKey dashboardVerTudoButton =
+      GlobalKey(debugLabel: 'tutorial_dashboard_ver_tudo_button');
+
+  // Dashboard -- lançar transação (TransactionFormScreen)
+  static final GlobalKey transactionFormTipoSelector =
+      GlobalKey(debugLabel: 'tutorial_transaction_form_tipo_selector');
+  static final GlobalKey transactionFormPagaSwitch =
+      GlobalKey(debugLabel: 'tutorial_transaction_form_paga_switch');
+  static final GlobalKey transactionFormParcelamento =
+      GlobalKey(debugLabel: 'tutorial_transaction_form_parcelamento');
+
+  // Dashboard -- Relatórios Avançados (ReportsScreen)
+  static final GlobalKey reportsMonthSelector =
+      GlobalKey(debugLabel: 'tutorial_reports_month_selector');
+
+  // Dashboard -- transferência entre familiares (FamilyTransferScreen)
+  static final GlobalKey familyTransferSwapButton =
+      GlobalKey(debugLabel: 'tutorial_family_transfer_swap_button');
+
+  // Dashboard -- histórico completo (TransactionHistoryScreen)
+  static final GlobalKey historyFilterButton =
+      GlobalKey(debugLabel: 'tutorial_history_filter_button');
 }

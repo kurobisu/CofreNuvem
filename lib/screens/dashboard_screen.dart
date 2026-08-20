@@ -14,6 +14,9 @@ import 'settings_screen.dart';
 import 'transaction_form_screen.dart';
 import 'family_transfer_screen.dart';
 import '../utils/transaction_helper.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 
 class DashboardScreen extends ConsumerWidget {
@@ -34,6 +37,7 @@ class DashboardScreen extends ConsumerWidget {
             onPressed: () => ref.read(hideBalanceProvider.notifier).toggle(),
           ),
           IconButton(
+            key: TutorialKeys.dashboardRelatoriosButton,
             icon: const Icon(Icons.analytics),
             tooltip: 'Relatórios Avançados',
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsScreen())),
@@ -42,6 +46,7 @@ class DashboardScreen extends ConsumerWidget {
             icon: const Icon(Icons.settings),
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
+          const TutorialButton(screen: TutorialScreens.dashboard),
           const SizedBox(width: 8),
         ],
       ),
@@ -107,6 +112,7 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildTotalBalanceCard(BuildContext context, double totalBalance, bool isHidden) {
     return Container(
+      key: TutorialKeys.dashboardSaldoCard,
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -143,6 +149,7 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildUserBalancesList(List<Map<String, dynamic>> userBalances, bool isHidden) {
     return ListView.builder(
+      key: TutorialKeys.dashboardUserBalancesList,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: userBalances.length,
@@ -196,6 +203,7 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildCreditCardsRow(BuildContext context, List<Map<String, dynamic>> creditCards, bool isHidden) {
     return Column(
+      key: TutorialKeys.dashboardCartoesRow,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Cartões & Faturas', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
@@ -631,7 +639,8 @@ class DashboardScreen extends ConsumerWidget {
           children: [
             Text('Últimas Transações', style: Theme.of(context).textTheme.titleLarge),
             TextButton(
-              onPressed: () => Navigator.pushNamed(context, '/history'), 
+              key: TutorialKeys.dashboardVerTudoButton,
+              onPressed: () => Navigator.pushNamed(context, '/history'),
               child: const Text('Ver tudo')
             ),
           ],

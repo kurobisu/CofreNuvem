@@ -6,6 +6,8 @@ import '../utils/app_colors.dart';
 import 'package:intl/intl.dart';
 
 import '../providers/dashboard_provider.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 class InvoicesScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> metodo;
@@ -215,6 +217,7 @@ class _InvoicesScreenState extends ConsumerState<InvoicesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Faturas: $nomeMetodo'),
+        actions: const [TutorialButton(screen: TutorialScreens.invoices)],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

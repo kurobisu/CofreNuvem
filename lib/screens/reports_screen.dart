@@ -5,6 +5,9 @@ import '../database/supabase_helper.dart';
 import '../theme/app_theme.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 
 class ReportsScreen extends StatefulWidget {
@@ -638,6 +641,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         title: const Text('Relatórios', style: TextStyle(fontSize: 16)),
         actions: [
           Padding(
+            key: TutorialKeys.reportsMonthSelector,
             padding: const EdgeInsets.only(right: 16.0),
             child: DropdownButton<String>(
               value: _selectedMonth,
@@ -653,7 +657,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 }
               },
             ),
-          )
+          ),
+          const TutorialButton(screen: TutorialScreens.reports),
         ],
       ),
       body: _isLoading

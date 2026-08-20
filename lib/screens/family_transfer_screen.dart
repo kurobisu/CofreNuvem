@@ -9,6 +9,9 @@ import '../providers/dashboard_provider.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 class FamilyTransferScreen extends ConsumerStatefulWidget {
   final String targetUserId;
@@ -442,6 +445,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transferir Valor entre Contas'),
+        actions: const [TutorialButton(screen: TutorialScreens.familyTransfer)],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -483,6 +487,7 @@ class _FamilyTransferScreenState extends ConsumerState<FamilyTransferScreen> {
                           ),
                           // Botão central de inverter com clique ou arrasto
                           InkWell(
+                            key: TutorialKeys.familyTransferSwapButton,
                             onTap: _swapUsers,
                             borderRadius: BorderRadius.circular(20),
                             child: Container(

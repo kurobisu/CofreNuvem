@@ -9,6 +9,7 @@ import 'onboarding_screen.dart';
 import '../database/supabase_helper.dart';
 import '../providers/navigation_provider.dart';
 import '../utils/profile_guard.dart';
+import '../utils/tutorial_keys.dart';
 
 class MainScreen extends ConsumerStatefulWidget {
   const MainScreen({super.key});
@@ -69,6 +70,7 @@ class _MainScreenState extends ConsumerState<MainScreen> {
       body: _pages[currentIndex],
       floatingActionButton: currentIndex == 0
           ? FloatingActionButton(
+              key: TutorialKeys.dashboardFab,
               onPressed: () {
                 Navigator.push(
                   context,

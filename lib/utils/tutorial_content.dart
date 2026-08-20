@@ -16,6 +16,12 @@ class TutorialScreens {
   static const familia = 'ajustes_familia';
   static const investimentos = 'investimentos';
   static const investimentoDetalhe = 'investimento_detalhe';
+  static const dashboard = 'dashboard';
+  static const transactionForm = 'transaction_form';
+  static const reports = 'reports';
+  static const familyTransfer = 'family_transfer';
+  static const invoices = 'invoices';
+  static const transactionHistory = 'transaction_history';
 }
 
 /// Passos por tela. Cada tutorial explica **só a tela em que o usuário
@@ -46,6 +52,18 @@ List<TutorialStep> tutorialStepsFor(String screen) {
       return _investimentos;
     case TutorialScreens.investimentoDetalhe:
       return _investimentoDetalhe;
+    case TutorialScreens.dashboard:
+      return _dashboard;
+    case TutorialScreens.transactionForm:
+      return _transactionForm;
+    case TutorialScreens.reports:
+      return _reports;
+    case TutorialScreens.familyTransfer:
+      return _familyTransfer;
+    case TutorialScreens.invoices:
+      return _invoices;
+    case TutorialScreens.transactionHistory:
+      return _transactionHistory;
     default:
       return const [];
   }
@@ -297,6 +315,174 @@ final _investimentoDetalhe = <TutorialStep>[
         'quanto ainda está investido. Resgatando tudo, o ativo é marcado '
         'como encerrado.',
     targetKey: TutorialKeys.investimentoDetalheResgatarButton,
+  ),
+];
+
+final _dashboard = <TutorialStep>[
+  const TutorialStep(
+    title: 'Visão Geral',
+    description:
+        'A tela inicial do app: saldo da família, saldo de cada pessoa, '
+        'cartões de crédito e as últimas transações -- tudo num só lugar.',
+  ),
+  TutorialStep(
+    title: 'Saldo Familiar Total',
+    description:
+        'A soma de todas as contas de todos os membros da família -- o '
+        'quanto vocês têm, juntos, agora.',
+    targetKey: TutorialKeys.dashboardSaldoCard,
+  ),
+  TutorialStep(
+    title: 'Saldo individual',
+    description:
+        'Toque no nome de alguém pra ver o extrato dela por conta e método '
+        'de pagamento, com um botão de "Transferir" pra mandar dinheiro de '
+        'uma conta pra outra dentro da família.',
+    targetKey: TutorialKeys.dashboardUserBalancesList,
+  ),
+  TutorialStep(
+    title: 'Cartões & Faturas',
+    description:
+        'Cada cartão de crédito mostra quanto do limite já foi usado. '
+        'Toque num cartão pra ver as faturas, mês a mês, e marcar como paga.',
+    targetKey: TutorialKeys.dashboardCartoesRow,
+  ),
+  TutorialStep(
+    title: 'Últimas Transações',
+    description:
+        'Toque numa transação pra editar, excluir, ou ver o cupom fiscal '
+        '(quando ela veio de uma lista de compras finalizada). "Ver tudo" '
+        'abre o histórico completo, com busca e filtros.',
+    targetKey: TutorialKeys.dashboardVerTudoButton,
+  ),
+  TutorialStep(
+    title: 'Relatórios Avançados',
+    description:
+        'Gráficos de entrada e saída por categoria, banco e por pessoa da '
+        'família, com filtro por mês.',
+    targetKey: TutorialKeys.dashboardRelatoriosButton,
+  ),
+  TutorialStep(
+    title: 'Lançar despesa ou receita',
+    description:
+        'O botão "+" cria uma transação nova -- despesa ou receita, à vista '
+        'ou parcelada, paga ou pendente. É o mesmo formulário usado em '
+        'qualquer lugar do app que lança uma transação.',
+    targetKey: TutorialKeys.dashboardFab,
+  ),
+];
+
+final _transactionForm = <TutorialStep>[
+  const TutorialStep(
+    title: 'Nova Transação',
+    description:
+        'Preencha valor, descrição, quem pagou/recebeu, categoria e a '
+        'conta/método usados -- e toque em Salvar Lançamento.',
+  ),
+  TutorialStep(
+    title: 'Despesa ou Receita',
+    description:
+        'Escolha se é dinheiro saindo (Despesa) ou entrando (Receita). Isso '
+        'muda quais categorias aparecem na lista abaixo.',
+    targetKey: TutorialKeys.transactionFormTipoSelector,
+  ),
+  TutorialStep(
+    title: 'Transação Paga?',
+    description:
+        'Desmarque pra lançar algo que ainda vai acontecer (uma conta a '
+        'pagar, um recebimento futuro). Transações pendentes aparecem com '
+        'um aviso laranja até você marcá-las como pagas.',
+    targetKey: TutorialKeys.transactionFormPagaSwitch,
+  ),
+  TutorialStep(
+    title: 'Parcelamento',
+    description:
+        'Pra uma compra parcelada no cartão, ative "Parcelado" e escolha '
+        'quantas parcelas. "Iniciando na" serve pra lançar uma compra que '
+        'você já vinha pagando antes de usar o app -- pulando direto pra '
+        'parcela em que você está agora, sem recriar as que já passaram.',
+    targetKey: TutorialKeys.transactionFormParcelamento,
+  ),
+];
+
+final _reports = <TutorialStep>[
+  const TutorialStep(
+    title: 'Relatórios Avançados',
+    description:
+        'Veja pra onde o dinheiro da família está indo: gasto por '
+        'categoria, e entrada/saída por banco e por pessoa, tudo no mês '
+        'selecionado.',
+  ),
+  TutorialStep(
+    title: 'Trocar o mês',
+    description:
+        'Toque aqui pra ver o mesmo relatório em qualquer um dos últimos '
+        '12 meses.',
+    targetKey: TutorialKeys.reportsMonthSelector,
+  ),
+  const TutorialStep(
+    title: 'Toque pra detalhar',
+    description:
+        'Toque numa fatia do gráfico ou numa barra pra ver o valor exato '
+        'por baixo -- os gráficos aqui são todos interativos.',
+  ),
+];
+
+final _familyTransfer = <TutorialStep>[
+  const TutorialStep(
+    title: 'Transferir entre familiares',
+    description:
+        'Move dinheiro de uma conta pra outra dentro da família -- o app '
+        'lança uma Despesa na conta de origem e uma Receita na conta de '
+        'destino, ligadas uma à outra.',
+  ),
+  TutorialStep(
+    title: 'Inverter remetente/destinatário',
+    description:
+        'Toque na seta pra trocar quem envia e quem recebe, sem precisar '
+        'refazer a tela do zero.',
+    targetKey: TutorialKeys.familyTransferSwapButton,
+  ),
+  const TutorialStep(
+    title: 'Desfazer uma transferência',
+    description:
+        'Se precisar reverter, abra a transação (na Visão Geral ou no '
+        'Histórico) e toque em "Devolver Valor"/"Recuperar Valor" -- isso '
+        'já pré-preenche uma transferência de volta, na direção contrária.',
+  ),
+];
+
+final _invoices = <TutorialStep>[
+  const TutorialStep(
+    title: 'Faturas do cartão',
+    description:
+        'A barra no topo mostra quanto do limite já está comprometido em '
+        'faturas ainda abertas. Cada fatura abaixo é agrupada pelo dia de '
+        'vencimento.',
+  ),
+  const TutorialStep(
+    title: 'Pagar uma fatura',
+    description:
+        'Toque numa fatura pra abrir e ver as compras dela. "Pagar Fatura '
+        'Completa" marca todas as transações daquele mês como pagas de uma '
+        'vez.',
+  ),
+];
+
+final _transactionHistory = <TutorialStep>[
+  const TutorialStep(
+    title: 'Histórico completo',
+    description:
+        'Todas as transações da família, mais recentes primeiro. Toque numa '
+        'pra editar, excluir ou ver o cupom fiscal.',
+  ),
+  TutorialStep(
+    title: 'Buscar e filtrar',
+    description:
+        'Digite no campo de busca pra filtrar por nome, valor ou categoria. '
+        'O ícone de filtro adiciona filtros por mês, categoria e outros '
+        'critérios.',
+    targetKey: TutorialKeys.historyFilterButton,
   ),
 ];
 
