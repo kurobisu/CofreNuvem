@@ -12,6 +12,9 @@ import '../database/supabase_helper.dart';
 import 'package:flutter/services.dart';
 import 'investment_details_screen.dart';
 import '../widgets/goals_section.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 class InvestmentsScreen extends ConsumerStatefulWidget {
   const InvestmentsScreen({super.key});
@@ -534,16 +537,20 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
             onPressed: () => ref.read(hideBalanceProvider.notifier).toggle(),
           ),
           IconButton(
+            key: TutorialKeys.investimentosAddButton,
             icon: const Icon(Icons.add_circle_outline),
             tooltip: 'Novo Investimento',
             onPressed: _showAddInvestmentDialog,
-          )
+          ),
+          const TutorialButton(screen: TutorialScreens.investimentos),
         ],
       ),
       body: CustomScrollView(
         slivers: [
           const SliverToBoxAdapter(child: SizedBox(height: 8)),
-          const SliverToBoxAdapter(child: GoalsSection()),
+          SliverToBoxAdapter(
+            child: GoalsSection(addButtonKey: TutorialKeys.investimentosMetaAddButton),
+          ),
           investmentsAsync.when(
         data: (data) {
           if (data.isEmpty) {
@@ -597,6 +604,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Container(
+                        key: TutorialKeys.investimentosPatrimonioCard,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -679,6 +687,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
                               const SizedBox(width: 16),
                             ],
                             IconButton(
+                              key: TutorialKeys.investimentosChartToggle,
                               icon: Icon(_showLineChart ? Icons.pie_chart : Icons.show_chart, color: Theme.of(context).colorScheme.primary),
                               onPressed: () => setState(() => _showLineChart = !_showLineChart),
                               tooltip: 'Trocar Visualização',
@@ -840,6 +849,7 @@ class _InvestmentsScreenState extends ConsumerState<InvestmentsScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        key: TutorialKeys.investimentosAtualizarButton,
         onPressed: () {
           final data = investmentsAsync.value;
           if (data != null && data.isNotEmpty) {

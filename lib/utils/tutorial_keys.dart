@@ -54,4 +54,20 @@ class TutorialKeys {
   // Ajustes -- Família & Compartilhamento (FamilyScreen)
   static final GlobalKey familiaConvidarCard =
       GlobalKey(debugLabel: 'tutorial_familia_convidar_card');
+
+  // Investimentos -- tela principal (InvestmentsScreen)
+  static final GlobalKey investimentosAddButton =
+      GlobalKey(debugLabel: 'tutorial_investimentos_add_button');
+  static final GlobalKey investimentosPatrimonioCard =
+      GlobalKey(debugLabel: 'tutorial_investimentos_patrimonio_card');
+  static final GlobalKey investimentosChartToggle =
+      GlobalKey(debugLabel: 'tutorial_investimentos_chart_toggle');
+  static final GlobalKey investimentosAtualizarButton =
+      GlobalKey(debugLabel: 'tutorial_investimentos_atualizar_button');
+  static final GlobalKey investimentosMetaAddButton =
+      GlobalKey(debugLabel: 'tutorial_investimentos_meta_add_button');
+
+  // Investimentos -- detalhe de um ativo (InvestmentDetailsScreen)
+  static final GlobalKey investimentoDetalheResgatarButton =
+      GlobalKey(debugLabel: 'tutorial_investimento_detalhe_resgatar_button');
 }

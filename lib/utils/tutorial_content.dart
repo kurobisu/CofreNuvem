@@ -14,6 +14,8 @@ class TutorialScreens {
   static const categorias = 'ajustes_categorias';
   static const usuarios = 'ajustes_usuarios';
   static const familia = 'ajustes_familia';
+  static const investimentos = 'investimentos';
+  static const investimentoDetalhe = 'investimento_detalhe';
 }
 
 /// Passos por tela. Cada tutorial explica **só a tela em que o usuário
@@ -40,6 +42,10 @@ List<TutorialStep> tutorialStepsFor(String screen) {
       return _usuarios;
     case TutorialScreens.familia:
       return _familia;
+    case TutorialScreens.investimentos:
+      return _investimentos;
+    case TutorialScreens.investimentoDetalhe:
+      return _investimentoDetalhe;
     default:
       return const [];
   }
@@ -226,6 +232,71 @@ final _familia = <TutorialStep>[
         'ter uma conta no CofreNuvem, e só entra na família se aceitar o '
         'convite (que aparece pra ela nesta mesma tela).',
     targetKey: TutorialKeys.familiaConvidarCard,
+  ),
+];
+
+final _investimentos = <TutorialStep>[
+  const TutorialStep(
+    title: 'Meus Investimentos',
+    description:
+        'Acompanhe seus ativos (CDB, ações, fundos...), veja quanto rendeu e '
+        'defina metas financeiras -- tudo nesta tela.',
+  ),
+  TutorialStep(
+    title: 'Novo investimento',
+    description:
+        'Toque aqui pra cadastrar um ativo novo, ou fazer um aporte extra '
+        'num ativo que você já tem (ex: comprar mais cota do mesmo CDB).',
+    targetKey: TutorialKeys.investimentosAddButton,
+  ),
+  TutorialStep(
+    title: 'Patrimônio Atualizado',
+    description:
+        'O card mostra quanto você tem hoje, quanto investiu no total, e o '
+        'rendimento líquido (a diferença entre os dois) -- em valor e em %.',
+    targetKey: TutorialKeys.investimentosPatrimonioCard,
+  ),
+  TutorialStep(
+    title: 'Alocação e evolução',
+    description:
+        'Alterne entre o gráfico de pizza (como seu dinheiro está dividido '
+        'entre os ativos) e o de linha (como o total evoluiu ao longo do '
+        'tempo, por dia, semana, mês ou ano).',
+    targetKey: TutorialKeys.investimentosChartToggle,
+  ),
+  TutorialStep(
+    title: 'Atualizar Rendimento',
+    description:
+        'O app não busca cotação sozinho -- toque aqui de vez em quando pra '
+        'informar o valor atual de cada investimento e manter o rendimento '
+        'em dia.',
+    targetKey: TutorialKeys.investimentosAtualizarButton,
+  ),
+  TutorialStep(
+    title: 'Metas Financeiras',
+    description:
+        'Crie uma meta (ex: dar entrada num carro) e acompanhe o progresso '
+        'com base no seu patrimônio atual. Informe um aporte mensal '
+        'planejado ou uma data alvo, e o app calcula o resto.',
+    targetKey: TutorialKeys.investimentosMetaAddButton,
+  ),
+];
+
+final _investimentoDetalhe = <TutorialStep>[
+  const TutorialStep(
+    title: 'Detalhes do investimento',
+    description:
+        'Aqui fica o histórico completo deste ativo: todos os aportes e '
+        'resgates, e o gráfico de evolução do saldo ao longo do tempo.',
+  ),
+  TutorialStep(
+    title: 'Resgatar',
+    description:
+        'Toque aqui pra retirar parte ou todo o valor investido -- o app '
+        'lança uma Receita na conta de destino e recalcula automaticamente '
+        'quanto ainda está investido. Resgatando tudo, o ativo é marcado '
+        'como encerrado.',
+    targetKey: TutorialKeys.investimentoDetalheResgatarButton,
   ),
 ];
 

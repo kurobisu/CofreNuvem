@@ -11,6 +11,9 @@ import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/app_colors.dart';
 import '../database/supabase_helper.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
+import '../widgets/tutorial_button.dart';
 
 class InvestmentDetailsScreen extends ConsumerStatefulWidget {
   final String investmentId;
@@ -312,6 +315,7 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
             tooltip: isBalanceHidden ? 'Mostrar Saldos' : 'Ocultar Saldos',
             onPressed: () => ref.read(hideBalanceProvider.notifier).toggle(),
           ),
+          const TutorialButton(screen: TutorialScreens.investimentoDetalhe),
           const SizedBox(width: 8),
         ],
       ),
@@ -477,6 +481,7 @@ class _InvestmentDetailsScreenState extends ConsumerState<InvestmentDetailsScree
         error: (err, stack) => Center(child: Text('Erro: $err')),
       ),
       floatingActionButton: asyncData.value?['investment']['Status'] == 'Ativo' ? FloatingActionButton.extended(
+        key: TutorialKeys.investimentoDetalheResgatarButton,
         onPressed: () => _showRedeemInvestmentDialog(asyncData.value!['investment']),
         backgroundColor: Colors.blueAccent,
         foregroundColor: Colors.white,

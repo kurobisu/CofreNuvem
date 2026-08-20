@@ -8,6 +8,7 @@ import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/goal_projection.dart';
 import '../utils/app_colors.dart';
+import 'help_icon_button.dart';
 
 const _goalIcons = <String, IconData>{
   'flag': Icons.flag,
@@ -34,7 +35,12 @@ double _parseCurrency(String text) {
 String _formatDate(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
 class GoalsSection extends ConsumerWidget {
-  const GoalsSection({super.key});
+  const GoalsSection({super.key, this.addButtonKey});
+
+  /// Key do botão "Nova Meta" no cabeçalho -- usada pelo tutorial da tela de
+  /// Investimentos pra destacá-lo (GoalsSection não tem AppBar própria, então
+  /// não pode montar seu próprio TutorialButton).
+  final Key? addButtonKey;
 
   Future<void> _showGoalDialog(BuildContext context, WidgetRef ref, [Map<String, dynamic>? goal]) async {
     final nomeController = TextEditingController(text: goal?['nome']?.toString() ?? '');
@@ -125,7 +131,20 @@ class GoalsSection extends ConsumerWidget {
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
                     ),
                     const SizedBox(height: 20),
-                    Text('Plano de Contribuição (opcional)', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(ctx))),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Plano de Contribuição (opcional)', style: TextStyle(fontSize: 12, color: AppColors.secondaryText(ctx))),
+                        HelpIconButton(
+                          title: 'Plano de Contribuição',
+                          explanation:
+                              'Preencha um dos dois -- não precisa dos dois. Se informar o '
+                              'aporte mensal, o app calcula quantos meses faltam nesse ritmo. '
+                              'Se informar só a data alvo, ele calcula quanto guardar por mês '
+                              'pra chegar lá. Se preencher os dois, o aporte mensal manda.',
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: aporteController,
@@ -259,6 +278,7 @@ class GoalsSection extends ConsumerWidget {
             children: [
               Text('Metas Financeiras', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.onSurface(context))),
               IconButton(
+                key: addButtonKey,
                 icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
                 tooltip: 'Nova Meta',
                 onPressed: () => _showGoalDialog(context, ref),
