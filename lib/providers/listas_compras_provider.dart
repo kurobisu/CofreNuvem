@@ -234,6 +234,42 @@ class ListasComprasRepo {
     }
   }
 
+  /// Quantas listas (ativas ou concluídas) usam este mercado -- usado pra
+  /// avisar o usuário do impacto antes de renomear/excluir um mercado em
+  /// [renomearMercado]/[excluirMercado].
+  static Future<int> contagemListasPorMercado(String mercado) async {
+    final raw = await _client
+        .from(SupabaseHelper.tableListasCompras)
+        .select('id')
+        .eq('mercado', mercado)
+        .filter('deleted_at', 'is', null);
+    return raw.length;
+  }
+
+  /// Renomeia um mercado em **todas** as listas que o usam -- ex: corrigir
+  /// "atacadao" pra "Atacadão" sem precisar editar lista por lista.
+  static Future<void> renomearMercado(
+    String nomeAntigo,
+    String nomeNovo,
+  ) async {
+    await _client
+        .from(SupabaseHelper.tableListasCompras)
+        .update({'mercado': nomeNovo.trim()})
+        .eq('mercado', nomeAntigo);
+  }
+
+  /// Remove um mercado de **todas** as listas que o usam -- as listas
+  /// continuam existindo com todos os itens/preços intactos, só deixam de
+  /// ter um mercado definido (viram "sem mercado", não são excluídas). Os
+  /// Relatórios continuam contando essas compras normalmente, só saem do
+  /// filtro por mercado.
+  static Future<void> excluirMercado(String mercado) async {
+    await _client
+        .from(SupabaseHelper.tableListasCompras)
+        .update({'mercado': null})
+        .eq('mercado', mercado);
+  }
+
   /// Remove um item específico de uma lista (soft delete) -- usado pelo
   /// swipe-to-delete. Funciona tanto pra itens ligados ao catálogo quanto
   /// pra itens avulsos (produto_id nulo), já que mira o id da própria linha.

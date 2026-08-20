@@ -2,8 +2,10 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/supabase_helper.dart';
+import '../providers/listas_compras_provider.dart';
 import '../utils/app_colors.dart';
 import '../utils/currency_formatter.dart';
+import 'mercado_delete_dialog.dart';
 
 /// Itens efetivamente comprados (comprado=1) em qualquer lista, com a
 /// categoria do catálogo embutida -- base pra todos os relatórios desta
@@ -109,23 +111,195 @@ class _ComprasRelatoriosTabState extends ConsumerState<ComprasRelatoriosTab> {
     if (mercados.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          ChoiceChip(
-            label: const Text('Todos os mercados'),
-            selected: _mercadoFiltro == null,
-            onSelected: (_) => setState(() => _mercadoFiltro = null),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('Todos os mercados'),
+                selected: _mercadoFiltro == null,
+                onSelected: (_) => setState(() => _mercadoFiltro = null),
+              ),
+              for (final m in mercados)
+                ChoiceChip(
+                  label: Text(m),
+                  selected: _mercadoFiltro == m,
+                  onSelected: (_) => setState(() => _mercadoFiltro = m),
+                ),
+            ],
           ),
-          for (final m in mercados)
-            ChoiceChip(
-              label: Text(m),
-              selected: _mercadoFiltro == m,
-              onSelected: (_) => setState(() => _mercadoFiltro = m),
+          TextButton.icon(
+            onPressed: () => _abrirGerenciarMercados(mercados),
+            icon: const Icon(Icons.edit_note, size: 18),
+            label: const Text('Gerenciar mercados'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              visualDensity: VisualDensity.compact,
             ),
+          ),
         ],
       ),
+    );
+  }
+
+  /// Lista os mercados já cadastrados com ação de renomear/excluir cada um
+  /// -- pra corrigir um nome digitado errado ou remover um mercado criado
+  /// só de teste, sem precisar editar lista por lista.
+  void _abrirGerenciarMercados(List<String> mercadosIniciais) {
+    // Declarado fora do StatefulBuilder de propósito: `builder` roda de
+    // novo a cada `setSheetState`, então uma variável local dele seria
+    // resetada pra `mercadosIniciais` a cada renomeação/exclusão em vez de
+    // manter o que já foi feito na folha (mesmo padrão usado em
+    // produto_item_sheet.dart).
+    var mercados = List<String>.from(mercadosIniciais)..sort();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).cardColor,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            Future<void> renomear(String nomeAntigo) async {
+              final controller = TextEditingController(text: nomeAntigo);
+              final nomeNovo = await showDialog<String>(
+                context: context,
+                builder: (dCtx) => AlertDialog(
+                  title: const Text('Renomear mercado'),
+                  content: TextField(
+                    controller: controller,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  actions: [
+                    OutlinedButton(
+                      onPressed: () => Navigator.pop(dCtx),
+                      style: AppColors.secondaryButtonStyle(context),
+                      child: const Text('Cancelar'),
+                    ),
+                    ElevatedButton(
+                      style: AppColors.primaryButtonStyle(context),
+                      onPressed: () =>
+                          Navigator.pop(dCtx, controller.text.trim()),
+                      child: const Text('Salvar'),
+                    ),
+                  ],
+                ),
+              );
+              if (nomeNovo == null ||
+                  nomeNovo.isEmpty ||
+                  nomeNovo == nomeAntigo) {
+                return;
+              }
+              await ListasComprasRepo.renomearMercado(nomeAntigo, nomeNovo);
+              if (_mercadoFiltro == nomeAntigo) {
+                setState(() => _mercadoFiltro = nomeNovo);
+              }
+              ref.invalidate(_historicoComprasProvider);
+              ref.invalidate(listasAtivasProvider);
+              ref.invalidate(listasConcluidasProvider);
+              setSheetState(
+                () => mercados = (mercados..remove(nomeAntigo))
+                  ..add(nomeNovo)
+                  ..sort(),
+              );
+            }
+
+            Future<void> excluir(String nome) async {
+              final quantidade =
+                  await ListasComprasRepo.contagemListasPorMercado(nome);
+              if (!context.mounted) return;
+              final confirmou = await confirmarExclusaoMercado(
+                context,
+                nomeMercado: nome,
+                quantidadeListas: quantidade,
+              );
+              if (!confirmou) return;
+              await ListasComprasRepo.excluirMercado(nome);
+              if (_mercadoFiltro == nome) setState(() => _mercadoFiltro = null);
+              ref.invalidate(_historicoComprasProvider);
+              ref.invalidate(listasAtivasProvider);
+              ref.invalidate(listasConcluidasProvider);
+              setSheetState(
+                () => mercados = List<String>.from(mercados)..remove(nome),
+              );
+              if (mercados.isEmpty && ctx.mounted) Navigator.pop(ctx);
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Gerenciar mercados',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Corrija um nome digitado errado ou remova um mercado -- as compras continuam salvas, só deixam de ter um mercado definido.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText(context),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.5,
+                      ),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: mercados.length,
+                        itemBuilder: (context, index) {
+                          final nome = mercados[index];
+                          return ListTile(
+                            leading: const Icon(Icons.storefront_outlined),
+                            title: Text(nome),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined),
+                                  tooltip: 'Renomear',
+                                  onPressed: () => renomear(nome),
+                                ),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                  ),
+                                  tooltip: 'Excluir',
+                                  onPressed: () => excluir(nome),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
