@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../database/supabase_helper.dart';
 import '../utils/bancos_brasil.dart';
 import '../utils/default_data.dart';
-import '../providers/tutorial_provider.dart';
 import 'main_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -108,8 +107,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           'Tipo': 'Dinheiro',
         });
       }
-
-      await markTutorialPendingStart();
 
       if (mounted) {
         Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainScreen()));

@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/catalogo_provider.dart';
 import '../providers/listas_compras_provider.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
 import '../widgets/produto_item_sheet.dart';
 import '../widgets/relatorios_compras.dart';
+import '../widgets/tutorial_button.dart';
 import 'categoria_produtos_screen.dart';
 
 const _tagIcons = {
@@ -413,6 +416,7 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
     return Scaffold(
       appBar: AppBar(
         title: Container(
+          key: TutorialKeys.catalogoSearchField,
           height: 42,
           padding: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
@@ -431,6 +435,7 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
             onChanged: (v) => setState(() => _busca = v),
           ),
         ),
+        actions: const [TutorialButton(screen: TutorialScreens.catalogo)],
         bottom: PreferredSize(
           preferredSize: buscando ? Size.zero : tabBar.preferredSize,
           child: buscando ? const SizedBox.shrink() : tabBar,

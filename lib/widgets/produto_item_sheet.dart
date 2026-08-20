@@ -5,6 +5,7 @@ import '../providers/catalogo_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/app_colors.dart';
+import 'help_icon_button.dart';
 
 const _unidades = ['Unidade', 'Kg', 'Litro'];
 
@@ -694,6 +695,18 @@ Future<bool> showProdutoItemSheet(
                     ),
                   if (produtoId != null) ...[
                     const SizedBox(height: 12),
+                    LabelWithHelp(
+                      label: 'MARCA (OPCIONAL)',
+                      title: 'Marca',
+                      explanation:
+                          'Escolher uma marca guarda o preço separado por marca -- útil '
+                          'quando marcas diferentes do mesmo produto custam valores '
+                          'diferentes. Ao selecionar, o campo Preço se preenche sozinho com '
+                          'o último preço pago naquela marca.',
+                      example: 'Ex: "Café" pode ter as marcas "NesCafé" e "São Braz", cada '
+                          'uma com seu próprio histórico de preço.',
+                    ),
+                    const SizedBox(height: 4),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -856,7 +869,15 @@ Future<bool> showProdutoItemSheet(
                             FilteringTextInputFormatter.digitsOnly,
                             CurrencyInputFormatter(),
                           ],
-                          decoration: _campoDecoration(context, 'Preço'),
+                          decoration: _campoDecoration(context, 'Preço').copyWith(
+                            suffixIcon: HelpIconButton(
+                              title: 'Preço',
+                              explanation:
+                                  'É o preço por Kg, Litro ou Unidade -- não o valor total pago. '
+                                  'O campo "Total" ao lado é calculado sozinho (Preço × Quantidade).',
+                              example: 'Pagou R\$ 9,00 por 2 Kg? O Preço é R\$ 4,50 (por Kg).',
+                            ),
+                          ),
                           onChanged: (_) => setModalState(recalcularTotal),
                         ),
                       ),
@@ -877,6 +898,15 @@ Future<bool> showProdutoItemSheet(
                       child: historicoWidget,
                     ),
                   const SizedBox(height: 12),
+                  LabelWithHelp(
+                    label: 'UNIDADE E QUANTIDADE',
+                    title: 'Unidade e Quantidade',
+                    explanation:
+                        'Em "Kg" ou "Litro", digite o quanto você comprou de fato -- com '
+                        'casas decimais. Em "Unidade", é a contagem de itens (1, 2, 3...).',
+                    example: 'Comprou 1,83 Kg de carne? Unidade = Kg, Quantidade = 1.83.',
+                  ),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Expanded(

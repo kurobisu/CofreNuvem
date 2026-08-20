@@ -1,22 +1,25 @@
 import 'package:flutter/material.dart';
 
-/// GlobalKeys usados pelo tour guiado para localizar e destacar (spotlight)
-/// widgets espalhados por telas diferentes. Ficam centralizados aqui porque
-/// o controlador do tour (lib/providers/tutorial_provider.dart) precisa
-/// referenciá-los sem depender de cada tela individualmente.
+/// GlobalKeys usados pelo tutorial de cada tela pra localizar e destacar
+/// (spotlight) os widgets que ele explica. Ficam centralizados aqui porque
+/// o conteúdo dos passos (lib/utils/tutorial_content.dart) referencia esses
+/// widgets sem depender de onde a tela os declara.
 class TutorialKeys {
   TutorialKeys._();
 
-  static final GlobalKey settingsContas = GlobalKey(debugLabel: 'tutorial_settings_contas');
-  static final GlobalKey settingsCategorias = GlobalKey(debugLabel: 'tutorial_settings_categorias');
-  static final GlobalKey settingsFamilia = GlobalKey(debugLabel: 'tutorial_settings_familia');
+  // Compras -- lista de listas (ListasScreen)
+  static final GlobalKey listasCatalogoButton =
+      GlobalKey(debugLabel: 'tutorial_listas_catalogo_button');
+  static final GlobalKey listasAddButton =
+      GlobalKey(debugLabel: 'tutorial_listas_add_button');
+  static final GlobalKey listasHistoricoButton =
+      GlobalKey(debugLabel: 'tutorial_listas_historico_button');
 
-  static final GlobalKey accountsAddFab = GlobalKey(debugLabel: 'tutorial_accounts_add_fab');
-  static final GlobalKey categoriesAddFab = GlobalKey(debugLabel: 'tutorial_categories_add_fab');
-  static final GlobalKey familyInviteCard = GlobalKey(debugLabel: 'tutorial_family_invite_card');
+  // Compras -- itens de uma lista (ListaDetalheScreen)
+  static final GlobalKey listaDetalheMenuButton =
+      GlobalKey(debugLabel: 'tutorial_lista_detalhe_menu_button');
 
-  static final GlobalKey dashboardFab = GlobalKey(debugLabel: 'tutorial_dashboard_fab');
-
-  static final GlobalKey shoppingAddFab = GlobalKey(debugLabel: 'tutorial_shopping_add_fab');
-  static final GlobalKey shoppingHistoryButton = GlobalKey(debugLabel: 'tutorial_shopping_history_button');
+  // Compras -- catálogo de produtos (CatalogoScreen)
+  static final GlobalKey catalogoSearchField =
+      GlobalKey(debugLabel: 'tutorial_catalogo_search_field');
 }

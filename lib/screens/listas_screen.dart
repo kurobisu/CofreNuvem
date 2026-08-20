@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/listas_compras_provider.dart';
 import '../utils/app_colors.dart';
 import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
 import '../widgets/nova_lista_sheet.dart';
+import '../widgets/tutorial_button.dart';
 import 'catalogo_screen.dart';
 import 'historico_listas_screen.dart';
 import 'lista_detalhe_screen.dart';
@@ -200,6 +202,7 @@ class ListasScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: TextButton.icon(
+              key: TutorialKeys.listasCatalogoButton,
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const CatalogoScreen()),
@@ -223,7 +226,7 @@ class ListasScreen extends ConsumerWidget {
             ),
           ),
           IconButton(
-            key: TutorialKeys.shoppingHistoryButton,
+            key: TutorialKeys.listasHistoricoButton,
             icon: const Icon(Icons.history),
             tooltip: 'Listas concluídas',
             onPressed: () => Navigator.push(
@@ -231,6 +234,7 @@ class ListasScreen extends ConsumerWidget {
               MaterialPageRoute(builder: (_) => const HistoricoListasScreen()),
             ),
           ),
+          const TutorialButton(screen: TutorialScreens.listas),
         ],
       ),
       body: SafeArea(
@@ -371,7 +375,7 @@ class ListasScreen extends ConsumerWidget {
               child: SizedBox(
                 height: 56,
                 child: ElevatedButton(
-                  key: TutorialKeys.shoppingAddFab,
+                  key: TutorialKeys.listasAddButton,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.divider(
                       context,

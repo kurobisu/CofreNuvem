@@ -14,7 +14,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/login_screen.dart';
 import 'services/update_service.dart';
 import 'widgets/update_dialog.dart';
-import 'providers/tutorial_provider.dart';
 import 'widgets/tutorial_overlay.dart';
 import 'utils/data_refresh.dart';
 
@@ -55,7 +54,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'CofreNuvem',
-      navigatorKey: tutorialNavigatorKey,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,

@@ -4,8 +4,11 @@ import '../database/supabase_helper.dart';
 import '../providers/listas_compras_provider.dart';
 import '../utils/currency_formatter.dart';
 import '../utils/app_colors.dart';
+import '../utils/tutorial_keys.dart';
+import '../utils/tutorial_content.dart';
 import '../widgets/lista_concluida_delete_dialog.dart';
 import '../widgets/produto_item_sheet.dart';
+import '../widgets/tutorial_button.dart';
 import 'catalogo_screen.dart';
 import 'transaction_form_screen.dart';
 
@@ -570,11 +573,13 @@ class _ListaDetalheScreenState extends ConsumerState<ListaDetalheScreen> {
           ),
           itensAsync.maybeWhen(
             data: (itens) => IconButton(
+              key: TutorialKeys.listaDetalheMenuButton,
               icon: const Icon(Icons.more_vert),
               onPressed: () => _showKebabMenu(itens, mercadoValido),
             ),
             orElse: () => const SizedBox.shrink(),
           ),
+          const TutorialButton(screen: TutorialScreens.listaDetalhe),
         ],
       ),
       body: Column(
