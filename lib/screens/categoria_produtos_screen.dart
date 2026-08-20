@@ -108,12 +108,33 @@ class _CategoriaProdutosScreenState
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      'Novo Produto',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.divider(context),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Novo Produto',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: AppColors.secondaryButtonStyle(context),
+                          child: const Text('Cancelar'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     TextField(
