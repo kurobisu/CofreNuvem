@@ -106,6 +106,13 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     if (_measuredForIndex != tutorial.index) {
       _measuredForIndex = tutorial.index;
       _targetRect = null;
+      // Roda antes da medição, na mesma leva de callbacks pós-frame: se o
+      // passo troca de aba (CatalogoScreen), o alvo do próximo passo só
+      // existe depois dessa troca.
+      final onEnter = step.onEnter;
+      if (onEnter != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => onEnter());
+      }
       final key = step.targetKey;
       if (key != null) {
         WidgetsBinding.instance.addPostFrameCallback(

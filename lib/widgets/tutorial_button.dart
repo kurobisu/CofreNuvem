@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/tutorial_provider.dart';
 import '../utils/tutorial_content.dart';
+import '../utils/tutorial_step.dart';
 
 /// Botão de ajuda da AppBar. Dispara os passos **da tela onde está** e, na
 /// primeira visita a essa tela, abre sozinho.
@@ -11,13 +12,26 @@ import '../utils/tutorial_content.dart';
 /// acesso ao app: o usuário aprende cada tela quando chega nela, no
 /// contexto em que a explicação faz sentido.
 class TutorialButton extends ConsumerStatefulWidget {
-  const TutorialButton({super.key, required this.screen, this.autoShow = true});
+  const TutorialButton({
+    super.key,
+    required this.screen,
+    this.autoShow = true,
+    this.stepsBuilder,
+  });
 
   /// Identificador da tela (ver [TutorialScreens]).
   final String screen;
 
   /// Abrir sozinho na primeira visita a esta tela.
   final bool autoShow;
+
+  /// Quando informado, substitui `tutorialStepsFor(screen)` -- usado por
+  /// telas que montam os passos dinamicamente (ex.: CatalogoScreen, cujos
+  /// passos trocam de aba e por isso precisam de um `TabController` que só
+  /// existe naquela tela, não no conteúdo estático de tutorial_content.dart).
+  /// Chamado de novo a cada vez que o tutorial inicia, pra sempre capturar
+  /// o estado atual da tela.
+  final List<TutorialStep> Function()? stepsBuilder;
 
   @override
   ConsumerState<TutorialButton> createState() => _TutorialButtonState();
@@ -43,7 +57,9 @@ class _TutorialButtonState extends ConsumerState<TutorialButton> {
   }
 
   void _start() {
-    final steps = tutorialStepsFor(widget.screen);
+    final steps = widget.stepsBuilder != null
+        ? widget.stepsBuilder!()
+        : tutorialStepsFor(widget.screen);
     if (steps.isEmpty) return;
     ref.read(tutorialProvider.notifier).start(steps);
   }

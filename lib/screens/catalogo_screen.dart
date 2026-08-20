@@ -5,6 +5,7 @@ import '../providers/listas_compras_provider.dart';
 import '../utils/app_colors.dart';
 import '../utils/tutorial_keys.dart';
 import '../utils/tutorial_content.dart';
+import '../utils/tutorial_step.dart';
 import '../widgets/produto_item_sheet.dart';
 import '../widgets/relatorios_compras.dart';
 import '../widgets/tutorial_button.dart';
@@ -45,6 +46,61 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
     _buscaController.dispose();
     super.dispose();
   }
+
+  /// Passos do tutorial desta tela, montados aqui (em vez de em
+  /// tutorial_content.dart) porque cada passo sobre uma aba troca de fato
+  /// pra ela via `_tabController` -- o usuário vê o conteúdo da aba
+  /// enquanto lê a explicação, em vez do texto falar de uma aba diferente
+  /// da que está na tela.
+  List<TutorialStep> _buildTutorialSteps() => [
+    const TutorialStep(
+      title: 'Catálogo da família',
+      description:
+          'Todos os produtos que sua família já comprou ficam aqui, '
+          'organizados por categoria -- compartilhados entre todos os '
+          'membros da família.',
+    ),
+    TutorialStep(
+      title: 'Populares',
+      description:
+          'Os itens mais comprados pela sua família recentemente, pra '
+          'adicionar rápido sem precisar buscar.',
+      targetKey: TutorialKeys.catalogoTabPopular,
+      onEnter: () => _tabController.animateTo(0),
+    ),
+    TutorialStep(
+      title: 'Catálogo por categoria',
+      description:
+          'Todo o catálogo organizado por categoria, mais filtros rápidos '
+          'por tag (vegetariano, sem glúten...).',
+      targetKey: TutorialKeys.catalogoTabCatalogo,
+      onEnter: () => _tabController.animateTo(1),
+    ),
+    TutorialStep(
+      title: 'Relatórios',
+      description:
+          'Quanto você gasta por categoria, quais produtos mais pesam no '
+          'bolso, e o total por mês -- com filtro por mercado.',
+      targetKey: TutorialKeys.catalogoTabRelatorios,
+      onEnter: () => _tabController.animateTo(2),
+    ),
+    TutorialStep(
+      title: 'Buscar um produto',
+      description:
+          'Digite aqui pra filtrar em qualquer uma das abas -- funciona pra '
+          'produtos que você já tem no catálogo e ajuda a achar rápido antes '
+          'de cadastrar um novo.',
+      targetKey: TutorialKeys.catalogoSearchField,
+    ),
+    TutorialStep(
+      title: 'Adicionar à lista',
+      description:
+          'Toque no emoji do produto pra abrir e ajustar preço/quantidade '
+          'antes de adicionar. Toque no + no canto pra adicionar direto, sem '
+          'abrir nada -- rápido pra itens que você já sabe o preço.',
+      onEnter: () => _tabController.animateTo(0),
+    ),
+  ];
 
   void _mostrarErroSemLista() {
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -403,10 +459,22 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
     // digitada (e de novo ao apagar o texto).
     final tabBar = TabBar(
       controller: _tabController,
-      tabs: const [
-        Tab(icon: Icon(Icons.auto_awesome, size: 18), text: 'Popular'),
-        Tab(icon: Icon(Icons.grid_view, size: 18), text: 'Catálogo'),
-        Tab(icon: Icon(Icons.bar_chart, size: 18), text: 'Relatórios'),
+      tabs: [
+        Tab(
+          key: TutorialKeys.catalogoTabPopular,
+          icon: const Icon(Icons.auto_awesome, size: 18),
+          text: 'Popular',
+        ),
+        Tab(
+          key: TutorialKeys.catalogoTabCatalogo,
+          icon: const Icon(Icons.grid_view, size: 18),
+          text: 'Catálogo',
+        ),
+        Tab(
+          key: TutorialKeys.catalogoTabRelatorios,
+          icon: const Icon(Icons.bar_chart, size: 18),
+          text: 'Relatórios',
+        ),
       ],
     );
 
@@ -432,7 +500,12 @@ class _CatalogoScreenState extends ConsumerState<CatalogoScreen>
             onChanged: (v) => setState(() => _busca = v),
           ),
         ),
-        actions: const [TutorialButton(screen: TutorialScreens.catalogo)],
+        actions: [
+          TutorialButton(
+            screen: TutorialScreens.catalogo,
+            stepsBuilder: _buildTutorialSteps,
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: buscando ? Size.zero : tabBar.preferredSize,
           child: buscando ? const SizedBox.shrink() : tabBar,

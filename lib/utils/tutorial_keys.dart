@@ -22,4 +22,10 @@ class TutorialKeys {
   // Compras -- catálogo de produtos (CatalogoScreen)
   static final GlobalKey catalogoSearchField =
       GlobalKey(debugLabel: 'tutorial_catalogo_search_field');
+  static final GlobalKey catalogoTabPopular =
+      GlobalKey(debugLabel: 'tutorial_catalogo_tab_popular');
+  static final GlobalKey catalogoTabCatalogo =
+      GlobalKey(debugLabel: 'tutorial_catalogo_tab_catalogo');
+  static final GlobalKey catalogoTabRelatorios =
+      GlobalKey(debugLabel: 'tutorial_catalogo_tab_relatorios');
 }

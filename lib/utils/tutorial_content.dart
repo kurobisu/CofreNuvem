@@ -13,14 +13,18 @@ class TutorialScreens {
 
 /// Passos por tela. Cada tutorial explica **só a tela em que o usuário
 /// está** -- nada de tour que troca de tela sozinho.
+///
+/// [TutorialScreens.catalogo] não tem entrada aqui: seus passos trocam de
+/// aba conforme avançam (ver [TutorialStep.onEnter]), o que exige o
+/// `TabController` da própria tela -- CatalogoScreen monta os passos na
+/// hora e passa via `TutorialButton.stepsBuilder` em vez de usar esta lista
+/// estática.
 List<TutorialStep> tutorialStepsFor(String screen) {
   switch (screen) {
     case TutorialScreens.listas:
       return _listas;
     case TutorialScreens.listaDetalhe:
       return _listaDetalhe;
-    case TutorialScreens.catalogo:
-      return _catalogo;
     default:
       return const [];
   }
@@ -83,34 +87,3 @@ final _listaDetalhe = <TutorialStep>[
   ),
 ];
 
-final _catalogo = <TutorialStep>[
-  const TutorialStep(
-    title: 'Catálogo da família',
-    description:
-        'Todos os produtos que sua família já comprou ficam aqui, '
-        'organizados por categoria -- compartilhados entre todos os '
-        'membros da família.',
-  ),
-  const TutorialStep(
-    title: 'Popular, Catálogo e Relatórios',
-    description:
-        '"Popular" mostra os itens mais comprados. "Catálogo" organiza '
-        'tudo por categoria e tags (vegetariano, sem glúten...). '
-        '"Relatórios" mostra quanto você gasta por categoria, produto e mês.',
-  ),
-  TutorialStep(
-    title: 'Buscar um produto',
-    description:
-        'Digite aqui pra filtrar em qualquer uma das abas -- funciona pra '
-        'produtos que você já tem no catálogo e ajuda a achar rápido antes '
-        'de cadastrar um novo.',
-    targetKey: TutorialKeys.catalogoSearchField,
-  ),
-  const TutorialStep(
-    title: 'Adicionar à lista',
-    description:
-        'Toque no emoji do produto pra abrir e ajustar preço/quantidade '
-        'antes de adicionar. Toque no + no canto pra adicionar direto, sem '
-        'abrir nada -- rápido pra itens que você já sabe o preço.',
-  ),
-];
